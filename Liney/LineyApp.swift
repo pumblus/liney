@@ -1,5 +1,5 @@
+import SwiftData
 import SwiftUI
-import UIKit
 
 @main
 struct LineyApp: App {
@@ -10,6 +10,7 @@ struct LineyApp: App {
             RootView(hasCompletedOnboarding: $hasCompletedOnboarding)
                 .tint(.lineyAqua)
         }
+        .modelContainer(for: [JournalEntry.self, EntryBlock.self])
     }
 }
 
@@ -92,96 +93,7 @@ private struct OnboardingView: View {
     }
 }
 
-private struct TimelineShellView: View {
-    var body: some View {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            NavigationSplitView {
-                TimelineView()
-            } detail: {
-                ContentUnavailableView(
-                    "No Entry Selected",
-                    systemImage: "book.closed",
-                    description: Text("Choose an entry from the timeline once entries exist.")
-                )
-            }
-        } else {
-            NavigationStack {
-                TimelineView()
-            }
-        }
-    }
-}
-
-private struct TimelineView: View {
-    @State private var placeholderAction: PlaceholderAction?
-
-    var body: some View {
-        List { }
-            .overlay {
-                ContentUnavailableView {
-                    Label("No Entries", systemImage: "book.closed")
-                } description: {
-                    Text("Start your private journal or import an existing journal.")
-                } actions: {
-                    VStack(spacing: 10) {
-                        Button {
-                            placeholderAction = .newEntry
-                        } label: {
-                            Label("New Entry", systemImage: "square.and.pencil")
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        Button {
-                            placeholderAction = .importJournal
-                        } label: {
-                            Label("Import Journal", systemImage: "square.and.arrow.down")
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-            }
-            .navigationTitle("Journal")
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        placeholderAction = .newEntry
-                    } label: {
-                        Label("New Entry", systemImage: "square.and.pencil")
-                    }
-
-                    Menu {
-                        Button {
-                            placeholderAction = .importJournal
-                        } label: {
-                            Label("Import Journal", systemImage: "square.and.arrow.down")
-                        }
-
-                        Button {
-                            placeholderAction = .exportJournal
-                        } label: {
-                            Label("Export Journal", systemImage: "square.and.arrow.up")
-                        }
-
-                        Divider()
-
-                        Button {
-                            placeholderAction = .settings
-                        } label: {
-                            Label("Settings", systemImage: "gearshape")
-                        }
-                    } label: {
-                        Label("More", systemImage: "ellipsis.circle")
-                    }
-                }
-            }
-            .alert(item: $placeholderAction) { action in
-                action.alert
-            }
-    }
-}
-
-private enum PlaceholderAction: String, Identifiable {
-    case newEntry
+enum PlaceholderAction: String, Identifiable {
     case importJournal
     case exportJournal
     case settings
@@ -190,12 +102,6 @@ private enum PlaceholderAction: String, Identifiable {
 
     var alert: Alert {
         switch self {
-        case .newEntry:
-            Alert(
-                title: Text("New Entry"),
-                message: Text("Writing entries will be added in the next MVP slice."),
-                dismissButton: .default(Text("OK"))
-            )
         case .importJournal:
             Alert(
                 title: Text("Import Journal"),

@@ -10,20 +10,50 @@
 		F0000000000000000000000A /* LineyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000007 /* LineyApp.swift */; };
 		F0000000000000000000000B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000008 /* Assets.xcassets */; };
 		F0000000000000000000000C /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000009 /* Localizable.xcstrings */; };
+		F00000000000000000000016 /* JournalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000001A /* JournalModels.swift */; };
+		F00000000000000000000017 /* EntryEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000001B /* EntryEditorView.swift */; };
+		F00000000000000000000018 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000001C /* TimelineView.swift */; };
+		F00000000000000000000019 /* JournalEntryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000001D /* JournalEntryFlowTests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F00000000000000000000028 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F00000000000000000000002;
+			remoteInfo = Liney;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		F00000000000000000000003 /* Liney.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Liney.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F00000000000000000000007 /* LineyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineyApp.swift; sourceTree = "<group>"; };
 		F00000000000000000000008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F00000000000000000000009 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
+		F0000000000000000000001A /* JournalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalModels.swift; sourceTree = "<group>"; };
+		F0000000000000000000001B /* EntryEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditorView.swift; sourceTree = "<group>"; };
+		F0000000000000000000001C /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
+		F0000000000000000000001D /* JournalEntryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalEntryFlowTests.swift; sourceTree = "<group>"; };
+		F0000000000000000000001E /* LineyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F00000000000000000000022 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		F00000000000000000000004 = {
 			isa = PBXGroup;
 			children = (
 				F00000000000000000000006 /* Liney */,
+				F0000000000000000000001F /* LineyTests */,
 				F00000000000000000000005 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -32,6 +62,7 @@
 			isa = PBXGroup;
 			children = (
 				F00000000000000000000003 /* Liney.app */,
+				F0000000000000000000001E /* LineyTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -40,10 +71,21 @@
 			isa = PBXGroup;
 			children = (
 				F00000000000000000000007 /* LineyApp.swift */,
+				F0000000000000000000001A /* JournalModels.swift */,
+				F0000000000000000000001B /* EntryEditorView.swift */,
+				F0000000000000000000001C /* TimelineView.swift */,
 				F00000000000000000000008 /* Assets.xcassets */,
 				F00000000000000000000009 /* Localizable.xcstrings */,
 			);
 			path = Liney;
+			sourceTree = "<group>";
+		};
+		F0000000000000000000001F /* LineyTests */ = {
+			isa = PBXGroup;
+			children = (
+				F0000000000000000000001D /* JournalEntryFlowTests.swift */,
+			);
+			path = LineyTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -65,6 +107,24 @@
 			productReference = F00000000000000000000003 /* Liney.app */;
 			productType = "com.apple.product-type.application";
 		};
+		F00000000000000000000020 /* LineyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F00000000000000000000024 /* Build configuration list for PBXNativeTarget "LineyTests" */;
+			buildPhases = (
+				F00000000000000000000021 /* Sources */,
+				F00000000000000000000022 /* Frameworks */,
+				F00000000000000000000023 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F00000000000000000000027 /* PBXTargetDependency */,
+			);
+			name = LineyTests;
+			productName = LineyTests;
+			productReference = F0000000000000000000001E /* LineyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -77,6 +137,10 @@
 				TargetAttributes = {
 					F00000000000000000000002 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					F00000000000000000000020 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = F00000000000000000000002;
 					};
 				};
 			};
@@ -94,6 +158,7 @@
 			projectRoot = "";
 			targets = (
 				F00000000000000000000002 /* Liney */,
+				F00000000000000000000020 /* LineyTests */,
 			);
 		};
 /* End PBXProject section */
@@ -108,6 +173,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F00000000000000000000023 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -116,10 +188,29 @@
 			buildActionMask = 2147483647;
 			files = (
 				F0000000000000000000000A /* LineyApp.swift in Sources */,
+				F00000000000000000000016 /* JournalModels.swift in Sources */,
+				F00000000000000000000017 /* EntryEditorView.swift in Sources */,
+				F00000000000000000000018 /* TimelineView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F00000000000000000000021 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F00000000000000000000019 /* JournalEntryFlowTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F00000000000000000000027 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F00000000000000000000002 /* Liney */;
+			targetProxy = F00000000000000000000028 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		F00000000000000000000014 /* Debug */ = {
@@ -303,6 +394,54 @@
 			};
 			name = Release;
 		};
+		F00000000000000000000025 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.liney.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Liney.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Liney";
+			};
+			name = Debug;
+		};
+		F00000000000000000000026 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.liney.app.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Liney.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Liney";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -320,6 +459,15 @@
 			buildConfigurations = (
 				F00000000000000000000011 /* Debug */,
 				F00000000000000000000012 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F00000000000000000000024 /* Build configuration list for PBXNativeTarget "LineyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F00000000000000000000025 /* Debug */,
+				F00000000000000000000026 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
