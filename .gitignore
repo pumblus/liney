@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Swift / Xcode build output and user state
+DerivedData/
+.build/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.dSYM
+*.dSYM.zip
+*.ipa
