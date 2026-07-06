@@ -48,6 +48,30 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<JournalEntry>()).count, 0)
     }
 
+    func testEntryDateEditsPreserveTimedDateAndNormalizeAllDayDate() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let entry = JournalEntry(
+            entryDate: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 9, minute: 30)))
+        )
+
+        let timedDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 20, minute: 15)))
+        entry.setEntryDate(timedDate, calendar: calendar)
+        XCTAssertFalse(entry.isAllDay)
+        XCTAssertEqual(entry.entryDate, timedDate)
+
+        entry.setAllDay(true, calendar: calendar)
+        XCTAssertTrue(entry.isAllDay)
+        XCTAssertEqual(entry.entryDate, try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6))))
+
+        let allDayDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 17, minute: 45)))
+        entry.setEntryDate(allDayDate, calendar: calendar)
+        XCTAssertEqual(entry.entryDate, try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 8))))
+
+        entry.setAllDay(false, calendar: calendar)
+        entry.setEntryDate(allDayDate, calendar: calendar)
+        XCTAssertEqual(entry.entryDate, allDayDate)
+    }
+
     func testTimelineGroupingAndDelete() throws {
         let calendar = Calendar(identifier: .gregorian)
         let newest = JournalEntry(
@@ -81,6 +105,47 @@ final class JournalEntryFlowTests: XCTestCase {
 
         let remaining = try context.fetch(FetchDescriptor<JournalEntry>())
         XCTAssertEqual(remaining.map(\.rowTitle).sorted(), ["Body summary", "Newest"])
+    }
+
+    func testTimelineOrdersTimedEntriesByTimeAndAllDayEntriesByCreatedAt() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let timedMorning = JournalEntry(
+            title: "Morning",
+            entryDate: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 9))),
+            createdAt: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 9)))
+        )
+        let timedEvening = JournalEntry(
+            title: "Evening",
+            entryDate: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 20))),
+            createdAt: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 20)))
+        )
+        let allDayOlder = JournalEntry(
+            title: "All Day Older",
+            entryDate: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 12))),
+            isAllDay: true,
+            createdAt: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 10)))
+        )
+        let allDayNewer = JournalEntry(
+            title: "All Day Newer",
+            entryDate: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 12))),
+            isAllDay: true,
+            createdAt: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 11)))
+        )
+
+        let groups = groupEntriesByDay([allDayOlder, timedMorning, allDayNewer, timedEvening], calendar: calendar)
+
+        XCTAssertEqual(groups.flatMap { $0.entries.map(\.title) }, ["Evening", "Morning", "All Day Newer", "All Day Older"])
+    }
+
+    func testLocationDisplayTextRequiresMainLocationName() {
+        let namedLocation = JournalEntry(locationName: "  Paris  ", locationLatitude: 48.8566, locationLongitude: 2.3522)
+        XCTAssertEqual(namedLocation.locationDisplayText, "Paris")
+
+        let coordinatesOnly = JournalEntry(locationLatitude: 48.8566, locationLongitude: 2.3522)
+        XCTAssertNil(coordinatesOnly.locationDisplayText)
+
+        let emptyLocation = JournalEntry(locationName: "   ")
+        XCTAssertNil(emptyLocation.locationDisplayText)
     }
 
     func testSearchMatchesTitleAndBodyOnlyAndKeepsTimelineOrder() throws {

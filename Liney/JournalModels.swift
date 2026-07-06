@@ -6,23 +6,35 @@ final class JournalEntry: Identifiable {
     @Attribute(.unique) var id: UUID
     var title: String
     var entryDate: Date
+    var isAllDay: Bool = false
     var createdAt: Date
     var updatedAt: Date
+    var locationName: String?
+    var locationLatitude: Double?
+    var locationLongitude: Double?
     @Relationship(deleteRule: .cascade, inverse: \EntryBlock.entry) var blocks: [EntryBlock]
 
     init(
         id: UUID = UUID(),
         title: String = "",
         entryDate: Date = .now,
+        isAllDay: Bool = false,
         createdAt: Date = .now,
         updatedAt: Date = .now,
+        locationName: String? = nil,
+        locationLatitude: Double? = nil,
+        locationLongitude: Double? = nil,
         blocks: [EntryBlock] = []
     ) {
         self.id = id
         self.title = title
-        self.entryDate = entryDate
+        self.entryDate = isAllDay ? Calendar.current.startOfDay(for: entryDate) : entryDate
+        self.isAllDay = isAllDay
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.locationName = locationName
+        self.locationLatitude = locationLatitude
+        self.locationLongitude = locationLongitude
         self.blocks = blocks
     }
 }
@@ -86,6 +98,22 @@ extension JournalEntry {
         return trimmedTitle.isEmpty || trimmedBody.isEmpty ? nil : trimmedBody
     }
 
+    var locationDisplayText: String? {
+        let trimmedLocation = locationName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmedLocation.isEmpty ? nil : trimmedLocation
+    }
+
+    func setAllDay(_ allDay: Bool, calendar: Calendar = .current) {
+        isAllDay = allDay
+        if allDay {
+            entryDate = calendar.startOfDay(for: entryDate)
+        }
+    }
+
+    func setEntryDate(_ date: Date, calendar: Calendar = .current) {
+        entryDate = isAllDay ? calendar.startOfDay(for: date) : date
+    }
+
     func setBody(_ body: String, in context: ModelContext) {
         if body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             textBlocks.forEach { context.delete($0) }
@@ -128,6 +156,12 @@ func groupEntriesByDay(_ entries: [JournalEntry], calendar: Calendar = .current)
             id: day,
             date: day,
             entries: entries.sorted {
+                if $0.isAllDay != $1.isAllDay {
+                    return !$0.isAllDay
+                }
+                if $0.isAllDay {
+                    return $0.createdAt > $1.createdAt
+                }
                 if $0.entryDate == $1.entryDate {
                     return $0.createdAt > $1.createdAt
                 }
