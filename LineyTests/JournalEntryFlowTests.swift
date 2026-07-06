@@ -1,4 +1,6 @@
+import ImageIO
 import SwiftData
+import UIKit
 import XCTest
 @testable import Liney
 
@@ -12,6 +14,7 @@ final class JournalEntryFlowTests: XCTestCase {
         container = try ModelContainer(
             for: JournalEntry.self,
             EntryBlock.self,
+            EntryPhoto.self,
             configurations: configuration
         )
         context = ModelContext(container)
@@ -178,5 +181,118 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertTrue(groups[0].entries[0] === bodyMatch)
         XCTAssertTrue(searchJournalEntries(entries, matching: "2026").isEmpty)
         XCTAssertEqual(searchJournalEntries(entries, matching: "   ").count, 3)
+    }
+
+    func testInsertPhotoGroupSplitsFocusedTextBlockAndPreservesPhotoOrder() throws {
+        let entry = JournalEntry()
+        context.insert(entry)
+        entry.setBody("Hello world", in: context)
+        let textBlock = try XCTUnwrap(entry.textBlocks.first)
+
+        let insertion = try XCTUnwrap(entry.insertPhotoGroup(
+            fileNames: ["first.jpg", "second.jpg"],
+            focusedTextBlockID: textBlock.id,
+            cursorOffset: 5,
+            in: context
+        ))
+        try context.save()
+
+        let blocks = entry.orderedBlocks
+        XCTAssertEqual(blocks.map(\.kind), [.text, .photoGroup, .text])
+        XCTAssertEqual(blocks[0].text, "Hello")
+        XCTAssertEqual(blocks[1].orderedPhotos.map(\.fileName), ["first.jpg", "second.jpg"])
+        XCTAssertEqual(blocks[2].text, " world")
+        XCTAssertEqual(insertion.followingTextBlock?.id, blocks[2].id)
+
+        let reopened = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(reopened.orderedBlocks.map(\.kind), [.text, .photoGroup, .text])
+        XCTAssertEqual(reopened.photoGroupBlocks.first?.orderedPhotos.map(\.fileName), ["first.jpg", "second.jpg"])
+    }
+
+    func testInsertPhotoGroupAtFocusedEndAndWithoutFocusAppends() throws {
+        let focusedEntry = JournalEntry()
+        context.insert(focusedEntry)
+        focusedEntry.setBody("End", in: context)
+        let textBlock = try XCTUnwrap(focusedEntry.textBlocks.first)
+
+        let focusedInsertion = try XCTUnwrap(focusedEntry.insertPhotoGroup(
+            fileNames: ["end.jpg"],
+            focusedTextBlockID: textBlock.id,
+            cursorOffset: 3,
+            in: context
+        ))
+        XCTAssertNil(focusedInsertion.followingTextBlock)
+        XCTAssertEqual(focusedEntry.orderedBlocks.map(\.kind), [.text, .photoGroup])
+
+        let noFocusEntry = JournalEntry()
+        context.insert(noFocusEntry)
+        noFocusEntry.setBody("Body", in: context)
+        _ = noFocusEntry.insertPhotoGroup(fileNames: ["tail.jpg"], in: context)
+
+        XCTAssertEqual(noFocusEntry.orderedBlocks.map(\.kind), [.text, .photoGroup])
+        XCTAssertEqual(noFocusEntry.photoGroupBlocks.first?.orderedPhotos.first?.fileName, "tail.jpg")
+    }
+
+    func testNormalizeBlocksDropsEmptyTextAndMergesAdjacentText() throws {
+        let entry = JournalEntry()
+        let first = EntryBlock(sortIndex: 0, text: "First", entry: entry)
+        let empty = EntryBlock(sortIndex: 1, text: "   ", entry: entry)
+        let second = EntryBlock(sortIndex: 2, text: "Second", entry: entry)
+        entry.blocks = [first, empty, second]
+        context.insert(entry)
+        [first, empty, second].forEach { context.insert($0) }
+
+        entry.normalizeBlocks(in: context)
+        try context.save()
+
+        XCTAssertEqual(entry.orderedBlocks.count, 1)
+        XCTAssertEqual(entry.orderedBlocks.first?.text, "First\nSecond")
+    }
+
+    func testPhotoOnlyEntryIsNotBlankAndPreviewsThreePhotos() throws {
+        let entry = JournalEntry()
+        context.insert(entry)
+
+        _ = entry.insertPhotoGroup(fileNames: ["1.jpg", "2.jpg", "3.jpg", "4.jpg"], in: context)
+        try context.save()
+
+        XCTAssertFalse(entry.isBlank)
+        XCTAssertEqual(entry.previewPhotos.map(\.fileName), ["1.jpg", "2.jpg", "3.jpg"])
+    }
+
+    func testPhotoStorageCreatesJPEGAndReportsPartialFailure() throws {
+        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let storage = PhotoStorage(baseURL: baseURL)
+        let validImageData = makeJPEGData()
+
+        let result = storage.saveJPEGs(from: [validImageData, Data("not an image".utf8)])
+
+        XCTAssertEqual(result.fileNames.count, 1)
+        XCTAssertEqual(result.failedCount, 1)
+        let copiedURL = storage.url(for: try XCTUnwrap(result.fileNames.first))
+        XCTAssertEqual(copiedURL.pathExtension, "jpg")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: copiedURL.path))
+        XCTAssertNotNil(CGImageSourceCreateWithURL(copiedURL as CFURL, nil))
+    }
+
+    func testPhotoImportResultCreatesPartialFailureAlert() {
+        XCTAssertNil(PhotoImportResult(fileNames: ["ok.jpg"], failedCount: 0).alert)
+        XCTAssertEqual(PhotoImportResult(fileNames: ["ok.jpg"], failedCount: 1).alert?.failedCount, 1)
+        XCTAssertEqual(PhotoImportResult(fileNames: ["ok.jpg"], failedCount: 2).alert?.failedCount, 2)
+    }
+
+    func testPhotoGroupLayoutThresholds() {
+        XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 0), 1)
+        XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 1), 1)
+        XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 2), 2)
+        XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 4), 2)
+        XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 5), 3)
+    }
+
+    private func makeJPEGData() -> Data {
+        UIGraphicsImageRenderer(size: CGSize(width: 32, height: 24)).jpegData(withCompressionQuality: 1) { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 32, height: 24))
+        }
     }
 }

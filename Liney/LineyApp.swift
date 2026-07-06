@@ -10,7 +10,7 @@ struct LineyApp: App {
             RootView(hasCompletedOnboarding: $hasCompletedOnboarding)
                 .tint(.lineyAqua)
         }
-        .modelContainer(for: [JournalEntry.self, EntryBlock.self])
+        .modelContainer(for: [JournalEntry.self, EntryBlock.self, EntryPhoto.self])
     }
 }
 

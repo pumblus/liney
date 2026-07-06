@@ -133,18 +133,31 @@ struct TimelineView: View {
 
 private struct EntryRowView: View {
     let entry: JournalEntry
+    private let photoStorage = PhotoStorage()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(entry.rowTitle)
-                .font(.headline)
-                .lineLimit(1)
+        VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(entry.rowTitle)
+                    .font(.headline)
+                    .lineLimit(1)
 
-            if let rowSubtitle = entry.rowSubtitle {
-                Text(rowSubtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                if let rowSubtitle = entry.rowSubtitle {
+                    Text(rowSubtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+
+            if !entry.previewPhotos.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(entry.previewPhotos) { photo in
+                        StoredPhotoThumbnail(photo: photo, storage: photoStorage, cornerRadius: 6)
+                            .frame(width: 48, height: 48)
+                    }
+                }
+                .accessibilityLabel("Entry Photos")
             }
         }
         .padding(.vertical, 4)

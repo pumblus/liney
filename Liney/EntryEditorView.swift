@@ -1,5 +1,7 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct EntryEditorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -7,12 +9,95 @@ struct EntryEditorView: View {
     @Bindable var entry: JournalEntry
     let isNew: Bool
 
-    @State private var bodyText = ""
     @State private var isShowingDateEditor = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var isImportingPhotos = false
+    @State private var photoImportAlert: PhotoImportAlert?
+    @State private var focusedTextBlockID: UUID?
+    @State private var textSelections: [UUID: NSRange] = [:]
+    @State private var focusRequest: EditorFocusRequest?
+    @State private var transientTextAfterPhotoBlockID: UUID?
+
+    private let photoStorage = PhotoStorage()
+    private static let emptyEntryTextKey = "empty-entry-text"
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                entryInfo
+
+                TextField("Title", text: titleBinding, prompt: Text("Title"))
+                    .font(.title2.weight(.semibold))
+                    .textFieldStyle(.plain)
+                    .accessibilityLabel("Title")
+
+                blockEditor
+
+                if isImportingPhotos {
+                    Label("Adding Photos...", systemImage: "photo")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+        }
+        .navigationTitle(entry.entryDate.formatted(.dateTime.month(.wide).day().year()))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                PhotosPicker(
+                    selection: $selectedPhotoItems,
+                    maxSelectionCount: 0,
+                    selectionBehavior: .ordered,
+                    matching: .images
+                ) {
+                    Label("Insert Photos", systemImage: "photo.on.rectangle")
+                }
+                .disabled(isImportingPhotos)
+
+                Menu {
+                    Button(role: .destructive) {
+                        isShowingDeleteConfirmation = true
+                    } label: {
+                        Label("Delete Entry", systemImage: "trash")
+                    }
+                } label: {
+                    Label("Entry Actions", systemImage: "ellipsis.circle")
+                }
+
+                Button("Done", action: finish)
+            }
+        }
+        .sheet(isPresented: $isShowingDateEditor) {
+            NavigationStack {
+                EntryDateEditorView(entry: entry, saveChange: saveChange)
+            }
+        }
+        .confirmationDialog(
+            "Delete Entry?",
+            isPresented: $isShowingDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Entry", role: .destructive, action: deleteEntry)
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This entry will be removed from this device.")
+        }
+        .alert(item: $photoImportAlert) { alert in
+            Alert(
+                title: Text("Some Photos Couldn’t Be Added"),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+        .onChange(of: selectedPhotoItems) { _, newItems in
+            importPhotoItems(newItems)
+        }
+    }
+
+    private var entryInfo: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Button {
                 isShowingDateEditor = true
             } label: {
@@ -49,61 +134,42 @@ struct EntryEditorView: View {
                 .accessibilityLabel("Location")
                 .accessibilityValue(locationText)
             }
-
-            TextField("Title", text: titleBinding, prompt: Text("Title"))
-                .font(.title2.weight(.semibold))
-                .textFieldStyle(.plain)
-                .accessibilityLabel("Title")
-
-            ZStack(alignment: .topLeading) {
-                if bodyText.isEmpty {
-                    Text("Write something...")
-                        .foregroundStyle(.tertiary)
-                        .padding(.top, 8)
-                        .padding(.leading, 5)
-                        .allowsHitTesting(false)
-                }
-
-                TextEditor(text: bodyBinding)
-                    .scrollContentBackground(.hidden)
-                    .accessibilityLabel("Body")
-            }
         }
-        .padding()
-        .navigationTitle(entry.entryDate.formatted(.dateTime.month(.wide).day().year()))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Menu {
-                    Button(role: .destructive) {
-                        isShowingDeleteConfirmation = true
-                    } label: {
-                        Label("Delete Entry", systemImage: "trash")
+    }
+
+    private var blockEditor: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if entry.orderedBlocks.isEmpty {
+                textEditor(
+                    text: transientTextBinding(after: nil),
+                    blockID: nil,
+                    focusKey: Self.emptyEntryTextKey,
+                    placeholder: "Write something..."
+                )
+            }
+
+            ForEach(entry.orderedBlocks) { block in
+                switch block.kind {
+                case .text:
+                    textEditor(
+                        text: textBinding(for: block),
+                        blockID: block.id,
+                        focusKey: Self.textFocusKey(for: block.id),
+                        placeholder: "Write something..."
+                    )
+                case .photoGroup:
+                    PhotoGroupBlockView(block: block, storage: photoStorage)
+
+                    if transientTextAfterPhotoBlockID == block.id {
+                        textEditor(
+                            text: transientTextBinding(after: block),
+                            blockID: nil,
+                            focusKey: Self.transientTextFocusKey(after: block.id),
+                            placeholder: "Write something..."
+                        )
                     }
-                } label: {
-                    Label("Entry Actions", systemImage: "ellipsis.circle")
                 }
-
-                Button("Done", action: finish)
             }
-        }
-        .sheet(isPresented: $isShowingDateEditor) {
-            NavigationStack {
-                EntryDateEditorView(entry: entry, saveChange: saveChange)
-            }
-        }
-        .confirmationDialog(
-            "Delete Entry?",
-            isPresented: $isShowingDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Entry", role: .destructive, action: deleteEntry)
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This entry will be removed from this device.")
-        }
-        .onAppear {
-            bodyText = entry.plainTextBody
         }
     }
 
@@ -124,23 +190,121 @@ struct EntryEditorView: View {
         )
     }
 
-    private var bodyBinding: Binding<String> {
+    private func textBinding(for block: EntryBlock) -> Binding<String> {
         Binding(
-            get: { bodyText },
+            get: { block.text },
             set: { newValue in
-                bodyText = newValue
-                entry.setBody(newValue, in: modelContext)
+                block.text = newValue
                 saveChange()
             }
         )
     }
 
+    private func transientTextBinding(after previousBlock: EntryBlock?) -> Binding<String> {
+        Binding(
+            get: { "" },
+            set: { newValue in
+                guard let block = entry.insertTextBlock(newValue, after: previousBlock, in: modelContext) else { return }
+                transientTextAfterPhotoBlockID = nil
+                saveChange()
+                focusRequest = EditorFocusRequest(key: Self.textFocusKey(for: block.id), offset: newValue.count)
+            }
+        )
+    }
+
+    private func textEditor(
+        text: Binding<String>,
+        blockID: UUID?,
+        focusKey: String,
+        placeholder: LocalizedStringKey
+    ) -> some View {
+        ZStack(alignment: .topLeading) {
+            if text.wrappedValue.isEmpty {
+                Text(placeholder)
+                    .foregroundStyle(.tertiary)
+                    .padding(.top, 8)
+                    .padding(.leading, 5)
+                    .allowsHitTesting(false)
+            }
+
+            CursorTextView(
+                text: text,
+                blockID: blockID,
+                focusKey: focusKey,
+                focusedTextBlockID: $focusedTextBlockID,
+                textSelections: $textSelections,
+                focusRequest: $focusRequest
+            )
+        }
+        .accessibilityLabel("Body")
+    }
+
+    private func importPhotoItems(_ items: [PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
+        selectedPhotoItems = []
+
+        let targetBlockID = focusedTextBlockID
+        let targetCursorOffset = cursorOffset(for: targetBlockID)
+
+        Task { @MainActor in
+            isImportingPhotos = true
+            let result = await PhotoPickerImporter(storage: photoStorage).importItems(items)
+            isImportingPhotos = false
+
+            if let insertion = entry.insertPhotoGroup(
+                fileNames: result.fileNames,
+                focusedTextBlockID: targetBlockID,
+                cursorOffset: targetCursorOffset,
+                in: modelContext
+            ) {
+                saveChange()
+                focusAfterPhotoInsertion(insertion)
+            }
+
+            photoImportAlert = result.alert
+        }
+    }
+
+    private func focusAfterPhotoInsertion(_ insertion: PhotoGroupInsertion) {
+        if let followingTextBlock = insertion.followingTextBlock {
+            transientTextAfterPhotoBlockID = nil
+            focusRequest = EditorFocusRequest(key: Self.textFocusKey(for: followingTextBlock.id), offset: 0)
+        } else {
+            transientTextAfterPhotoBlockID = insertion.photoBlock.id
+            focusRequest = EditorFocusRequest(key: Self.transientTextFocusKey(after: insertion.photoBlock.id), offset: 0)
+        }
+    }
+
+    private func cursorOffset(for blockID: UUID?) -> Int? {
+        guard let blockID,
+              let block = entry.orderedBlocks.first(where: { $0.id == blockID }) else { return nil }
+        let range = textSelections[blockID] ?? NSRange(location: block.text.utf16.count, length: 0)
+        return characterOffset(fromUTF16Offset: range.location, in: block.text)
+    }
+
+    private func characterOffset(fromUTF16Offset offset: Int, in text: String) -> Int {
+        let clampedOffset = min(max(offset, 0), text.utf16.count)
+        let utf16Index = text.utf16.index(text.utf16.startIndex, offsetBy: clampedOffset)
+        guard let index = String.Index(utf16Index, within: text) else { return text.count }
+        return text.distance(from: text.startIndex, to: index)
+    }
+
+    private static func textFocusKey(for blockID: UUID) -> String {
+        blockID.uuidString
+    }
+
+    private static func transientTextFocusKey(after blockID: UUID) -> String {
+        "after-\(blockID.uuidString)"
+    }
+
     private func saveChange() {
+        entry.normalizeBlocks(in: modelContext)
         entry.updatedAt = .now
         try? modelContext.save()
     }
 
     private func finish() {
+        entry.normalizeBlocks(in: modelContext)
         if isNew {
             _ = discardBlankNewEntry(entry, in: modelContext)
         }
@@ -152,6 +316,115 @@ struct EntryEditorView: View {
         modelContext.delete(entry)
         try? modelContext.save()
         dismiss()
+    }
+}
+
+private struct EditorFocusRequest: Equatable {
+    let key: String
+    let offset: Int
+}
+
+private struct PhotoGroupBlockView: View {
+    let block: EntryBlock
+    let storage: PhotoStorage
+
+    var body: some View {
+        let photos = block.orderedPhotos
+        let columnCount = photoGroupColumnCount(forPhotoCount: photos.count)
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: columnCount),
+            spacing: 4
+        ) {
+            ForEach(photos) { photo in
+                StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 10)
+                    .aspectRatio(columnCount == 1 ? 4.0 / 3.0 : 1, contentMode: .fill)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Photo Group")
+    }
+}
+
+private struct CursorTextView: UIViewRepresentable {
+    @Binding var text: String
+    let blockID: UUID?
+    let focusKey: String
+    @Binding var focusedTextBlockID: UUID?
+    @Binding var textSelections: [UUID: NSRange]
+    @Binding var focusRequest: EditorFocusRequest?
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.delegate = context.coordinator
+        textView.font = .preferredFont(forTextStyle: .body)
+        textView.adjustsFontForContentSizeCategory = true
+        textView.backgroundColor = .clear
+        textView.isScrollEnabled = false
+        textView.textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+        textView.textContainer.lineFragmentPadding = 0
+        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return textView
+    }
+
+    func updateUIView(_ textView: UITextView, context: Context) {
+        context.coordinator.parent = self
+        if textView.text != text {
+            textView.text = text
+        }
+
+        guard let request = focusRequest, request.key == focusKey else { return }
+        if !textView.isFirstResponder {
+            textView.becomeFirstResponder()
+        }
+        textView.selectedRange = NSRange(location: utf16Offset(forCharacterOffset: request.offset, in: textView.text), length: 0)
+        DispatchQueue.main.async {
+            if focusRequest == request {
+                focusRequest = nil
+            }
+        }
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
+        let width = proposal.width ?? UIScreen.main.bounds.width
+        let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
+        return CGSize(width: width, height: max(48, size.height))
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    private func utf16Offset(forCharacterOffset offset: Int, in text: String) -> Int {
+        let characterOffset = min(max(offset, 0), text.count)
+        let index = text.index(text.startIndex, offsetBy: characterOffset)
+        return index.samePosition(in: text.utf16).map { text.utf16.distance(from: text.utf16.startIndex, to: $0) } ?? text.utf16.count
+    }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        var parent: CursorTextView
+
+        init(parent: CursorTextView) {
+            self.parent = parent
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            parent.focusedTextBlockID = parent.blockID
+            saveSelection(textView)
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            parent.text = textView.text
+            saveSelection(textView)
+        }
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            saveSelection(textView)
+        }
+
+        private func saveSelection(_ textView: UITextView) {
+            guard let blockID = parent.blockID else { return }
+            parent.textSelections[blockID] = textView.selectedRange
+        }
     }
 }
 

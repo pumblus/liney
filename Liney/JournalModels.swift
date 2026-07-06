@@ -46,31 +46,90 @@ final class EntryBlock: Identifiable {
     var sortIndex: Int
     var text: String
     var entry: JournalEntry?
+    @Relationship(deleteRule: .cascade, inverse: \EntryPhoto.block) var photos: [EntryPhoto]
 
     init(
         id: UUID = UUID(),
         kind: EntryBlockKind = .text,
         sortIndex: Int = 0,
         text: String = "",
-        entry: JournalEntry? = nil
+        entry: JournalEntry? = nil,
+        photos: [EntryPhoto] = []
     ) {
         self.id = id
         self.kind = kind
         self.sortIndex = sortIndex
         self.text = text
         self.entry = entry
+        self.photos = photos
+    }
+}
+
+@Model
+final class EntryPhoto: Identifiable {
+    @Attribute(.unique) var id: UUID
+    var fileName: String
+    var displayOrder: Int
+    var block: EntryBlock?
+
+    init(
+        id: UUID = UUID(),
+        fileName: String,
+        displayOrder: Int = 0,
+        block: EntryBlock? = nil
+    ) {
+        self.id = id
+        self.fileName = fileName
+        self.displayOrder = displayOrder
+        self.block = block
     }
 }
 
 enum EntryBlockKind: String, Codable {
     case text
+    case photoGroup
+}
+
+struct PhotoGroupInsertion {
+    let photoBlock: EntryBlock
+    let followingTextBlock: EntryBlock?
+}
+
+extension EntryBlock {
+    var orderedPhotos: [EntryPhoto] {
+        photos.sorted {
+            if $0.displayOrder == $1.displayOrder {
+                return $0.id.uuidString < $1.id.uuidString
+            }
+            return $0.displayOrder < $1.displayOrder
+        }
+    }
 }
 
 extension JournalEntry {
+    var orderedBlocks: [EntryBlock] {
+        blocks.sorted {
+            if $0.sortIndex == $1.sortIndex {
+                return $0.id.uuidString < $1.id.uuidString
+            }
+            return $0.sortIndex < $1.sortIndex
+        }
+    }
+
     var textBlocks: [EntryBlock] {
-        blocks
-            .filter { $0.kind == .text }
-            .sorted { $0.sortIndex < $1.sortIndex }
+        orderedBlocks.filter { $0.kind == .text }
+    }
+
+    var photoGroupBlocks: [EntryBlock] {
+        orderedBlocks.filter { $0.kind == .photoGroup }
+    }
+
+    var photoCount: Int {
+        photoGroupBlocks.reduce(0) { $0 + $1.photos.count }
+    }
+
+    var previewPhotos: [EntryPhoto] {
+        photoGroupBlocks.flatMap(\.orderedPhotos).prefix(3).map { $0 }
     }
 
     var plainTextBody: String {
@@ -79,7 +138,8 @@ extension JournalEntry {
 
     var isBlank: Bool {
         title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        plainTextBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        plainTextBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        photoCount == 0
     }
 
     var rowTitle: String {
@@ -89,7 +149,11 @@ extension JournalEntry {
         }
 
         let trimmedBody = plainTextBody.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedBody.isEmpty ? String(localized: "Untitled Entry") : trimmedBody
+        if !trimmedBody.isEmpty {
+            return trimmedBody
+        }
+
+        return photoCount > 0 ? String(localized: "Photo Entry") : String(localized: "Untitled Entry")
     }
 
     var rowSubtitle: String? {
@@ -115,20 +179,161 @@ extension JournalEntry {
     }
 
     func setBody(_ body: String, in context: ModelContext) {
+        let existingTextBlocks = textBlocks
         if body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            textBlocks.forEach { context.delete($0) }
+            existingTextBlocks.forEach { removeBlock($0, in: context) }
+            normalizeBlocks(in: context)
             return
         }
 
-        if let block = textBlocks.first {
+        if let block = existingTextBlocks.first {
             block.text = body
-            textBlocks.dropFirst().forEach { context.delete($0) }
+            existingTextBlocks.dropFirst().forEach { removeBlock($0, in: context) }
         } else {
             let block = EntryBlock(sortIndex: 0, text: body, entry: self)
             blocks.append(block)
             context.insert(block)
         }
+        normalizeBlocks(in: context)
     }
+
+    @discardableResult
+    func insertPhotoGroup(
+        fileNames: [String],
+        focusedTextBlockID: UUID? = nil,
+        cursorOffset: Int? = nil,
+        in context: ModelContext
+    ) -> PhotoGroupInsertion? {
+        guard !fileNames.isEmpty else { return nil }
+
+        let photoBlock = EntryBlock(kind: .photoGroup, entry: self)
+        let photos = fileNames.enumerated().map { index, fileName in
+            EntryPhoto(fileName: fileName, displayOrder: index, block: photoBlock)
+        }
+        photoBlock.photos = photos
+        context.insert(photoBlock)
+        photos.forEach { context.insert($0) }
+        blocks.append(photoBlock)
+
+        var ordered = orderedBlocks.filter { $0.id != photoBlock.id }
+        var insertionIndex = ordered.count
+        var followingTextBlock: EntryBlock?
+
+        if let focusedTextBlockID,
+           let textBlockIndex = ordered.firstIndex(where: { $0.id == focusedTextBlockID && $0.kind == .text }) {
+            let textBlock = ordered[textBlockIndex]
+            let offset = clampedOffset(cursorOffset ?? textBlock.text.count, in: textBlock.text)
+            let splitIndex = textBlock.text.index(textBlock.text.startIndex, offsetBy: offset)
+            let before = String(textBlock.text[..<splitIndex])
+            let after = String(textBlock.text[splitIndex...])
+            let hasBefore = !before.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let hasAfter = !after.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+            switch (hasBefore, hasAfter) {
+            case (true, true):
+                textBlock.text = before
+                let afterBlock = EntryBlock(kind: .text, text: after, entry: self)
+                context.insert(afterBlock)
+                blocks.append(afterBlock)
+                insertionIndex = textBlockIndex + 1
+                followingTextBlock = afterBlock
+            case (true, false):
+                textBlock.text = before
+                insertionIndex = textBlockIndex + 1
+            case (false, true):
+                textBlock.text = after
+                insertionIndex = textBlockIndex
+                followingTextBlock = textBlock
+            case (false, false):
+                removeBlock(textBlock, in: context)
+                ordered.remove(at: textBlockIndex)
+                insertionIndex = textBlockIndex
+            }
+        }
+
+        ordered.insert(photoBlock, at: insertionIndex)
+        if let followingTextBlock, !ordered.contains(where: { $0.id == followingTextBlock.id }) {
+            ordered.insert(followingTextBlock, at: insertionIndex + 1)
+        }
+        reindex(ordered)
+        return PhotoGroupInsertion(photoBlock: photoBlock, followingTextBlock: followingTextBlock)
+    }
+
+    @discardableResult
+    func insertTextBlock(_ text: String, after previousBlock: EntryBlock? = nil, in context: ModelContext) -> EntryBlock? {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+
+        var ordered = orderedBlocks
+        let insertionIndex: Int
+        if let previousBlock, let previousIndex = ordered.firstIndex(where: { $0.id == previousBlock.id }) {
+            insertionIndex = previousIndex + 1
+        } else {
+            insertionIndex = ordered.endIndex
+        }
+
+        let block = EntryBlock(kind: .text, text: text, entry: self)
+        context.insert(block)
+        blocks.append(block)
+        ordered.insert(block, at: min(insertionIndex, ordered.endIndex))
+        reindex(ordered)
+        return block
+    }
+
+    func normalizeBlocks(in context: ModelContext) {
+        var normalized: [EntryBlock] = []
+
+        for block in orderedBlocks {
+            switch block.kind {
+            case .text:
+                guard !block.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    removeBlock(block, in: context)
+                    continue
+                }
+
+                if let previous = normalized.last, previous.kind == .text {
+                    previous.text = [previous.text, block.text].joined(separator: "\n")
+                    removeBlock(block, in: context)
+                } else {
+                    normalized.append(block)
+                }
+            case .photoGroup:
+                let photos = block.orderedPhotos
+                guard !photos.isEmpty else {
+                    removeBlock(block, in: context)
+                    continue
+                }
+
+                for (index, photo) in photos.enumerated() {
+                    photo.displayOrder = index
+                }
+                normalized.append(block)
+            }
+        }
+
+        reindex(normalized)
+    }
+
+    private func clampedOffset(_ offset: Int, in text: String) -> Int {
+        min(max(offset, 0), text.count)
+    }
+
+    private func removeBlock(_ block: EntryBlock, in context: ModelContext) {
+        blocks.removeAll { $0.id == block.id }
+        context.delete(block)
+    }
+
+    private func reindex(_ orderedBlocks: [EntryBlock]) {
+        for (index, block) in orderedBlocks.enumerated() {
+            block.sortIndex = index
+            block.entry = self
+        }
+    }
+}
+
+func photoGroupColumnCount(forPhotoCount count: Int) -> Int {
+    if count <= 1 { return 1 }
+    if count <= 4 { return 2 }
+    return 3
 }
 
 struct EntryDayGroup: Identifiable {

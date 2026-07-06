@@ -13,6 +13,7 @@
 		F00000000000000000000016 /* JournalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000001A /* JournalModels.swift */; };
 		F00000000000000000000017 /* EntryEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000001B /* EntryEditorView.swift */; };
 		F00000000000000000000018 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000001C /* TimelineView.swift */; };
+		F0000000000000000000002A /* PhotoStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000029 /* PhotoStorage.swift */; };
 		F00000000000000000000019 /* JournalEntryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000001D /* JournalEntryFlowTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -34,6 +35,7 @@
 		F0000000000000000000001A /* JournalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalModels.swift; sourceTree = "<group>"; };
 		F0000000000000000000001B /* EntryEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntryEditorView.swift; sourceTree = "<group>"; };
 		F0000000000000000000001C /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
+		F00000000000000000000029 /* PhotoStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoStorage.swift; sourceTree = "<group>"; };
 		F0000000000000000000001D /* JournalEntryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalEntryFlowTests.swift; sourceTree = "<group>"; };
 		F0000000000000000000001E /* LineyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -74,6 +76,7 @@
 				F0000000000000000000001A /* JournalModels.swift */,
 				F0000000000000000000001B /* EntryEditorView.swift */,
 				F0000000000000000000001C /* TimelineView.swift */,
+				F00000000000000000000029 /* PhotoStorage.swift */,
 				F00000000000000000000008 /* Assets.xcassets */,
 				F00000000000000000000009 /* Localizable.xcstrings */,
 			);
@@ -191,6 +194,7 @@
 				F00000000000000000000016 /* JournalModels.swift in Sources */,
 				F00000000000000000000017 /* EntryEditorView.swift in Sources */,
 				F00000000000000000000018 /* TimelineView.swift in Sources */,
+				F0000000000000000000002A /* PhotoStorage.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
