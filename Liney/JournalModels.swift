@@ -109,6 +109,16 @@ struct EntryDayGroup: Identifiable {
     let entries: [JournalEntry]
 }
 
+func searchJournalEntries(_ entries: [JournalEntry], matching query: String) -> [JournalEntry] {
+    let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedQuery.isEmpty else { return entries }
+
+    return entries.filter { entry in
+        entry.title.localizedCaseInsensitiveContains(trimmedQuery) ||
+        entry.plainTextBody.localizedCaseInsensitiveContains(trimmedQuery)
+    }
+}
+
 func groupEntriesByDay(_ entries: [JournalEntry], calendar: Calendar = .current) -> [EntryDayGroup] {
     Dictionary(grouping: entries) { entry in
         calendar.startOfDay(for: entry.entryDate)

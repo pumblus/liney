@@ -209,6 +209,22 @@
         }
       }
     },
+    "Search Entries" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search Entries"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索日记"
+          }
+        }
+      }
+    },
     "Settings" : {
       "localizations" : {
         "en" : {

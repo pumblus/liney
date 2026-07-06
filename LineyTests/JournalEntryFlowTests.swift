@@ -82,4 +82,36 @@ final class JournalEntryFlowTests: XCTestCase {
         let remaining = try context.fetch(FetchDescriptor<JournalEntry>())
         XCTAssertEqual(remaining.map(\.rowTitle).sorted(), ["Body summary", "Newest"])
     }
+
+    func testSearchMatchesTitleAndBodyOnlyAndKeepsTimelineOrder() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let titleMatch = JournalEntry(
+            title: "Train Notes",
+            entryDate: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 9))),
+            createdAt: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 9)))
+        )
+        let bodyMatch = JournalEntry(
+            title: "Lunch",
+            entryDate: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 7, hour: 9))),
+            createdAt: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 7, hour: 9)))
+        )
+        let dateOnlyMatch = JournalEntry(
+            title: "Picnic",
+            entryDate: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 9))),
+            createdAt: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 8, hour: 9)))
+        )
+
+        [titleMatch, bodyMatch, dateOnlyMatch].forEach { context.insert($0) }
+        bodyMatch.setBody("Found a quiet train station.", in: context)
+        dateOnlyMatch.setBody("River walk.", in: context)
+        try context.save()
+
+        let entries = [dateOnlyMatch, bodyMatch, titleMatch]
+        let groups = groupEntriesByDay(searchJournalEntries(entries, matching: "TRAIN"), calendar: calendar)
+
+        XCTAssertEqual(groups.flatMap { $0.entries.map(\.title) }, ["Lunch", "Train Notes"])
+        XCTAssertTrue(groups[0].entries[0] === bodyMatch)
+        XCTAssertTrue(searchJournalEntries(entries, matching: "2026").isEmpty)
+        XCTAssertEqual(searchJournalEntries(entries, matching: "   ").count, 3)
+    }
 }

@@ -31,10 +31,15 @@ struct TimelineView: View {
 
     @State private var placeholderAction: PlaceholderAction?
     @State private var newEntry: JournalEntry?
+    @State private var searchText = ""
+
+    private var timelineEntries: [JournalEntry] {
+        searchJournalEntries(entries, matching: searchText)
+    }
 
     var body: some View {
         List {
-            ForEach(groupEntriesByDay(entries)) { group in
+            ForEach(groupEntriesByDay(timelineEntries)) { group in
                 Section {
                     ForEach(group.entries) { entry in
                         NavigationLink {
@@ -54,6 +59,7 @@ struct TimelineView: View {
             }
         }
         .navigationTitle("Journal")
+        .searchable(text: $searchText, prompt: "Search Entries")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button(action: createNewEntry) {
