@@ -94,19 +94,12 @@ private struct OnboardingView: View {
 }
 
 enum PlaceholderAction: String, Identifiable {
-    case exportJournal
     case settings
 
     var id: String { rawValue }
 
     var alert: Alert {
         switch self {
-        case .exportJournal:
-            Alert(
-                title: Text("Export Journal"),
-                message: Text("Markdown export will be added in a later MVP slice."),
-                dismissButton: .default(Text("OK"))
-            )
         case .settings:
             Alert(
                 title: Text("Settings"),

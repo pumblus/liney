@@ -33,6 +33,7 @@ struct TimelineView: View {
     @State private var newEntry: JournalEntry?
     @State private var searchText = ""
     @State private var isImportingJournal = false
+    @State private var isExportingJournal = false
 
     private var timelineEntries: [JournalEntry] {
         searchJournalEntries(entries, matching: searchText)
@@ -75,7 +76,7 @@ struct TimelineView: View {
                     }
 
                     Button {
-                        placeholderAction = .exportJournal
+                        isExportingJournal = true
                     } label: {
                         Label("Export Journal", systemImage: "square.and.arrow.up")
                     }
@@ -103,6 +104,7 @@ struct TimelineView: View {
         }
         .background {
             ImportJournalFlow(isPresented: $isImportingJournal)
+            ExportJournalFlow(isPresented: $isExportingJournal, entries: entries)
         }
     }
 
