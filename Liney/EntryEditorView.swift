@@ -14,10 +14,12 @@ struct EntryEditorView: View {
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var isImportingPhotos = false
     @State private var photoImportAlert: PhotoImportAlert?
+    @State private var photoActionAlert: PhotoActionAlert?
     @State private var focusedTextBlockID: UUID?
     @State private var textSelections: [UUID: NSRange] = [:]
     @State private var focusRequest: EditorFocusRequest?
     @State private var transientTextAfterPhotoBlockID: UUID?
+    @State private var selectedPhoto: EntryPhoto?
 
     private let photoStorage = PhotoStorage()
     private static let emptyEntryTextKey = "empty-entry-text"
@@ -71,8 +73,18 @@ struct EntryEditorView: View {
         }
         .sheet(isPresented: $isShowingDateEditor) {
             NavigationStack {
-                EntryDateEditorView(entry: entry, saveChange: saveChange)
+                EntryDateEditorView(entry: entry) {
+                    _ = saveChange()
+                }
             }
+        }
+        .fullScreenCover(item: $selectedPhoto) { photo in
+            PhotoDetailView(
+                photo: photo,
+                storage: photoStorage,
+                useAsEntryInfo: { usePhotoAsEntryInfo(photo) },
+                deletePhoto: { deletePhoto(photo) }
+            )
         }
         .confirmationDialog(
             "Delete Entry?",
@@ -87,6 +99,13 @@ struct EntryEditorView: View {
         .alert(item: $photoImportAlert) { alert in
             Alert(
                 title: Text("Some Photos Couldn’t Be Added"),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+        .alert(item: $photoActionAlert) { alert in
+            Alert(
+                title: Text(alert.title),
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
             )
@@ -158,7 +177,9 @@ struct EntryEditorView: View {
                         placeholder: "Write something..."
                     )
                 case .photoGroup:
-                    PhotoGroupBlockView(block: block, storage: photoStorage)
+                    PhotoGroupBlockView(block: block, storage: photoStorage) { photo in
+                        selectedPhoto = photo
+                    }
 
                     if transientTextAfterPhotoBlockID == block.id {
                         textEditor(
@@ -252,13 +273,27 @@ struct EntryEditorView: View {
             isImportingPhotos = false
 
             if let insertion = entry.insertPhotoGroup(
-                fileNames: result.fileNames,
+                photos: result.photos,
                 focusedTextBlockID: targetBlockID,
                 cursorOffset: targetCursorOffset,
                 in: modelContext
             ) {
-                saveChange()
-                focusAfterPhotoInsertion(insertion)
+                if saveChange() {
+                    focusAfterPhotoInsertion(insertion)
+                } else {
+                    modelContext.rollback()
+                    if deleteStoredFiles(result.fileNames) {
+                        photoActionAlert = PhotoActionAlert(
+                            title: String(localized: "Some Photos Couldn’t Be Added"),
+                            message: String(localized: "Some selected photos could not be added.")
+                        )
+                    } else {
+                        photoActionAlert = PhotoActionAlert(
+                            title: String(localized: "Photo File Couldn’t Be Deleted"),
+                            message: String(localized: "Some copied photo files could not be deleted.")
+                        )
+                    }
+                }
             }
 
             photoImportAlert = result.alert
@@ -297,10 +332,16 @@ struct EntryEditorView: View {
         "after-\(blockID.uuidString)"
     }
 
-    private func saveChange() {
+    @discardableResult
+    private func saveChange() -> Bool {
         entry.normalizeBlocks(in: modelContext)
         entry.updatedAt = .now
-        try? modelContext.save()
+        do {
+            try modelContext.save()
+            return true
+        } catch {
+            return false
+        }
     }
 
     private func finish() {
@@ -312,11 +353,60 @@ struct EntryEditorView: View {
         dismiss()
     }
 
+    private func usePhotoAsEntryInfo(_ photo: EntryPhoto) {
+        entry.applyInfo(from: photo)
+        saveChange()
+    }
+
+    private func deletePhoto(_ photo: EntryPhoto) {
+        let blockID = photo.block?.id
+        let fileName = entry.deletePhoto(photo, in: modelContext)
+        if let blockID, !entry.orderedBlocks.contains(where: { $0.id == blockID }) {
+            transientTextAfterPhotoBlockID = nil
+        }
+        selectedPhoto = nil
+
+        guard saveChange() else {
+            modelContext.rollback()
+            photoActionAlert = PhotoActionAlert(
+                title: String(localized: "Photo Couldn’t Be Deleted"),
+                message: String(localized: "Try deleting the photo again.")
+            )
+            return
+        }
+
+        do {
+            try photoStorage.delete(fileName: fileName)
+        } catch {
+            photoActionAlert = PhotoActionAlert(
+                title: String(localized: "Photo File Couldn’t Be Deleted"),
+                message: String(localized: "The photo was removed from this entry, but its copied file could not be deleted.")
+            )
+        }
+    }
+
+    private func deleteStoredFiles(_ fileNames: [String]) -> Bool {
+        fileNames.reduce(true) { succeeded, fileName in
+            do {
+                try photoStorage.delete(fileName: fileName)
+                return succeeded
+            } catch {
+                return false
+            }
+        }
+    }
+
     private func deleteEntry() {
         modelContext.delete(entry)
         try? modelContext.save()
         dismiss()
     }
+}
+
+private struct PhotoActionAlert: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
 
 private struct EditorFocusRequest: Equatable {
@@ -327,6 +417,7 @@ private struct EditorFocusRequest: Equatable {
 private struct PhotoGroupBlockView: View {
     let block: EntryBlock
     let storage: PhotoStorage
+    let openPhoto: (EntryPhoto) -> Void
 
     var body: some View {
         let photos = block.orderedPhotos
@@ -336,12 +427,134 @@ private struct PhotoGroupBlockView: View {
             spacing: 4
         ) {
             ForEach(photos) { photo in
-                StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 10)
-                    .aspectRatio(columnCount == 1 ? 4.0 / 3.0 : 1, contentMode: .fill)
+                Button {
+                    openPhoto(photo)
+                } label: {
+                    StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 10)
+                        .aspectRatio(columnCount == 1 ? 4.0 / 3.0 : 1, contentMode: .fill)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open Photo")
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Photo Group")
+    }
+}
+
+private struct PhotoDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+    let photo: EntryPhoto
+    let storage: PhotoStorage
+    let useAsEntryInfo: () -> Void
+    let deletePhoto: () -> Void
+    @State private var isShowingDeleteConfirmation = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack(alignment: .bottom) {
+                Color.black.ignoresSafeArea()
+
+                photoContent
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding()
+
+                metadataBar
+            }
+            .navigationTitle("Photo Detail")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.black, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Menu {
+                        if photo.hasUsableEntryInfo {
+                            Button {
+                                useAsEntryInfo()
+                            } label: {
+                                Label("Use as Entry Info", systemImage: "calendar.badge.clock")
+                            }
+                        }
+
+                        Button(role: .destructive) {
+                            isShowingDeleteConfirmation = true
+                        } label: {
+                            Label("Delete Photo", systemImage: "trash")
+                        }
+                    } label: {
+                        Label("Photo Actions", systemImage: "ellipsis.circle")
+                    }
+
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .confirmationDialog(
+                "Delete Photo?",
+                isPresented: $isShowingDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete Photo", role: .destructive) {
+                    deletePhoto()
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("This photo will be removed from this entry.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var photoContent: some View {
+        if let image = storage.image(for: photo.fileName) {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .accessibilityLabel("Photo")
+        } else {
+            VStack(spacing: 12) {
+                Image(systemName: "photo")
+                    .font(.largeTitle)
+                Text("Photo unavailable")
+            }
+            .foregroundStyle(.white.opacity(0.7))
+        }
+    }
+
+    @ViewBuilder
+    private var metadataBar: some View {
+        if photo.hasVisibleMetadata {
+            VStack(alignment: .leading, spacing: 8) {
+                if let capturedAt = photo.capturedAt {
+                    Label {
+                        Text(capturedAt.formatted(.dateTime.weekday(.abbreviated).month().day().year().hour().minute()))
+                    } icon: {
+                        Image(systemName: "calendar")
+                    }
+                    .accessibilityLabel("Captured")
+                    .accessibilityValue(capturedAt.formatted(.dateTime.weekday(.wide).month(.wide).day().year().hour().minute()))
+                }
+
+                if let placeText = photo.placeDisplayText {
+                    Label {
+                        Text(placeText)
+                    } icon: {
+                        Image(systemName: "mappin.and.ellipse")
+                    }
+                    .accessibilityLabel("Location")
+                    .accessibilityValue(placeText)
+                }
+            }
+            .font(.footnote)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding()
+            .accessibilityElement(children: .contain)
+        }
     }
 }
 

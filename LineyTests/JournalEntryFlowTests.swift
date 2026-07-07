@@ -1,6 +1,7 @@
 import ImageIO
 import SwiftData
 import UIKit
+import UniformTypeIdentifiers
 import XCTest
 @testable import Liney
 
@@ -260,6 +261,70 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(entry.previewPhotos.map(\.fileName), ["1.jpg", "2.jpg", "3.jpg"])
     }
 
+    func testPhotoMetadataVisibilityRequiresCaptureTimeOrPlaceText() {
+        XCTAssertFalse(EntryPhoto(fileName: "plain.jpg").hasVisibleMetadata)
+        XCTAssertFalse(EntryPhoto(fileName: "gps.jpg", locationLatitude: 48.8566, locationLongitude: 2.3522).hasVisibleMetadata)
+
+        let captured = EntryPhoto(fileName: "captured.jpg", capturedAt: Date())
+        XCTAssertTrue(captured.hasVisibleMetadata)
+        XCTAssertTrue(captured.hasUsableEntryInfo)
+
+        let placed = EntryPhoto(fileName: "placed.jpg", placeName: "  Paris  ")
+        XCTAssertEqual(placed.placeDisplayText, "Paris")
+        XCTAssertTrue(placed.hasVisibleMetadata)
+    }
+
+    func testApplyPhotoInfoUpdatesEntryDateAndNamedLocation() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let originalDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 1)))
+        let capturedAt = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 20, minute: 15)))
+        let entry = JournalEntry(entryDate: originalDate, isAllDay: true)
+        let photo = EntryPhoto(
+            fileName: "paris.jpg",
+            capturedAt: capturedAt,
+            placeName: "  Paris  ",
+            locationLatitude: 48.8566,
+            locationLongitude: 2.3522
+        )
+
+        entry.applyInfo(from: photo)
+
+        XCTAssertFalse(entry.isAllDay)
+        XCTAssertEqual(entry.entryDate, capturedAt)
+        XCTAssertEqual(entry.locationName, "Paris")
+        XCTAssertEqual(entry.locationLatitude, 48.8566)
+        XCTAssertEqual(entry.locationLongitude, 2.3522)
+    }
+
+    func testDeletePhotoRemovesPhotoAndReindexesGroup() throws {
+        let entry = JournalEntry()
+        context.insert(entry)
+        _ = entry.insertPhotoGroup(fileNames: ["1.jpg", "2.jpg", "3.jpg"], in: context)
+        let block = try XCTUnwrap(entry.photoGroupBlocks.first)
+        let deletedPhoto = block.orderedPhotos[1]
+
+        let deletedFileName = entry.deletePhoto(deletedPhoto, in: context)
+        try context.save()
+
+        XCTAssertEqual(deletedFileName, "2.jpg")
+        XCTAssertEqual(entry.photoGroupBlocks.count, 1)
+        XCTAssertEqual(block.orderedPhotos.map(\.fileName), ["1.jpg", "3.jpg"])
+        XCTAssertEqual(block.orderedPhotos.map(\.displayOrder), [0, 1])
+    }
+
+    func testDeleteLastPhotoRemovesEmptyPhotoGroup() throws {
+        let entry = JournalEntry()
+        context.insert(entry)
+        _ = entry.insertPhotoGroup(fileNames: ["only.jpg"], in: context)
+        let photo = try XCTUnwrap(entry.photoGroupBlocks.first?.orderedPhotos.first)
+
+        entry.deletePhoto(photo, in: context)
+        try context.save()
+
+        XCTAssertTrue(entry.photoGroupBlocks.isEmpty)
+        XCTAssertTrue(entry.orderedBlocks.isEmpty)
+    }
+
     func testPhotoStorageCreatesJPEGAndReportsPartialFailure() throws {
         let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let storage = PhotoStorage(baseURL: baseURL)
@@ -273,6 +338,26 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(copiedURL.pathExtension, "jpg")
         XCTAssertTrue(FileManager.default.fileExists(atPath: copiedURL.path))
         XCTAssertNotNil(CGImageSourceCreateWithURL(copiedURL as CFURL, nil))
+
+        try storage.delete(fileName: try XCTUnwrap(result.fileNames.first))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: copiedURL.path))
+    }
+
+    func testPhotoStoragePreservesCaptureTimeAndGPSMetadata() throws {
+        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let storage = PhotoStorage(baseURL: baseURL)
+        let imageData = makeJPEGData(
+            capturedAtText: "2026:07:06 20:15:00",
+            latitude: 48.8566,
+            longitude: 2.3522
+        )
+
+        let result = storage.saveJPEGs(from: [imageData])
+        let photo = try XCTUnwrap(result.photos.first)
+
+        XCTAssertEqual(photo.capturedAt, exifDate("2026:07:06 20:15:00"))
+        XCTAssertEqual(try XCTUnwrap(photo.locationLatitude), 48.8566, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(photo.locationLongitude), 2.3522, accuracy: 0.0001)
     }
 
     func testPhotoImportResultCreatesPartialFailureAlert() {
@@ -294,5 +379,35 @@ final class JournalEntryFlowTests: XCTestCase {
             UIColor.systemBlue.setFill()
             context.fill(CGRect(x: 0, y: 0, width: 32, height: 24))
         }
+    }
+
+    private func makeJPEGData(capturedAtText: String, latitude: Double, longitude: Double) -> Data {
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 24)).image { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 32, height: 24))
+        }
+        let data = NSMutableData()
+        let destination = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil)!
+        let properties: [CFString: Any] = [
+            kCGImagePropertyExifDictionary: [
+                kCGImagePropertyExifDateTimeOriginal: capturedAtText
+            ],
+            kCGImagePropertyGPSDictionary: [
+                kCGImagePropertyGPSLatitude: abs(latitude),
+                kCGImagePropertyGPSLatitudeRef: latitude < 0 ? "S" : "N",
+                kCGImagePropertyGPSLongitude: abs(longitude),
+                kCGImagePropertyGPSLongitudeRef: longitude < 0 ? "W" : "E"
+            ]
+        ]
+        CGImageDestinationAddImage(destination, image.cgImage!, properties as CFDictionary)
+        XCTAssertTrue(CGImageDestinationFinalize(destination))
+        return data as Data
+    }
+
+    private func exifDate(_ text: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        return formatter.date(from: text)
     }
 }

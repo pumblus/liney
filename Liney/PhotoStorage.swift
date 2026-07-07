@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import ImageIO
 import PhotosUI
@@ -6,8 +7,21 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct PhotoImportResult {
-    let fileNames: [String]
+    let photos: [PhotoGroupItem]
     let failedCount: Int
+
+    init(photos: [PhotoGroupItem], failedCount: Int) {
+        self.photos = photos
+        self.failedCount = failedCount
+    }
+
+    init(fileNames: [String], failedCount: Int) {
+        self.init(photos: fileNames.map { PhotoGroupItem(fileName: $0) }, failedCount: failedCount)
+    }
+
+    var fileNames: [String] {
+        photos.map(\.fileName)
+    }
 
     var alert: PhotoImportAlert? {
         failedCount > 0 ? PhotoImportAlert(failedCount: failedCount) : nil
@@ -30,7 +44,7 @@ struct PhotoPickerImporter {
 
     func importItems(_ items: [PhotosPickerItem]) async -> PhotoImportResult {
         await Task.detached(priority: .userInitiated) {
-            var fileNames: [String] = []
+            var photos: [PhotoGroupItem] = []
             var failedCount = 0
 
             for item in items {
@@ -39,14 +53,48 @@ struct PhotoPickerImporter {
                         failedCount += 1
                         continue
                     }
-                    fileNames.append(try storage.saveJPEG(from: data))
+                    let savedPhoto = try storage.saveJPEGWithMetadata(from: data)
+                    photos.append(await Self.photoWithPlaceNameIfPossible(savedPhoto))
                 } catch {
                     failedCount += 1
                 }
             }
 
-            return PhotoImportResult(fileNames: fileNames, failedCount: failedCount)
+            return PhotoImportResult(photos: photos, failedCount: failedCount)
         }.value
+    }
+
+    private static func photoWithPlaceNameIfPossible(_ photo: PhotoGroupItem) async -> PhotoGroupItem {
+        guard photo.placeName == nil,
+              let latitude = photo.locationLatitude,
+              let longitude = photo.locationLongitude,
+              let placeName = await placeName(latitude: latitude, longitude: longitude) else {
+            return photo
+        }
+
+        return PhotoGroupItem(
+            fileName: photo.fileName,
+            capturedAt: photo.capturedAt,
+            placeName: placeName,
+            locationLatitude: latitude,
+            locationLongitude: longitude
+        )
+    }
+
+    private static func placeName(latitude: Double, longitude: Double) async -> String? {
+        let location = CLLocation(latitude: latitude, longitude: longitude)
+        guard let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location),
+              let placemark = placemarks.first else { return nil }
+        let parts = [placemark.locality, placemark.administrativeArea, placemark.country]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if !parts.isEmpty {
+            return parts.joined(separator: ", ")
+        }
+
+        let name = placemark.name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name?.isEmpty == false ? name : nil
     }
 }
 
@@ -89,27 +137,39 @@ struct PhotoStorage: @unchecked Sendable {
         UIImage(contentsOfFile: url(for: fileName).path)
     }
 
+    func delete(fileName: String) throws {
+        let fileURL = url(for: fileName)
+        guard fileManager.fileExists(atPath: fileURL.path) else { return }
+        try fileManager.removeItem(at: fileURL)
+    }
+
     func saveJPEGs(from imageData: [Data]) -> PhotoImportResult {
-        var fileNames: [String] = []
+        var photos: [PhotoGroupItem] = []
         var failedCount = 0
 
         for data in imageData {
             do {
-                fileNames.append(try saveJPEG(from: data))
+                photos.append(try saveJPEGWithMetadata(from: data))
             } catch {
                 failedCount += 1
             }
         }
 
-        return PhotoImportResult(fileNames: fileNames, failedCount: failedCount)
+        return PhotoImportResult(photos: photos, failedCount: failedCount)
     }
 
     func saveJPEG(from data: Data, id: UUID = UUID()) throws -> String {
+        try saveJPEGWithMetadata(from: data, id: id).fileName
+    }
+
+    func saveJPEGWithMetadata(from data: Data, id: UUID = UUID()) throws -> PhotoGroupItem {
         try fileManager.createDirectory(at: photoDirectoryURL, withIntermediateDirectories: true)
 
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
             throw PhotoStorageError.unreadableImage
         }
+
+        let metadata = Self.metadata(from: source)
 
         let thumbnailOptions: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
@@ -142,7 +202,64 @@ struct PhotoStorage: @unchecked Sendable {
             throw PhotoStorageError.cannotWriteImage
         }
 
-        return fileName
+        return PhotoGroupItem(
+            fileName: fileName,
+            capturedAt: metadata.capturedAt,
+            locationLatitude: metadata.locationLatitude,
+            locationLongitude: metadata.locationLongitude
+        )
+    }
+
+    private static func metadata(from source: CGImageSource) -> (
+        capturedAt: Date?,
+        locationLatitude: Double?,
+        locationLongitude: Double?
+    ) {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
+            return (nil, nil, nil)
+        }
+
+        let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any]
+        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any]
+        let dateText = exif?[kCGImagePropertyExifDateTimeOriginal] as? String ??
+            exif?[kCGImagePropertyExifDateTimeDigitized] as? String ??
+            tiff?[kCGImagePropertyTIFFDateTime] as? String
+        let capturedAt = dateText.flatMap { exifDateFormatter.date(from: $0) }
+
+        let gps = properties[kCGImagePropertyGPSDictionary] as? [CFString: Any]
+        let latitude = signedCoordinate(
+            gps?[kCGImagePropertyGPSLatitude],
+            reference: gps?[kCGImagePropertyGPSLatitudeRef],
+            negativeReference: "S"
+        )
+        let longitude = signedCoordinate(
+            gps?[kCGImagePropertyGPSLongitude],
+            reference: gps?[kCGImagePropertyGPSLongitudeRef],
+            negativeReference: "W"
+        )
+
+        return (capturedAt, latitude, longitude)
+    }
+
+    private static var exifDateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
+        return formatter
+    }
+
+    private static func signedCoordinate(_ value: Any?, reference: Any?, negativeReference: String) -> Double? {
+        guard var coordinate = doubleValue(value) else { return nil }
+        if (reference as? String)?.uppercased() == negativeReference {
+            coordinate = -coordinate
+        }
+        return coordinate
+    }
+
+    private static func doubleValue(_ value: Any?) -> Double? {
+        if let value = value as? Double { return value }
+        if let value = value as? NSNumber { return value.doubleValue }
+        return nil
     }
 }
 
