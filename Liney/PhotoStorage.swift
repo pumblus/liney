@@ -267,13 +267,12 @@ struct StoredPhotoThumbnail: View {
     let photo: EntryPhoto
     let storage: PhotoStorage
     var cornerRadius: CGFloat = 8
+    var contentMode: ContentMode = .fill
 
     var body: some View {
         Group {
             if let image = storage.image(for: photo.fileName) {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
+                resizedImage(image)
             } else {
                 Rectangle()
                     .fill(.quaternary)
@@ -286,5 +285,19 @@ struct StoredPhotoThumbnail: View {
         .clipped()
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .accessibilityLabel("Photo")
+    }
+
+    @ViewBuilder
+    private func resizedImage(_ image: UIImage) -> some View {
+        switch contentMode {
+        case .fit:
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+        case .fill:
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+        }
     }
 }

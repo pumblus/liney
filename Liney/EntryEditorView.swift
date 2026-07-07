@@ -414,30 +414,48 @@ private struct EditorFocusRequest: Equatable {
     let offset: Int
 }
 
-private struct PhotoGroupBlockView: View {
+struct PhotoGroupBlockView: View {
     let block: EntryBlock
     let storage: PhotoStorage
     let openPhoto: (EntryPhoto) -> Void
 
     var body: some View {
         let photos = block.orderedPhotos
-        let layout = photoGroupLayoutPlan(forPhotoCount: photos.count)
-        let columnCount = photoGroupColumnCount(forPhotoCount: photos.count)
-        LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: columnCount),
-            spacing: 4
-        ) {
-            ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                let cellLayout = layout[index]
+
+        Group {
+            if let photo = photos.first, photos.count == 1 {
                 Button {
                     openPhoto(photo)
                 } label: {
-                    StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 10)
-                        .aspectRatio(cellLayout.aspectRatio, contentMode: .fill)
+                    StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 10, contentMode: .fit)
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Open Photo")
-                .gridCellColumns(cellLayout.columnSpan)
+            } else {
+                let layout = photoGroupLayoutPlan(forPhotoCount: photos.count)
+                let columnCount = photoGroupColumnCount(forPhotoCount: photos.count)
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: columnCount),
+                    spacing: 4
+                ) {
+                    ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                        let cellLayout = layout[index]
+                        Button {
+                            openPhoto(photo)
+                        } label: {
+                            Color.clear
+                                .aspectRatio(cellLayout.aspectRatio, contentMode: .fit)
+                                .overlay {
+                                    StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 10)
+                                }
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Open Photo")
+                        .gridCellColumns(cellLayout.columnSpan)
+                    }
+                }
             }
         }
         .accessibilityElement(children: .contain)

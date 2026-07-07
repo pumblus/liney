@@ -153,8 +153,12 @@ private struct EntryRowView: View {
             if !entry.previewPhotos.isEmpty {
                 HStack(spacing: 6) {
                     ForEach(entry.previewPhotos) { photo in
-                        StoredPhotoThumbnail(photo: photo, storage: photoStorage, cornerRadius: 6)
+                        Color.clear
                             .frame(width: 48, height: 48)
+                            .overlay {
+                                StoredPhotoThumbnail(photo: photo, storage: photoStorage, cornerRadius: 6)
+                            }
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                 }
                 .accessibilityLabel("Entry Photos")

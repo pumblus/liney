@@ -435,20 +435,13 @@ struct PhotoGroupCellLayout: Equatable {
 func photoGroupLayoutPlan(forPhotoCount count: Int) -> [PhotoGroupCellLayout] {
     guard count > 0 else { return [] }
 
-    let columnCount = photoGroupColumnCount(forPhotoCount: count)
-    return (0..<count).map { index in
-        let columnSpan = count == 3 && index == count - 1 ? columnCount : 1
-        return PhotoGroupCellLayout(
-            columnSpan: columnSpan,
-            aspectRatio: columnSpan == columnCount ? 4.0 / 3.0 : 1
-        )
-    }
+    return Array(repeating: PhotoGroupCellLayout(columnSpan: 1, aspectRatio: 1), count: count)
 }
 
 func photoGroupColumnCount(forPhotoCount count: Int) -> Int {
     if count <= 1 { return 1 }
-    if count <= 4 { return 2 }
-    return 3
+    if count == 4 { return 2 }
+    return min(count, 3)
 }
 
 struct EntryDayGroup: Identifiable {

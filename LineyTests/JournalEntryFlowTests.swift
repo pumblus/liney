@@ -371,54 +371,124 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 0), 1)
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 1), 1)
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 2), 2)
-        XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 3), 2)
+        XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 3), 3)
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 4), 2)
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 5), 3)
     }
 
-    func testPhotoGroupLayoutPlanBalancesThreePhotos() {
+    func testPhotoGroupLayoutPlanUsesSquareCells() {
         XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 1).map(\.columnSpan), [1])
         XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 2).map(\.columnSpan), [1, 1])
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 3).map(\.columnSpan), [1, 1, 2])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 3).map(\.columnSpan), [1, 1, 1])
         XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 4).map(\.columnSpan), [1, 1, 1, 1])
         XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 5).map(\.columnSpan), [1, 1, 1, 1, 1])
 
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 1).map(\.aspectRatio), [4.0 / 3.0])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 1).map(\.aspectRatio), [1])
         XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 2).map(\.aspectRatio), [1, 1])
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 3).map(\.aspectRatio), [1, 1, 4.0 / 3.0])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 3).map(\.aspectRatio), [1, 1, 1])
         XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 4).map(\.aspectRatio), [1, 1, 1, 1])
         XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 5).map(\.aspectRatio), [1, 1, 1, 1, 1])
     }
 
     func testThreePhotoLayoutSmokeRendersOnSimulator() throws {
-        let layout = photoGroupLayoutPlan(forPhotoCount: 3)
-        let renderer = ImageRenderer(content: LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: photoGroupColumnCount(forPhotoCount: 3)),
-            spacing: 4
-        ) {
-            ForEach(0..<3, id: \.self) { index in
-                Rectangle()
-                    .fill([Color.red, .green, .blue][index])
-                    .aspectRatio(layout[index].aspectRatio, contentMode: .fill)
-                    .gridCellColumns(layout[index].columnSpan)
-            }
+        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let storage = PhotoStorage(baseURL: baseURL)
+        let result = storage.saveJPEGs(from: [
+            makeJPEGData(size: CGSize(width: 96, height: 48), color: .systemRed),
+            makeJPEGData(size: CGSize(width: 48, height: 96), color: .systemGreen),
+            makeJPEGData(size: CGSize(width: 96, height: 96), color: .systemBlue)
+        ])
+        XCTAssertEqual(result.failedCount, 0)
+
+        let block = EntryBlock(kind: .photoGroup)
+        block.photos = result.photos.enumerated().map { index, photo in
+            EntryPhoto(fileName: photo.fileName, displayOrder: index, block: block)
         }
-        .frame(width: 320))
+
+        let renderer = ImageRenderer(content: PhotoGroupBlockView(block: block, storage: storage) { _ in }
+            .background(Color.white)
+            .frame(width: 320))
         renderer.scale = 1
 
         let image = try XCTUnwrap(renderer.uiImage)
-        XCTAssertGreaterThan(image.size.height, 0)
+        XCTAssertEqual(image.size.height, 104, accuracy: 1)
+        XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 106, y: 52)))
+        XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 214, y: 52)))
+        XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 0, y: 0)))
+        XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 108, y: 0)))
+        XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 216, y: 0)))
         let attachment = XCTAttachment(image: image)
         attachment.name = "Three-photo layout smoke"
         attachment.lifetime = .keepAlways
         add(attachment)
     }
 
-    private func makeJPEGData() -> Data {
-        UIGraphicsImageRenderer(size: CGSize(width: 32, height: 24)).jpegData(withCompressionQuality: 1) { context in
-            UIColor.systemBlue.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 32, height: 24))
+    func testPreviewThumbnailsStayInsideFixedBoxes() throws {
+        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let storage = PhotoStorage(baseURL: baseURL)
+        let result = storage.saveJPEGs(from: [
+            makeJPEGData(size: CGSize(width: 96, height: 48), color: .systemRed),
+            makeJPEGData(size: CGSize(width: 48, height: 96), color: .systemGreen),
+            makeJPEGData(size: CGSize(width: 96, height: 96), color: .systemBlue)
+        ])
+        XCTAssertEqual(result.failedCount, 0)
+        let photos = result.photos.enumerated().map { index, photo in
+            EntryPhoto(fileName: photo.fileName, displayOrder: index)
         }
+
+        let renderer = ImageRenderer(content: HStack(spacing: 6) {
+            ForEach(photos) { photo in
+                Color.clear
+                    .frame(width: 48, height: 48)
+                    .overlay {
+                        StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 6)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+        }
+        .background(Color.white))
+        renderer.scale = 1
+
+        let image = try XCTUnwrap(renderer.uiImage)
+        XCTAssertEqual(image.size.height, 48, accuracy: 1)
+        XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 51, y: 24)))
+        XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 105, y: 24)))
+        XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 0, y: 0)))
+        XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 54, y: 0)))
+        XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 108, y: 0)))
+    }
+
+    private func makeJPEGData(size: CGSize = CGSize(width: 32, height: 24), color: UIColor = .systemBlue) -> Data {
+        UIGraphicsImageRenderer(size: size).jpegData(withCompressionQuality: 1) { context in
+            color.setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+        }
+    }
+
+    private func rgbaPixel(in image: UIImage, x: Int, y: Int) throws -> [UInt8] {
+        let cgImage = try XCTUnwrap(image.cgImage)
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+
+        try pixel.withUnsafeMutableBytes { buffer in
+            let context = try XCTUnwrap(CGContext(
+                data: buffer.baseAddress,
+                width: 1,
+                height: 1,
+                bitsPerComponent: 8,
+                bytesPerRow: 4,
+                space: colorSpace,
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ))
+            context.translateBy(x: CGFloat(-x), y: CGFloat(y + 1 - cgImage.height))
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+        }
+
+        return pixel
+    }
+
+    private func isWhite(_ pixel: [UInt8]) -> Bool {
+        pixel[0] > 245 && pixel[1] > 245 && pixel[2] > 245
     }
 
     private func makeJPEGData(capturedAtText: String, latitude: Double, longitude: Double) -> Data {
