@@ -1,3 +1,5 @@
+import SwiftUI
+import UIKit
 import XCTest
 @testable import Liney
 
@@ -82,6 +84,38 @@ final class AppLockTests: XCTestCase {
         XCTAssertFalse(lock.hidesJournalContent)
         XCTAssertEqual(authenticator.callCount, 0)
     }
+
+    func testGateKeepsUnlockedContentMountedBehindLockCover() async {
+        let authenticator = FakeAuthenticator(results: [true])
+        let lock = AppLockModel(authenticator: authenticator)
+        await lock.unlockIfNeeded(requiresLock: true)
+
+        let probe = MountProbe()
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = UIHostingController(
+            rootView: AppLockGate(requiresAppLock: .constant(true), appLock: lock) {
+                MountProbeView(probe: probe)
+            }
+        )
+        window.makeKeyAndVisible()
+        await flushSwiftUIUpdates()
+
+        XCTAssertEqual(probe.appearances, 1)
+        XCTAssertEqual(probe.disappearances, 0)
+
+        lock.protectSnapshot(requiresLock: true)
+        await flushSwiftUIUpdates()
+
+        XCTAssertTrue(lock.hidesJournalContent)
+        XCTAssertEqual(probe.appearances, 1)
+        XCTAssertEqual(probe.disappearances, 0)
+        window.isHidden = true
+    }
+
+    private func flushSwiftUIUpdates() async {
+        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(50))
+    }
 }
 
 private final class FakeAuthenticator: AppAuthenticating {
@@ -95,5 +129,24 @@ private final class FakeAuthenticator: AppAuthenticating {
     func authenticate(reason: String) async -> Bool {
         callCount += 1
         return results.isEmpty ? false : results.removeFirst()
+    }
+}
+
+private final class MountProbe {
+    var appearances = 0
+    var disappearances = 0
+}
+
+private struct MountProbeView: View {
+    let probe: MountProbe
+
+    var body: some View {
+        Text("Mounted journal content")
+            .onAppear {
+                probe.appearances += 1
+            }
+            .onDisappear {
+                probe.disappearances += 1
+            }
     }
 }

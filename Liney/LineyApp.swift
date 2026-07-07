@@ -206,10 +206,11 @@ final class AppLockModel: ObservableObject {
     }
 }
 
-private struct AppLockGate<Content: View>: View {
+struct AppLockGate<Content: View>: View {
     @Binding private var requiresAppLock: Bool
     @ObservedObject private var appLock: AppLockModel
     @Environment(\.scenePhase) private var scenePhase
+    @State private var hasMountedUnlockedContent = false
     private let content: () -> Content
 
     init(
@@ -224,21 +225,28 @@ private struct AppLockGate<Content: View>: View {
 
     var body: some View {
         Group {
-            if shouldHideContent {
-                LockedJournalView(isAuthenticating: appLock.isAuthenticating) {
-                    Task {
-                        await appLock.unlock(requiresLock: requiresAppLock)
-                    }
-                }
-            } else {
+            if shouldMountContent {
                 content()
                     .privacySensitive(requiresAppLock)
+                    .disabled(shouldHideContent)
+                    .accessibilityHidden(shouldHideContent)
+                    .overlay {
+                        if shouldHideContent {
+                            lockCover
+                        }
+                    }
+            } else {
+                lockCover
             }
         }
         .onAppear {
+            rememberUnlockedContent()
             Task {
                 await appLock.unlockIfNeeded(requiresLock: requiresAppLock)
             }
+        }
+        .onChange(of: shouldHideContent) { _, _ in
+            rememberUnlockedContent()
         }
         .onChange(of: requiresAppLock) { _, requiresAppLock in
             if requiresAppLock {
@@ -265,6 +273,24 @@ private struct AppLockGate<Content: View>: View {
 
     private var shouldHideContent: Bool {
         requiresAppLock && appLock.hidesJournalContent
+    }
+
+    private var shouldMountContent: Bool {
+        !shouldHideContent || hasMountedUnlockedContent
+    }
+
+    private var lockCover: some View {
+        LockedJournalView(isAuthenticating: appLock.isAuthenticating) {
+            Task {
+                await appLock.unlock(requiresLock: requiresAppLock)
+            }
+        }
+    }
+
+    private func rememberUnlockedContent() {
+        if !shouldHideContent {
+            hasMountedUnlockedContent = true
+        }
     }
 }
 
