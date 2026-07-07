@@ -32,6 +32,7 @@ struct TimelineView: View {
     @State private var placeholderAction: PlaceholderAction?
     @State private var newEntry: JournalEntry?
     @State private var searchText = ""
+    @State private var isImportingJournal = false
 
     private var timelineEntries: [JournalEntry] {
         searchJournalEntries(entries, matching: searchText)
@@ -68,7 +69,7 @@ struct TimelineView: View {
 
                 Menu {
                     Button {
-                        placeholderAction = .importJournal
+                        isImportingJournal = true
                     } label: {
                         Label("Import Journal", systemImage: "square.and.arrow.down")
                     }
@@ -100,6 +101,9 @@ struct TimelineView: View {
         .alert(item: $placeholderAction) { action in
             action.alert
         }
+        .background {
+            ImportJournalFlow(isPresented: $isImportingJournal)
+        }
     }
 
     private var emptyState: some View {
@@ -115,7 +119,7 @@ struct TimelineView: View {
                 .buttonStyle(.borderedProminent)
 
                 Button {
-                    placeholderAction = .importJournal
+                    isImportingJournal = true
                 } label: {
                     Label("Import Journal", systemImage: "square.and.arrow.down")
                 }

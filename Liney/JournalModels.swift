@@ -5,6 +5,7 @@ import SwiftData
 @Model
 final class JournalEntry: Identifiable {
     @Attribute(.unique) var id: UUID
+    var externalSourceID: String?
     var title: String
     var entryDate: Date
     var isAllDay: Bool = false
@@ -18,6 +19,7 @@ final class JournalEntry: Identifiable {
 
     init(
         id: UUID = UUID(),
+        externalSourceID: String? = nil,
         title: String = "",
         entryDate: Date = .now,
         isAllDay: Bool = false,
@@ -30,6 +32,7 @@ final class JournalEntry: Identifiable {
         blocks: [EntryBlock] = []
     ) {
         self.id = id
+        self.externalSourceID = externalSourceID
         self.title = title
         self.entryDate = isAllDay ? Calendar.current.startOfDay(for: entryDate) : entryDate
         self.isAllDay = isAllDay

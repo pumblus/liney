@@ -32,7 +32,7 @@ private struct RootView: View {
 
 private struct OnboardingView: View {
     let startWriting: () -> Void
-    @State private var placeholderAction: PlaceholderAction?
+    @State private var isImportingJournal = false
 
     var body: some View {
         NavigationStack {
@@ -68,7 +68,7 @@ private struct OnboardingView: View {
                             .buttonStyle(.borderedProminent)
 
                             Button {
-                                placeholderAction = .importJournal
+                                isImportingJournal = true
                             } label: {
                                 Label("Import Journal", systemImage: "square.and.arrow.down")
                                     .frame(maxWidth: .infinity)
@@ -86,15 +86,14 @@ private struct OnboardingView: View {
             }
             .navigationTitle("Liney")
             .navigationBarTitleDisplayMode(.inline)
-            .alert(item: $placeholderAction) { action in
-                action.alert
+            .background {
+                ImportJournalFlow(isPresented: $isImportingJournal, onFinished: startWriting)
             }
         }
     }
 }
 
 enum PlaceholderAction: String, Identifiable {
-    case importJournal
     case exportJournal
     case settings
 
@@ -102,12 +101,6 @@ enum PlaceholderAction: String, Identifiable {
 
     var alert: Alert {
         switch self {
-        case .importJournal:
-            Alert(
-                title: Text("Import Journal"),
-                message: Text("Day One import will be added in a later MVP slice."),
-                dismissButton: .default(Text("OK"))
-            )
         case .exportJournal:
             Alert(
                 title: Text("Export Journal"),
