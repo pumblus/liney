@@ -1,4 +1,3 @@
-import CoreLocation
 import Foundation
 import ImageIO
 import PhotosUI
@@ -53,8 +52,7 @@ struct PhotoPickerImporter {
                         failedCount += 1
                         continue
                     }
-                    let savedPhoto = try storage.saveJPEGWithMetadata(from: data)
-                    photos.append(await Self.photoWithPlaceNameIfPossible(savedPhoto))
+                    photos.append(try storage.saveJPEGWithMetadata(from: data))
                 } catch {
                     failedCount += 1
                 }
@@ -64,38 +62,6 @@ struct PhotoPickerImporter {
         }.value
     }
 
-    private static func photoWithPlaceNameIfPossible(_ photo: PhotoGroupItem) async -> PhotoGroupItem {
-        guard photo.placeName == nil,
-              let latitude = photo.locationLatitude,
-              let longitude = photo.locationLongitude,
-              let placeName = await placeName(latitude: latitude, longitude: longitude) else {
-            return photo
-        }
-
-        return PhotoGroupItem(
-            fileName: photo.fileName,
-            capturedAt: photo.capturedAt,
-            placeName: placeName,
-            locationLatitude: latitude,
-            locationLongitude: longitude
-        )
-    }
-
-    private static func placeName(latitude: Double, longitude: Double) async -> String? {
-        let location = CLLocation(latitude: latitude, longitude: longitude)
-        guard let placemarks = try? await CLGeocoder().reverseGeocodeLocation(location),
-              let placemark = placemarks.first else { return nil }
-        let parts = [placemark.locality, placemark.administrativeArea, placemark.country]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-
-        if !parts.isEmpty {
-            return parts.joined(separator: ", ")
-        }
-
-        let name = placemark.name?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name?.isEmpty == false ? name : nil
-    }
 }
 
 enum PhotoStorageError: Error {
