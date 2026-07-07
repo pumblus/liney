@@ -23,6 +23,7 @@
 		F00000000000000000000019 /* JournalEntryFlowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000001D /* JournalEntryFlowTests.swift */; };
 		F00000000000000000000030 /* DayOneImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000002D /* DayOneImportTests.swift */; };
 		F00000000000000000000038 /* JournalExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000037 /* JournalExportTests.swift */; };
+		F0000000000000000000003E /* AppLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000003D /* AppLockTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,6 +52,7 @@
 		F0000000000000000000001D /* JournalEntryFlowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalEntryFlowTests.swift; sourceTree = "<group>"; };
 		F0000000000000000000002D /* DayOneImportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayOneImportTests.swift; sourceTree = "<group>"; };
 		F00000000000000000000037 /* JournalExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalExportTests.swift; sourceTree = "<group>"; };
+		F0000000000000000000003D /* AppLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockTests.swift; sourceTree = "<group>"; };
 		F0000000000000000000001E /* LineyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -116,6 +118,7 @@
 				F0000000000000000000001D /* JournalEntryFlowTests.swift */,
 				F0000000000000000000002D /* DayOneImportTests.swift */,
 				F00000000000000000000037 /* JournalExportTests.swift */,
+				F0000000000000000000003D /* AppLockTests.swift */,
 			);
 			path = LineyTests;
 			sourceTree = "<group>";
@@ -248,6 +251,7 @@
 				F00000000000000000000019 /* JournalEntryFlowTests.swift in Sources */,
 				F00000000000000000000030 /* DayOneImportTests.swift in Sources */,
 				F00000000000000000000038 /* JournalExportTests.swift in Sources */,
+				F0000000000000000000003E /* AppLockTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -391,6 +395,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Liney;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Use Face ID to unlock your private journal.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -423,6 +428,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Liney;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Use Face ID to unlock your private journal.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

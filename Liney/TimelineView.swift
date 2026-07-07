@@ -3,10 +3,13 @@ import SwiftUI
 import UIKit
 
 struct TimelineShellView: View {
+    @Binding var requiresAppLock: Bool
+    @ObservedObject var appLock: AppLockModel
+
     var body: some View {
         if UIDevice.current.userInterfaceIdiom == .pad {
             NavigationSplitView {
-                TimelineView()
+                TimelineView(requiresAppLock: $requiresAppLock, appLock: appLock)
             } detail: {
                 ContentUnavailableView(
                     "No Entry Selected",
@@ -16,24 +19,26 @@ struct TimelineShellView: View {
             }
         } else {
             NavigationStack {
-                TimelineView()
+                TimelineView(requiresAppLock: $requiresAppLock, appLock: appLock)
             }
         }
     }
 }
 
 struct TimelineView: View {
+    @Binding var requiresAppLock: Bool
+    @ObservedObject var appLock: AppLockModel
     @Environment(\.modelContext) private var modelContext
     @Query(sort: [
         SortDescriptor(\JournalEntry.entryDate, order: .reverse),
         SortDescriptor(\JournalEntry.createdAt, order: .reverse)
     ]) private var entries: [JournalEntry]
 
-    @State private var placeholderAction: PlaceholderAction?
     @State private var newEntry: JournalEntry?
     @State private var searchText = ""
     @State private var isImportingJournal = false
     @State private var isExportingJournal = false
+    @State private var isShowingSettings = false
 
     private var timelineEntries: [JournalEntry] {
         searchJournalEntries(entries, matching: searchText)
@@ -84,7 +89,7 @@ struct TimelineView: View {
                     Divider()
 
                     Button {
-                        placeholderAction = .settings
+                        isShowingSettings = true
                     } label: {
                         Label("Settings", systemImage: "gearshape")
                     }
@@ -99,12 +104,14 @@ struct TimelineView: View {
             }
             .interactiveDismissDisabled()
         }
-        .alert(item: $placeholderAction) { action in
-            action.alert
+        .sheet(isPresented: $isShowingSettings) {
+            SettingsView(requiresAppLock: $requiresAppLock, appLock: appLock)
         }
         .background {
             ImportJournalFlow(isPresented: $isImportingJournal)
-            ExportJournalFlow(isPresented: $isExportingJournal, entries: entries)
+            ExportJournalFlow(isPresented: $isExportingJournal, entries: entries) {
+                await appLock.authenticateForExport(requiresLock: requiresAppLock)
+            }
         }
     }
 

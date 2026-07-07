@@ -4,6 +4,7 @@ import UIKit
 struct ExportJournalFlow: View {
     @Binding var isPresented: Bool
     let entries: [JournalEntry]
+    let authenticateBeforePackaging: () async -> Bool
 
     @State private var presentation: ExportJournalPresentation?
     @State private var activeExport: JournalExport?
@@ -11,6 +12,16 @@ struct ExportJournalFlow: View {
     @State private var exportTask: Task<Void, Never>?
 
     private let exporter = JournalExporter()
+
+    init(
+        isPresented: Binding<Bool>,
+        entries: [JournalEntry],
+        authenticateBeforePackaging: @escaping () async -> Bool = { true }
+    ) {
+        self._isPresented = isPresented
+        self.entries = entries
+        self.authenticateBeforePackaging = authenticateBeforePackaging
+    }
 
     var body: some View {
         Color.clear
@@ -56,12 +67,18 @@ struct ExportJournalFlow: View {
     private func startExport() {
         guard exportTask == nil else { return }
 
-        let exportEntries = entries.map(JournalExportEntry.init)
-        presentation = .preparing
         exportTask = Task { @MainActor in
             defer { exportTask = nil }
 
             do {
+                guard await authenticateBeforePackaging() else {
+                    presentation = nil
+                    isPresented = false
+                    return
+                }
+
+                let exportEntries = entries.map(JournalExportEntry.init)
+                presentation = .preparing
                 let export = try await Task.detached(priority: .userInitiated) {
                     try exporter.export(entries: exportEntries)
                 }.value

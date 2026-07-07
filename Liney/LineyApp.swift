@@ -1,3 +1,4 @@
+import LocalAuthentication
 import SwiftData
 import SwiftUI
 
@@ -20,11 +21,13 @@ struct LineyApp: App {
 
 private struct RootView: View {
     @Binding var hasCompletedOnboarding: Bool
+    @AppStorage("liney.requiresAppLock") private var requiresAppLock = false
+    @StateObject private var appLock = AppLockModel()
 
     var body: some View {
-        Group {
+        AppLockGate(requiresAppLock: $requiresAppLock, appLock: appLock) {
             if hasCompletedOnboarding {
-                TimelineShellView()
+                TimelineShellView(requiresAppLock: $requiresAppLock, appLock: appLock)
             } else {
                 OnboardingView {
                     hasCompletedOnboarding = true
@@ -97,19 +100,273 @@ private struct OnboardingView: View {
     }
 }
 
-enum PlaceholderAction: String, Identifiable {
-    case settings
+protocol AppAuthenticating {
+    func authenticate(reason: String) async -> Bool
+}
 
-    var id: String { rawValue }
+struct LocalAuthenticator: AppAuthenticating {
+    func authenticate(reason: String) async -> Bool {
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
+            return false
+        }
 
-    var alert: Alert {
-        switch self {
-        case .settings:
-            Alert(
-                title: Text("Settings"),
-                message: Text("Settings will be added in a later MVP slice."),
-                dismissButton: .default(Text("OK"))
-            )
+        return await withCheckedContinuation { continuation in
+            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, _ in
+                continuation.resume(returning: success)
+            }
         }
     }
+}
+
+@MainActor
+final class AppLockModel: ObservableObject {
+    @Published private(set) var isLocked = true
+    @Published private(set) var isSnapshotCovered = true
+    @Published private(set) var isAuthenticating = false
+
+    private let authenticator: AppAuthenticating
+
+    init(authenticator: AppAuthenticating = LocalAuthenticator()) {
+        self.authenticator = authenticator
+    }
+
+    var hidesJournalContent: Bool {
+        isLocked || isSnapshotCovered
+    }
+
+    func unlockIfNeeded(requiresLock: Bool) async {
+        guard requiresLock else {
+            disableLock()
+            return
+        }
+        isSnapshotCovered = false
+        guard isLocked, !isAuthenticating else { return }
+        _ = await authenticate(reason: String(localized: "Unlock Liney to view your journal."))
+    }
+
+    func unlock(requiresLock: Bool) async {
+        guard requiresLock else {
+            disableLock()
+            return
+        }
+        isLocked = true
+        isSnapshotCovered = false
+        guard !isAuthenticating else { return }
+        _ = await authenticate(reason: String(localized: "Unlock Liney to view your journal."))
+    }
+
+    func protectSnapshot(requiresLock: Bool) {
+        guard requiresLock else {
+            disableLock()
+            return
+        }
+        isLocked = true
+        isSnapshotCovered = true
+    }
+
+    func authenticateForExport(requiresLock: Bool) async -> Bool {
+        guard requiresLock else {
+            disableLock()
+            return true
+        }
+        guard !isAuthenticating else { return false }
+        return await authenticate(reason: String(localized: "Authenticate to export your journal."))
+    }
+
+    func authenticateToEnable() async -> Bool {
+        guard !isAuthenticating else { return false }
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+
+        let success = await authenticator.authenticate(
+            reason: String(localized: "Authenticate to require Face ID for Liney.")
+        )
+        if success {
+            isLocked = false
+            isSnapshotCovered = false
+        }
+        return success
+    }
+
+    func disableLock() {
+        isLocked = false
+        isSnapshotCovered = false
+    }
+
+    private func authenticate(reason: String) async -> Bool {
+        isAuthenticating = true
+        defer { isAuthenticating = false }
+
+        let success = await authenticator.authenticate(reason: reason)
+        isLocked = !success
+        isSnapshotCovered = false
+        return success
+    }
+}
+
+private struct AppLockGate<Content: View>: View {
+    @Binding private var requiresAppLock: Bool
+    @ObservedObject private var appLock: AppLockModel
+    @Environment(\.scenePhase) private var scenePhase
+    private let content: () -> Content
+
+    init(
+        requiresAppLock: Binding<Bool>,
+        appLock: AppLockModel,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self._requiresAppLock = requiresAppLock
+        self._appLock = ObservedObject(wrappedValue: appLock)
+        self.content = content
+    }
+
+    var body: some View {
+        Group {
+            if shouldHideContent {
+                LockedJournalView(isAuthenticating: appLock.isAuthenticating) {
+                    Task {
+                        await appLock.unlock(requiresLock: requiresAppLock)
+                    }
+                }
+            } else {
+                content()
+                    .privacySensitive(requiresAppLock)
+            }
+        }
+        .onAppear {
+            Task {
+                await appLock.unlockIfNeeded(requiresLock: requiresAppLock)
+            }
+        }
+        .onChange(of: requiresAppLock) { _, requiresAppLock in
+            if requiresAppLock {
+                Task {
+                    await appLock.unlockIfNeeded(requiresLock: true)
+                }
+            } else {
+                appLock.disableLock()
+            }
+        }
+        .onChange(of: scenePhase) { _, scenePhase in
+            switch scenePhase {
+            case .active:
+                Task {
+                    await appLock.unlockIfNeeded(requiresLock: requiresAppLock)
+                }
+            case .background, .inactive:
+                appLock.protectSnapshot(requiresLock: requiresAppLock)
+            @unknown default:
+                break
+            }
+        }
+    }
+
+    private var shouldHideContent: Bool {
+        requiresAppLock && appLock.hidesJournalContent
+    }
+}
+
+private struct LockedJournalView: View {
+    let isAuthenticating: Bool
+    let unlock: () -> Void
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 44, weight: .regular))
+                .foregroundStyle(.tint)
+                .accessibilityHidden(true)
+
+            VStack(spacing: 8) {
+                Text("Liney Locked")
+                    .font(.title2.bold())
+
+                Text("Unlock to view your private journal.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(action: unlock) {
+                Label("Unlock", systemImage: "lock.open")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isAuthenticating)
+
+            if isAuthenticating {
+                ProgressView()
+            }
+        }
+        .padding(32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemBackground))
+    }
+}
+
+struct SettingsView: View {
+    @Binding var requiresAppLock: Bool
+    @ObservedObject var appLock: AppLockModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var alert: SettingsAlert?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Toggle(isOn: appLockBinding) {
+                        Label("Require Face ID", systemImage: "faceid")
+                    }
+                    .disabled(appLock.isAuthenticating)
+                } footer: {
+                    Text("Use Face ID, Touch ID, or your device passcode to protect Liney.")
+                }
+            }
+            .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .alert(item: $alert) { alert in
+                Alert(
+                    title: Text(alert.title),
+                    message: Text(alert.message),
+                    dismissButton: .default(Text("OK"))
+                )
+            }
+        }
+    }
+
+    private var appLockBinding: Binding<Bool> {
+        Binding(
+            get: { requiresAppLock },
+            set: { newValue in
+                if newValue {
+                    Task {
+                        if await appLock.authenticateToEnable() {
+                            requiresAppLock = true
+                        } else {
+                            alert = SettingsAlert(
+                                title: String(localized: "Could Not Enable App Lock"),
+                                message: String(localized: "Face ID or device passcode authentication was not completed.")
+                            )
+                        }
+                    }
+                } else {
+                    requiresAppLock = false
+                    appLock.disableLock()
+                }
+            }
+        )
+    }
+}
+
+private struct SettingsAlert: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
 }
