@@ -43,6 +43,40 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(reopened.rowSubtitle, "Coffee before the walk.")
     }
 
+    func testLocalizationCatalogCoversEnglishAndSimplifiedChinese() throws {
+        let catalogURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Liney/Localizable.xcstrings")
+        let data = try Data(contentsOf: catalogURL)
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(root["sourceLanguage"] as? String, "en")
+
+        let strings = try XCTUnwrap(root["strings"] as? [String: Any])
+        var failures: [String] = []
+        for (key, rawValue) in strings.sorted(by: { $0.key < $1.key }) {
+            guard let value = rawValue as? [String: Any] else {
+                failures.append("\(key): invalid entry")
+                continue
+            }
+            if value["extractionState"] as? String == "stale" {
+                failures.append("\(key): stale")
+            }
+            let localizations = value["localizations"] as? [String: Any]
+            for locale in ["en", "zh-Hans"] {
+                guard let localizedValue = localizations?[locale] as? [String: Any],
+                      let stringUnit = localizedValue["stringUnit"] as? [String: Any],
+                      stringUnit["state"] as? String == "translated",
+                      let text = stringUnit["value"] as? String,
+                      !text.isEmpty else {
+                    failures.append("\(key): missing \(locale)")
+                    continue
+                }
+            }
+        }
+        XCTAssertTrue(failures.isEmpty, failures.joined(separator: "\n"))
+    }
+
     func testBlankNewEntryIsDiscarded() throws {
         let entry = JournalEntry(title: "   ")
         context.insert(entry)

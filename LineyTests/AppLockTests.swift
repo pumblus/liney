@@ -112,6 +112,27 @@ final class AppLockTests: XCTestCase {
         window.isHidden = true
     }
 
+    func testSettingsRenderInDarkModeAndLargestDynamicType() async throws {
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = UIHostingController(
+            rootView: SettingsView(
+                requiresAppLock: .constant(false),
+                appLock: AppLockModel(authenticator: FakeAuthenticator(results: []))
+            )
+            .environment(\.dynamicTypeSize, .accessibility5)
+            .preferredColorScheme(.dark)
+        )
+        window.makeKeyAndVisible()
+        await flushSwiftUIUpdates()
+
+        let renderedView = try XCTUnwrap(window.rootViewController?.view)
+        renderedView.setNeedsLayout()
+        renderedView.layoutIfNeeded()
+        XCTAssertEqual(renderedView.window, window)
+        XCTAssertFalse(renderedView.bounds.isEmpty)
+        window.isHidden = true
+    }
+
     private func flushSwiftUIUpdates() async {
         await Task.yield()
         try? await Task.sleep(for: .milliseconds(50))

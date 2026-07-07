@@ -1,6 +1,22 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "About" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关于"
+          }
+        }
+      }
+    },
     "A light journal for words and photos." : {
       "localizations" : {
         "en" : {
@@ -189,23 +205,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Day One 导出 (.zip)"
-          }
-        }
-      }
-    },
-    "Day One import will be added in a later MVP slice." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Day One import will be added in a later MVP slice."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Day One 导入会在后续 MVP 切片中加入。"
           }
         }
       }
@@ -466,6 +465,22 @@
         }
       }
     },
+    "Imports and exports happen only when you choose them." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imports and exports happen only when you choose them."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有在你选择时，Liney 才会导入或导出。"
+          }
+        }
+      }
+    },
     "Imported" : {
       "localizations" : {
         "en" : {
@@ -530,6 +545,22 @@
         }
       }
     },
+    "Journal Data" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Journal Data"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日记数据"
+          }
+        }
+      }
+    },
     "Keep Entry Info" : {
       "localizations" : {
         "en" : {
@@ -562,19 +593,34 @@
         }
       }
     },
-    "Liney could not count the entries in this export." : {
-      "extractionState" : "stale",
+    "Liney does not collect analytics or advertising data." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Liney could not count the entries in this export."
+            "value" : "Liney does not collect analytics or advertising data."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Liney 无法统计这个导出中的日记数量。"
+            "value" : "Liney 不收集分析或广告数据。"
+          }
+        }
+      }
+    },
+    "Liney does not require an account." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liney does not require an account."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liney 不需要账户。"
           }
         }
       }
@@ -591,22 +637,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "位置"
-          }
-        }
-      }
-    },
-    "Markdown export will be added in a later MVP slice." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Markdown export will be added in a later MVP slice."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Markdown 导出会在后续 MVP 切片中加入。"
           }
         }
       }
@@ -883,6 +913,38 @@
         }
       }
     },
+    "Photos you add are copied into Liney so entries keep working." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos you add are copied into Liney so entries keep working."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你添加的照片会复制到 Liney 中，确保日记持续可用。"
+          }
+        }
+      }
+    },
+    "Photos, Imports, and Exports" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photos, Imports, and Exports"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照片、导入和导出"
+          }
+        }
+      }
+    },
     "Preparing Export" : {
       "localizations" : {
         "en" : {
@@ -895,6 +957,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在准备导出"
+          }
+        }
+      }
+    },
+    "Privacy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐私"
           }
         }
       }
@@ -927,22 +1005,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "设置"
-          }
-        }
-      }
-    },
-    "Settings will be added in a later MVP slice." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Settings will be added in a later MVP slice."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "设置会在后续 MVP 切片中加入。"
           }
         }
       }
@@ -1203,6 +1265,22 @@
         }
       }
     },
+    "Version" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
+          }
+        }
+      }
+    },
     "Use Photo Info" : {
       "localizations" : {
         "en" : {
@@ -1411,23 +1489,6 @@
         }
       }
     },
-    "Writing entries will be added in the next MVP slice." : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Writing entries will be added in the next MVP slice."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "写日记会在下一个 MVP 切片中加入。"
-          }
-        }
-      }
-    },
     "Your journal stays on this device. No account, no server, no ads, and no analytics." : {
       "localizations" : {
         "en" : {
@@ -1440,6 +1501,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的日记只留在这台设备上。无需账号、没有服务器、广告或分析。"
+          }
+        }
+      }
+    },
+    "Your journal is stored on this device." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your journal is stored on this device."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的日记存储在此设备上。"
           }
         }
       }

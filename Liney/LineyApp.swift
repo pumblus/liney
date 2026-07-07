@@ -348,6 +348,20 @@ struct SettingsView: View {
                 } footer: {
                     Text("Use Face ID, Touch ID, or your device passcode to protect Liney.")
                 }
+
+                Section {
+                    NavigationLink {
+                        PrivacyView()
+                    } label: {
+                        Label("Privacy", systemImage: "hand.raised")
+                    }
+
+                    NavigationLink {
+                        AboutView()
+                    } label: {
+                        Label("About", systemImage: "info.circle")
+                    }
+                }
             }
             .navigationTitle("Settings")
             .toolbar {
@@ -388,6 +402,49 @@ struct SettingsView: View {
                 }
             }
         )
+    }
+}
+
+private struct PrivacyView: View {
+    var body: some View {
+        Form {
+            Section("Journal Data") {
+                Text("Your journal is stored on this device.")
+                Text("Liney does not require an account.")
+                Text("Liney does not collect analytics or advertising data.")
+            }
+
+            Section("Photos, Imports, and Exports") {
+                Text("Photos you add are copied into Liney so entries keep working.")
+                Text("Imports and exports happen only when you choose them.")
+            }
+        }
+        .navigationTitle("Privacy")
+    }
+}
+
+private struct AboutView: View {
+    var body: some View {
+        Form {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Liney")
+                        .font(.headline)
+                    Text("A light journal for words and photos.")
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
+
+                LabeledContent("Version", value: appVersion)
+            }
+        }
+        .navigationTitle("About")
+    }
+
+    private var appVersion: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        return "\(version) (\(build))"
     }
 }
 
