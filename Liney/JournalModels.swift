@@ -427,6 +427,24 @@ extension JournalEntry {
     }
 }
 
+struct PhotoGroupCellLayout: Equatable {
+    let columnSpan: Int
+    let aspectRatio: Double
+}
+
+func photoGroupLayoutPlan(forPhotoCount count: Int) -> [PhotoGroupCellLayout] {
+    guard count > 0 else { return [] }
+
+    let columnCount = photoGroupColumnCount(forPhotoCount: count)
+    return (0..<count).map { index in
+        let columnSpan = count == 3 && index == count - 1 ? columnCount : 1
+        return PhotoGroupCellLayout(
+            columnSpan: columnSpan,
+            aspectRatio: columnSpan == columnCount ? 4.0 / 3.0 : 1
+        )
+    }
+}
+
 func photoGroupColumnCount(forPhotoCount count: Int) -> Int {
     if count <= 1 { return 1 }
     if count <= 4 { return 2 }

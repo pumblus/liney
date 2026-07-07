@@ -421,20 +421,23 @@ private struct PhotoGroupBlockView: View {
 
     var body: some View {
         let photos = block.orderedPhotos
+        let layout = photoGroupLayoutPlan(forPhotoCount: photos.count)
         let columnCount = photoGroupColumnCount(forPhotoCount: photos.count)
         LazyVGrid(
             columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: columnCount),
             spacing: 4
         ) {
-            ForEach(photos) { photo in
+            ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
+                let cellLayout = layout[index]
                 Button {
                     openPhoto(photo)
                 } label: {
                     StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 10)
-                        .aspectRatio(columnCount == 1 ? 4.0 / 3.0 : 1, contentMode: .fill)
+                        .aspectRatio(cellLayout.aspectRatio, contentMode: .fill)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Open Photo")
+                .gridCellColumns(cellLayout.columnSpan)
             }
         }
         .accessibilityElement(children: .contain)

@@ -1,5 +1,6 @@
 import ImageIO
 import SwiftData
+import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 import XCTest
@@ -370,8 +371,47 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 0), 1)
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 1), 1)
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 2), 2)
+        XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 3), 2)
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 4), 2)
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 5), 3)
+    }
+
+    func testPhotoGroupLayoutPlanBalancesThreePhotos() {
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 1).map(\.columnSpan), [1])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 2).map(\.columnSpan), [1, 1])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 3).map(\.columnSpan), [1, 1, 2])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 4).map(\.columnSpan), [1, 1, 1, 1])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 5).map(\.columnSpan), [1, 1, 1, 1, 1])
+
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 1).map(\.aspectRatio), [4.0 / 3.0])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 2).map(\.aspectRatio), [1, 1])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 3).map(\.aspectRatio), [1, 1, 4.0 / 3.0])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 4).map(\.aspectRatio), [1, 1, 1, 1])
+        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 5).map(\.aspectRatio), [1, 1, 1, 1, 1])
+    }
+
+    func testThreePhotoLayoutSmokeRendersOnSimulator() throws {
+        let layout = photoGroupLayoutPlan(forPhotoCount: 3)
+        let renderer = ImageRenderer(content: LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: photoGroupColumnCount(forPhotoCount: 3)),
+            spacing: 4
+        ) {
+            ForEach(0..<3, id: \.self) { index in
+                Rectangle()
+                    .fill([Color.red, .green, .blue][index])
+                    .aspectRatio(layout[index].aspectRatio, contentMode: .fill)
+                    .gridCellColumns(layout[index].columnSpan)
+            }
+        }
+        .frame(width: 320))
+        renderer.scale = 1
+
+        let image = try XCTUnwrap(renderer.uiImage)
+        XCTAssertGreaterThan(image.size.height, 0)
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "Three-photo layout smoke"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func makeJPEGData() -> Data {
