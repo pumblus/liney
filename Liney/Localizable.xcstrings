@@ -396,7 +396,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "失败日记"
+            "value" : "导入失败"
           }
         }
       }
@@ -620,7 +620,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Liney 不需要账户。"
+            "value" : "Liney 不需要账号。"
           }
         }
       }
@@ -684,7 +684,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "所选 zip 中没有找到 Day One 日记。"
+            "value" : "所选 ZIP 文件中未找到任何 Day One 日记。"
           }
         }
       }
@@ -1020,7 +1020,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "跳过重复"
+            "value" : "已跳过重复项"
           }
         }
       }
@@ -1036,7 +1036,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "跳过媒体"
+            "value" : "已跳过媒体"
           }
         }
       }
@@ -1100,7 +1100,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "开始写作"
+            "value" : "开始记录"
           }
         }
       }
@@ -1148,7 +1148,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "照片已从日记中移除，但无法删除其复制文件。"
+            "value" : "照片已从日记中移除，但无法删除其副本文件。"
           }
         }
       }
@@ -1228,7 +1228,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请再试一次删除这张照片。"
+            "value" : "请再次尝试删除这张照片。"
           }
         }
       }
@@ -1324,7 +1324,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请认证以导出日记。"
+            "value" : "请验证以导出日记。"
           }
         }
       }
@@ -1340,7 +1340,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请认证以为 Liney 开启 Face ID。"
+            "value" : "请验证以为 Liney 开启 Face ID。"
           }
         }
       }
@@ -1372,7 +1372,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未完成 Face ID 或设备密码认证。"
+            "value" : "未完成 Face ID 或设备密码验证。"
           }
         }
       }
@@ -1516,7 +1516,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "你的日记存储在此设备上。"
+            "value" : "你的日记存储在这台设备上。"
           }
         }
       }
