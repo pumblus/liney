@@ -5,6 +5,10 @@ import SwiftUI
 struct LineyApp: App {
     @AppStorage("liney.hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
+    init() {
+        JournalExporter().deleteTemporaryExports()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView(hasCompletedOnboarding: $hasCompletedOnboarding)

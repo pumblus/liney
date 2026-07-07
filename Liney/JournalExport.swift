@@ -7,6 +7,68 @@ struct JournalExport: Identifiable {
     let directoryURL: URL
 }
 
+struct JournalExportEntry: Sendable {
+    let id: UUID
+    let title: String
+    let entryDate: Date
+    let isAllDay: Bool
+    let createdAt: Date
+    let locationText: String?
+    let locationLatitude: Double?
+    let locationLongitude: Double?
+    let blocks: [JournalExportBlock]
+
+    init(
+        id: UUID,
+        title: String,
+        entryDate: Date,
+        isAllDay: Bool,
+        createdAt: Date,
+        locationText: String?,
+        locationLatitude: Double?,
+        locationLongitude: Double?,
+        blocks: [JournalExportBlock]
+    ) {
+        self.id = id
+        self.title = title
+        self.entryDate = entryDate
+        self.isAllDay = isAllDay
+        self.createdAt = createdAt
+        self.locationText = locationText
+        self.locationLatitude = locationLatitude
+        self.locationLongitude = locationLongitude
+        self.blocks = blocks
+    }
+
+    init(entry: JournalEntry) {
+        self.init(
+            id: entry.id,
+            title: entry.title,
+            entryDate: entry.entryDate,
+            isAllDay: entry.isAllDay,
+            createdAt: entry.createdAt,
+            locationText: entry.locationDisplayText,
+            locationLatitude: entry.locationLatitude,
+            locationLongitude: entry.locationLongitude,
+            blocks: entry.orderedBlocks.map(JournalExportBlock.init)
+        )
+    }
+}
+
+enum JournalExportBlock: Sendable {
+    case text(String)
+    case photoGroup([String])
+
+    init(block: EntryBlock) {
+        switch block.kind {
+        case .text:
+            self = .text(block.text)
+        case .photoGroup:
+            self = .photoGroup(block.orderedPhotos.map(\.fileName))
+        }
+    }
+}
+
 enum JournalExportError: LocalizedError {
     case missingPhoto
 
@@ -18,7 +80,7 @@ enum JournalExportError: LocalizedError {
     }
 }
 
-struct JournalExporter {
+struct JournalExporter: @unchecked Sendable {
     private let fileManager: FileManager
     private let photoStorage: PhotoStorage
     private let exportRootURL: URL
@@ -38,6 +100,10 @@ struct JournalExporter {
     }
 
     func export(entries: [JournalEntry], exportedAt: Date = .now) throws -> JournalExport {
+        try export(entries: entries.map(JournalExportEntry.init), exportedAt: exportedAt)
+    }
+
+    func export(entries: [JournalExportEntry], exportedAt: Date = .now) throws -> JournalExport {
         let directoryURL = exportRootURL.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
@@ -59,20 +125,24 @@ struct JournalExporter {
         try? fileManager.removeItem(at: export.directoryURL)
     }
 
-    private func add(_ entry: JournalEntry, to archive: Archive) throws {
+    func deleteTemporaryExports() {
+        try? fileManager.removeItem(at: exportRootURL)
+    }
+
+    private func add(_ entry: JournalExportEntry, to archive: Archive) throws {
         let slug = entrySlug(for: entry)
         let markdown = try markdownData(for: entry, slug: slug, archive: archive)
         try add(markdown, path: "entries/\(slug).md", to: archive)
     }
 
-    private func markdownData(for entry: JournalEntry, slug: String, archive: Archive) throws -> Data {
+    private func markdownData(for entry: JournalExportEntry, slug: String, archive: Archive) throws -> Data {
         var lines: [String] = [
             "---",
             "date: \(quoted(dateString(for: entry)))",
             "all_day: \(entry.isAllDay ? "true" : "false")"
         ]
 
-        if let location = entry.locationDisplayText {
+        if let location = entry.locationText {
             lines.append("location: \(quoted(location))")
         }
         if let latitude = entry.locationLatitude {
@@ -92,18 +162,18 @@ struct JournalExporter {
         }
 
         var photoNumber = 0
-        for block in entry.orderedBlocks {
-            switch block.kind {
-            case .text:
-                guard !block.text.isEmpty else { continue }
-                lines.append(block.text)
+        for block in entry.blocks {
+            switch block {
+            case .text(let text):
+                guard !text.isEmpty else { continue }
+                lines.append(text)
                 lines.append("")
-            case .photoGroup:
-                for photo in block.orderedPhotos {
+            case .photoGroup(let photoFileNames):
+                for photoFileNameSource in photoFileNames {
                     photoNumber += 1
                     let photoFileName = String(format: "photo-%03d.jpg", photoNumber)
                     let exportPath = "media/\(slug)/\(photoFileName)"
-                    try addPhoto(photo, path: exportPath, to: archive)
+                    try addPhoto(fileName: photoFileNameSource, path: exportPath, to: archive)
                     lines.append("![Photo \(photoNumber)](../\(exportPath))")
                     lines.append("")
                 }
@@ -113,8 +183,8 @@ struct JournalExporter {
         return Data(lines.joined(separator: "\n").utf8)
     }
 
-    private func addPhoto(_ photo: EntryPhoto, path: String, to archive: Archive) throws {
-        let sourceURL = photoStorage.url(for: photo.fileName)
+    private func addPhoto(fileName: String, path: String, to archive: Archive) throws {
+        let sourceURL = photoStorage.url(for: fileName)
         guard fileManager.fileExists(atPath: sourceURL.path) else {
             throw JournalExportError.missingPhoto
         }
@@ -132,7 +202,7 @@ struct JournalExporter {
         }
     }
 
-    private func sortedEntries(_ entries: [JournalEntry]) -> [JournalEntry] {
+    private func sortedEntries(_ entries: [JournalExportEntry]) -> [JournalExportEntry] {
         entries.sorted {
             if $0.entryDate != $1.entryDate {
                 return $0.entryDate > $1.entryDate
@@ -144,11 +214,11 @@ struct JournalExporter {
         }
     }
 
-    private func entrySlug(for entry: JournalEntry) -> String {
+    private func entrySlug(for entry: JournalExportEntry) -> String {
         "\(compactDateTimeString(entry.entryDate))-\(entry.id.uuidString.lowercased())"
     }
 
-    private func dateString(for entry: JournalEntry) -> String {
+    private func dateString(for entry: JournalExportEntry) -> String {
         entry.isAllDay ? dateOnlyString(entry.entryDate) : isoDateString(entry.entryDate)
     }
 

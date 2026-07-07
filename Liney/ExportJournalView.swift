@@ -56,14 +56,15 @@ struct ExportJournalFlow: View {
     private func startExport() {
         guard exportTask == nil else { return }
 
-        let exportEntries = entries
+        let exportEntries = entries.map(JournalExportEntry.init)
         presentation = .preparing
-        exportTask = Task {
+        exportTask = Task { @MainActor in
             defer { exportTask = nil }
 
             do {
-                await Task.yield()
-                let export = try exporter.export(entries: exportEntries)
+                let export = try await Task.detached(priority: .userInitiated) {
+                    try exporter.export(entries: exportEntries)
+                }.value
                 guard !Task.isCancelled else {
                     exporter.deleteExport(export)
                     return

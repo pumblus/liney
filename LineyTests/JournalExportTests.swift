@@ -106,6 +106,43 @@ final class JournalExportTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: export.directoryURL.path))
     }
 
+    func testExportsFromSnapshotEntries() throws {
+        let calendar = utcCalendar()
+        let exportRootURL = temporaryDirectory.appendingPathComponent("Exports", isDirectory: true)
+        let exporter = JournalExporter(
+            photoStorage: photoStorage,
+            exportRootURL: exportRootURL,
+            calendar: calendar
+        )
+        let exportedAt = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 7)))
+        let entry = JournalExportEntry(
+            id: try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000002")),
+            title: "Cleanup Check",
+            entryDate: exportedAt,
+            isAllDay: true,
+            createdAt: exportedAt,
+            locationText: nil,
+            locationLatitude: nil,
+            locationLongitude: nil,
+            blocks: [.text("Current export.")]
+        )
+
+        let export = try exporter.export(entries: [entry], exportedAt: exportedAt)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: export.url.path))
+    }
+
+    func testDeleteTemporaryExportsRemovesExportRoot() throws {
+        let exportRootURL = temporaryDirectory.appendingPathComponent("Exports", isDirectory: true)
+        let staleDirectoryURL = exportRootURL.appendingPathComponent("stale", isDirectory: true)
+        try FileManager.default.createDirectory(at: staleDirectoryURL, withIntermediateDirectories: true)
+        let exporter = JournalExporter(photoStorage: photoStorage, exportRootURL: exportRootURL)
+
+        exporter.deleteTemporaryExports()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: exportRootURL.path))
+    }
+
     private func extract(_ path: String, from archive: Archive) throws -> Data {
         let entry = try XCTUnwrap(archive[path])
         var data = Data()
