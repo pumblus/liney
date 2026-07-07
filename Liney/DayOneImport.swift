@@ -142,6 +142,10 @@ struct DayOneImporter {
         }
 
         let entries = documents.flatMap(\.entries)
+        guard !entries.isEmpty else {
+            throw DayOneImportError.missingDayOneJSON
+        }
+
         return DayOneImportPlan(
             archiveURL: archiveURL,
             entryCount: entries.count,
@@ -479,7 +483,9 @@ struct DayOneImporter {
     }
 
     private func entriesByPath(in archive: Archive) -> [String: Entry] {
-        Dictionary(uniqueKeysWithValues: archive.map { (normalizePath($0.path), $0) })
+        archive.reduce(into: [:]) { result, entry in
+            result[normalizePath(entry.path)] = entry
+        }
     }
 
     @MainActor

@@ -146,6 +146,41 @@ final class DayOneImportTests: XCTestCase {
         }
     }
 
+    func testPreflightRejectsDayOneJSONWithoutEntries() throws {
+        let archiveURL = try makeArchive(journals: ["Journal.json": []])
+        let importer = DayOneImporter(photoStorage: photoStorage)
+
+        XCTAssertThrowsError(try importer.prepareImport(from: archiveURL)) { error in
+            XCTAssertEqual(error.localizedDescription, DayOneImportError.missingDayOneJSON.localizedDescription)
+        }
+    }
+
+    func testDuplicateNormalizedArchivePathsDoNotCrashImport() async throws {
+        let archiveURL = try makeArchive(
+            journals: [
+                "Journal.json": [
+                    [
+                        "uuid": "entry-duplicate-path",
+                        "creationDate": "2026-07-08T09:00:00Z",
+                        "text": "Photo",
+                        "photos": [["identifier": "photo-a", "type": "jpg"]]
+                    ]
+                ]
+            ],
+            media: [
+                "photos/photo-a.jpg": makeJPEGData(color: .systemRed),
+                "Photos/photo-a.jpg": makeJPEGData(color: .systemGreen)
+            ]
+        )
+
+        let summary = try await importArchive(archiveURL)
+
+        XCTAssertEqual(summary.importedEntries, 1)
+        XCTAssertEqual(summary.skippedMedia, 0)
+        let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(entry.photoGroupBlocks.first?.orderedPhotos.count, 1)
+    }
+
     func testBadEntryAndPhotoFailureAreCountedWithoutBlockingGoodText() async throws {
         let archiveURL = try makeArchive(
             journals: [

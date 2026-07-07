@@ -8,6 +8,7 @@ struct ImportJournalFlow: View {
     var onFinished: (() -> Void)?
 
     @State private var showFileImporter = false
+    @State private var showImportSheet = false
     @State private var pendingPlan: DayOneImportPlan?
     @State private var progress = DayOneImportProgress(processedEntries: 0, totalEntries: 0)
     @State private var summary: DayOneImportSummary?
@@ -35,23 +36,24 @@ struct ImportJournalFlow: View {
             ) { result in
                 handleFileImport(result)
             }
-            .sheet(item: $pendingPlan) { plan in
-                ImportJournalConfirmationView(
-                    plan: plan,
-                    confirm: { startImport(plan) },
-                    cancel: { cancelPendingImport(plan) }
-                )
-                .interactiveDismissDisabled()
-            }
             .sheet(isPresented: importSheetBinding) {
-                ImportJournalProgressView(
-                    isImporting: isImporting,
-                    progress: progress,
-                    summary: summary,
-                    cancel: cancelRunningImport,
-                    done: finishImport
-                )
-                .interactiveDismissDisabled(isImporting)
+                if let pendingPlan {
+                    ImportJournalConfirmationView(
+                        plan: pendingPlan,
+                        confirm: { startImport(pendingPlan) },
+                        cancel: { cancelPendingImport(pendingPlan) }
+                    )
+                    .interactiveDismissDisabled()
+                } else {
+                    ImportJournalProgressView(
+                        isImporting: isImporting,
+                        progress: progress,
+                        summary: summary,
+                        cancel: cancelRunningImport,
+                        done: finishImport
+                    )
+                    .interactiveDismissDisabled(isImporting)
+                }
             }
             .alert(item: $importError) { error in
                 Alert(
@@ -64,9 +66,11 @@ struct ImportJournalFlow: View {
 
     private var importSheetBinding: Binding<Bool> {
         Binding(
-            get: { isImporting || summary != nil },
+            get: { showImportSheet },
             set: { isShowing in
                 guard !isShowing, !isImporting else { return }
+                showImportSheet = false
+                pendingPlan = nil
                 summary = nil
             }
         )
@@ -78,6 +82,7 @@ struct ImportJournalFlow: View {
             guard let url = urls.first else { return }
             do {
                 pendingPlan = try importer.prepareImport(from: url)
+                showImportSheet = true
             } catch {
                 importError = ImportJournalError(message: error.localizedDescription)
             }
@@ -104,6 +109,7 @@ struct ImportJournalFlow: View {
     private func cancelPendingImport(_ plan: DayOneImportPlan) {
         importer.deleteTemporaryArchive(plan)
         pendingPlan = nil
+        showImportSheet = false
     }
 
     private func cancelRunningImport() {
@@ -113,6 +119,7 @@ struct ImportJournalFlow: View {
     private func finishImport() {
         let didImportEntries = (summary?.importedEntries ?? 0) > 0
         summary = nil
+        showImportSheet = false
         if didImportEntries {
             onFinished?()
         }
@@ -131,11 +138,9 @@ private struct ImportJournalConfirmationView: View {
                     LabeledContent("Entries", value: "\(plan.entryCount)")
                     LabeledContent("Photos", value: "\(plan.photoCount)")
                     LabeledContent("Skipped Media", value: "\(plan.unsupportedMediaCount)")
-                } footer: {
-                    Text("Ready to import this Day One export.")
                 }
             }
-            .navigationTitle("Import Day One")
+            .navigationTitle("Import from Day One")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: cancel)
@@ -175,8 +180,6 @@ private struct ImportJournalProgressView: View {
                         LabeledContent("Skipped Duplicates", value: "\(summary.skippedDuplicates)")
                         LabeledContent("Failed Entries", value: "\(summary.failedEntries)")
                         LabeledContent("Skipped Media", value: "\(summary.skippedMedia)")
-                    } footer: {
-                        Text(summary.wasCancelled ? "Import was cancelled." : "Import finished.")
                     }
                 }
             }
