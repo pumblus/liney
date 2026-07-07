@@ -20,6 +20,7 @@ struct EntryEditorView: View {
     @State private var focusRequest: EditorFocusRequest?
     @State private var transientTextAfterPhotoBlockID: UUID?
     @State private var selectedPhoto: EntryPhoto?
+    @State private var photoInfoPromptPhoto: EntryPhoto?
 
     private let photoStorage = PhotoStorage()
     private static let emptyEntryTextKey = "empty-entry-text"
@@ -95,6 +96,25 @@ struct EntryEditorView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This entry will be removed from this device.")
+        }
+        .confirmationDialog(
+            "Use Photo Info?",
+            isPresented: isPhotoInfoPromptPresented,
+            titleVisibility: .visible,
+            presenting: photoInfoPromptPhoto
+        ) { photo in
+            Button("Use Photo Info") {
+                usePhotoAsEntryInfo(photo)
+                photoInfoPromptPhoto = nil
+            }
+            Button("Keep Entry Info") {
+                photoInfoPromptPhoto = nil
+            }
+            Button("Cancel", role: .cancel) {
+                photoInfoPromptPhoto = nil
+            }
+        } message: { _ in
+            Text("The first photo has date or place information that differs from this entry.")
         }
         .alert(item: $photoImportAlert) { alert in
             Alert(
@@ -201,6 +221,17 @@ struct EntryEditorView: View {
         return entry.entryDate.formatted(.dateTime.weekday(.wide).month(.wide).day().year().hour().minute())
     }
 
+    private var isPhotoInfoPromptPresented: Binding<Bool> {
+        Binding(
+            get: { photoInfoPromptPhoto != nil },
+            set: { isPresented in
+                if !isPresented {
+                    photoInfoPromptPhoto = nil
+                }
+            }
+        )
+    }
+
     private var titleBinding: Binding<String> {
         Binding(
             get: { entry.title },
@@ -278,8 +309,14 @@ struct EntryEditorView: View {
                 cursorOffset: targetCursorOffset,
                 in: modelContext
             ) {
+                let promptPhoto = entry.photoInfoPromptCandidate(from: insertion.photoBlock.orderedPhotos)
+                if promptPhoto != nil {
+                    entry.hasShownPhotoInfoPrompt = true
+                }
+
                 if saveChange() {
                     focusAfterPhotoInsertion(insertion)
+                    photoInfoPromptPhoto = promptPhoto
                 } else {
                     modelContext.rollback()
                     if deleteStoredFiles(result.fileNames) {

@@ -914,6 +914,70 @@
         }
       }
     },
+    "Keep Entry Info" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Entry Info"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留日记信息"
+          }
+        }
+      }
+    },
+    "The first photo has date or place information that differs from this entry." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first photo has date or place information that differs from this entry."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第一张照片的日期或地点与这篇日记不同。"
+          }
+        }
+      }
+    },
+    "Use Photo Info" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Photo Info"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用照片信息"
+          }
+        }
+      }
+    },
+    "Use Photo Info?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Photo Info?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用照片信息？"
+          }
+        }
+      }
+    },
     "Your journal stays on this device. No account, no server, no ads, and no analytics." : {
       "localizations" : {
         "en" : {

@@ -264,7 +264,9 @@ final class JournalEntryFlowTests: XCTestCase {
 
     func testPhotoMetadataVisibilityRequiresCaptureTimeOrPlaceText() {
         XCTAssertFalse(EntryPhoto(fileName: "plain.jpg").hasVisibleMetadata)
-        XCTAssertFalse(EntryPhoto(fileName: "gps.jpg", locationLatitude: 48.8566, locationLongitude: 2.3522).hasVisibleMetadata)
+        let coordinatesOnly = EntryPhoto(fileName: "gps.jpg", locationLatitude: 48.8566, locationLongitude: 2.3522)
+        XCTAssertFalse(coordinatesOnly.hasVisibleMetadata)
+        XCTAssertTrue(coordinatesOnly.hasUsableEntryInfo)
 
         let captured = EntryPhoto(fileName: "captured.jpg", capturedAt: Date())
         XCTAssertTrue(captured.hasVisibleMetadata)
@@ -295,6 +297,75 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(entry.locationName, "Paris")
         XCTAssertEqual(entry.locationLatitude, 48.8566)
         XCTAssertEqual(entry.locationLongitude, 2.3522)
+    }
+
+    func testPhotoInfoPromptUsesTimeAndLocationThresholds() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let entryDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 9)))
+        let entry = JournalEntry(
+            entryDate: entryDate,
+            locationName: "Paris",
+            locationLatitude: 48.8566,
+            locationLongitude: 2.3522
+        )
+
+        let exactlyTwelveHours = EntryPhoto(
+            fileName: "same-day.jpg",
+            capturedAt: entryDate.addingTimeInterval(12 * 60 * 60),
+            placeName: "Paris",
+            locationLatitude: 48.8567,
+            locationLongitude: 2.3523
+        )
+        XCTAssertFalse(entry.shouldPromptForPhotoInfo(from: exactlyTwelveHours))
+
+        let moreThanTwelveHours = EntryPhoto(
+            fileName: "different-time.jpg",
+            capturedAt: entryDate.addingTimeInterval(12 * 60 * 60 + 1)
+        )
+        XCTAssertTrue(entry.shouldPromptForPhotoInfo(from: moreThanTwelveHours))
+
+        let farLocation = EntryPhoto(
+            fileName: "london.jpg",
+            placeName: "London",
+            locationLatitude: 51.5074,
+            locationLongitude: -0.1278
+        )
+        XCTAssertTrue(entry.shouldPromptForPhotoInfo(from: farLocation))
+    }
+
+    func testPhotoInfoPromptUsesMissingEntryLocationAndKeepsGeocodeFailureCoordinatesInternal() {
+        let missingLocationEntry = JournalEntry()
+        let placedPhoto = EntryPhoto(
+            fileName: "placed.jpg",
+            placeName: "Paris",
+            locationLatitude: 48.8566,
+            locationLongitude: 2.3522
+        )
+        XCTAssertTrue(missingLocationEntry.shouldPromptForPhotoInfo(from: placedPhoto))
+
+        let coordinatesOnlyPhoto = EntryPhoto(
+            fileName: "coordinates-only.jpg",
+            locationLatitude: 48.8566,
+            locationLongitude: 2.3522
+        )
+        XCTAssertTrue(missingLocationEntry.shouldPromptForPhotoInfo(from: coordinatesOnlyPhoto))
+
+        missingLocationEntry.applyInfo(from: coordinatesOnlyPhoto)
+        XCTAssertNil(missingLocationEntry.locationDisplayText)
+        XCTAssertEqual(missingLocationEntry.locationLatitude, 48.8566)
+        XCTAssertEqual(missingLocationEntry.locationLongitude, 2.3522)
+
+        missingLocationEntry.hasShownPhotoInfoPrompt = true
+        XCTAssertFalse(missingLocationEntry.shouldPromptForPhotoInfo(from: placedPhoto))
+    }
+
+    func testPhotoInfoPromptCandidateOnlyConsidersFirstAddedPhoto() {
+        let entry = JournalEntry(locationName: "Paris", locationLatitude: 48.8566, locationLongitude: 2.3522)
+        let firstPhoto = EntryPhoto(fileName: "first.jpg", placeName: "Paris", locationLatitude: 48.8567, locationLongitude: 2.3523)
+        let laterDifferentPhoto = EntryPhoto(fileName: "later.jpg", placeName: "London", locationLatitude: 51.5074, locationLongitude: -0.1278)
+
+        XCTAssertNil(entry.photoInfoPromptCandidate(from: [firstPhoto, laterDifferentPhoto]))
+        XCTAssertTrue(entry.photoInfoPromptCandidate(from: [laterDifferentPhoto, firstPhoto]) === laterDifferentPhoto)
     }
 
     func testDeletePhotoRemovesPhotoAndReindexesGroup() throws {

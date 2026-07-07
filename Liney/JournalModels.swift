@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import SwiftData
 
@@ -12,6 +13,7 @@ final class JournalEntry: Identifiable {
     var locationName: String?
     var locationLatitude: Double?
     var locationLongitude: Double?
+    var hasShownPhotoInfoPrompt: Bool = false
     @Relationship(deleteRule: .cascade, inverse: \EntryBlock.entry) var blocks: [EntryBlock]
 
     init(
@@ -24,6 +26,7 @@ final class JournalEntry: Identifiable {
         locationName: String? = nil,
         locationLatitude: Double? = nil,
         locationLongitude: Double? = nil,
+        hasShownPhotoInfoPrompt: Bool = false,
         blocks: [EntryBlock] = []
     ) {
         self.id = id
@@ -35,6 +38,7 @@ final class JournalEntry: Identifiable {
         self.locationName = locationName
         self.locationLatitude = locationLatitude
         self.locationLongitude = locationLongitude
+        self.hasShownPhotoInfoPrompt = hasShownPhotoInfoPrompt
         self.blocks = blocks
     }
 }
@@ -140,7 +144,11 @@ extension EntryPhoto {
     }
 
     var hasUsableEntryInfo: Bool {
-        hasVisibleMetadata
+        hasVisibleMetadata || hasLocationCoordinates
+    }
+
+    var hasLocationCoordinates: Bool {
+        locationLatitude != nil && locationLongitude != nil
     }
 }
 
@@ -216,6 +224,29 @@ extension JournalEntry {
         return trimmedLocation.isEmpty ? nil : trimmedLocation
     }
 
+    func photoInfoPromptCandidate(from photos: [EntryPhoto]) -> EntryPhoto? {
+        guard let firstPhoto = photos.first,
+              shouldPromptForPhotoInfo(from: firstPhoto) else { return nil }
+        return firstPhoto
+    }
+
+    func shouldPromptForPhotoInfo(from photo: EntryPhoto) -> Bool {
+        guard !hasShownPhotoInfoPrompt else { return false }
+
+        if let capturedAt = photo.capturedAt,
+           abs(capturedAt.timeIntervalSince(entryDate)) > Self.photoInfoPromptTimeInterval {
+            return true
+        }
+
+        if locationDisplayText == nil {
+            return photo.placeDisplayText != nil || photo.hasLocationCoordinates
+        }
+
+        guard photo.placeDisplayText != nil else { return false }
+        guard let entryLocation, let photoLocation = photo.location else { return false }
+        return entryLocation.distance(from: photoLocation) > Self.photoInfoPromptDistanceMeters
+    }
+
     func setAllDay(_ allDay: Bool, calendar: Calendar = .current) {
         isAllDay = allDay
         if allDay {
@@ -235,6 +266,9 @@ extension JournalEntry {
 
         if let placeText = photo.placeDisplayText {
             locationName = placeText
+            locationLatitude = photo.locationLatitude
+            locationLongitude = photo.locationLongitude
+        } else if photo.hasLocationCoordinates {
             locationLatitude = photo.locationLatitude
             locationLongitude = photo.locationLongitude
         }
@@ -424,6 +458,21 @@ extension JournalEntry {
             block.sortIndex = index
             block.entry = self
         }
+    }
+
+    private static let photoInfoPromptTimeInterval: TimeInterval = 12 * 60 * 60
+    private static let photoInfoPromptDistanceMeters: CLLocationDistance = 1_000
+
+    private var entryLocation: CLLocation? {
+        guard let locationLatitude, let locationLongitude else { return nil }
+        return CLLocation(latitude: locationLatitude, longitude: locationLongitude)
+    }
+}
+
+private extension EntryPhoto {
+    var location: CLLocation? {
+        guard let locationLatitude, let locationLongitude else { return nil }
+        return CLLocation(latitude: locationLatitude, longitude: locationLongitude)
     }
 }
 
