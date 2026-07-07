@@ -108,6 +108,8 @@ struct EntryEditorView: View {
                 photoInfoPromptPhoto = nil
             }
             Button("Keep Entry Info") {
+                entry.hasShownPhotoInfoPrompt = true
+                saveChange()
                 photoInfoPromptPhoto = nil
             }
             Button("Cancel", role: .cancel) {
@@ -310,9 +312,6 @@ struct EntryEditorView: View {
                 in: modelContext
             ) {
                 let promptPhoto = entry.photoInfoPromptCandidate(from: insertion.photoBlock.orderedPhotos)
-                if promptPhoto != nil {
-                    entry.hasShownPhotoInfoPrompt = true
-                }
 
                 if saveChange() {
                     focusAfterPhotoInsertion(insertion)
@@ -392,6 +391,7 @@ struct EntryEditorView: View {
 
     private func usePhotoAsEntryInfo(_ photo: EntryPhoto) {
         entry.applyInfo(from: photo)
+        entry.hasShownPhotoInfoPrompt = true
         saveChange()
     }
 

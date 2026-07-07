@@ -242,7 +242,6 @@ extension JournalEntry {
             return photo.placeDisplayText != nil || photo.hasLocationCoordinates
         }
 
-        guard photo.placeDisplayText != nil else { return false }
         guard let entryLocation, let photoLocation = photo.location else { return false }
         return entryLocation.distance(from: photoLocation) > Self.photoInfoPromptDistanceMeters
     }
@@ -269,6 +268,7 @@ extension JournalEntry {
             locationLatitude = photo.locationLatitude
             locationLongitude = photo.locationLongitude
         } else if photo.hasLocationCoordinates {
+            locationName = nil
             locationLatitude = photo.locationLatitude
             locationLongitude = photo.locationLongitude
         }

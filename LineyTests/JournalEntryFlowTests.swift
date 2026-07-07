@@ -331,6 +331,13 @@ final class JournalEntryFlowTests: XCTestCase {
             locationLongitude: -0.1278
         )
         XCTAssertTrue(entry.shouldPromptForPhotoInfo(from: farLocation))
+
+        let farCoordinatesOnly = EntryPhoto(
+            fileName: "gps-only.jpg",
+            locationLatitude: 51.5074,
+            locationLongitude: -0.1278
+        )
+        XCTAssertTrue(entry.shouldPromptForPhotoInfo(from: farCoordinatesOnly))
     }
 
     func testPhotoInfoPromptUsesMissingEntryLocationAndKeepsGeocodeFailureCoordinatesInternal() {
@@ -354,6 +361,12 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertNil(missingLocationEntry.locationDisplayText)
         XCTAssertEqual(missingLocationEntry.locationLatitude, 48.8566)
         XCTAssertEqual(missingLocationEntry.locationLongitude, 2.3522)
+
+        let namedLocationEntry = JournalEntry(locationName: "Paris")
+        namedLocationEntry.applyInfo(from: coordinatesOnlyPhoto)
+        XCTAssertNil(namedLocationEntry.locationDisplayText)
+        XCTAssertEqual(namedLocationEntry.locationLatitude, 48.8566)
+        XCTAssertEqual(namedLocationEntry.locationLongitude, 2.3522)
 
         missingLocationEntry.hasShownPhotoInfoPrompt = true
         XCTAssertFalse(missingLocationEntry.shouldPromptForPhotoInfo(from: placedPhoto))
