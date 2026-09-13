@@ -5,6 +5,70 @@ import XCTest
 
 @MainActor
 final class AppLockTests: XCTestCase {
+    func testAuthenticationFinishingWhileInactiveKeepsSnapshotCovered() async {
+        let authenticator = SuspendedAuthenticator()
+        let lock = AppLockModel(authenticator: authenticator)
+        let unlockTask = Task { await lock.unlockIfNeeded(requiresLock: true) }
+        while authenticator.completion == nil { await Task.yield() }
+        lock.protectSnapshot(requiresLock: true)
+        authenticator.completion?.resume(returning: true)
+        await unlockTask.value
+        XCTAssertTrue(lock.hidesJournalContent)
+    }
+
+    func testBackgroundInvalidatesPendingAuthenticationAndForegroundRetries() async {
+        let authenticator = SuspendedAuthenticator()
+        let lock = AppLockModel(authenticator: authenticator)
+        let first = Task { await lock.unlockIfNeeded(requiresLock: true) }
+        while authenticator.completion == nil { await Task.yield() }
+        lock.didEnterBackground(requiresLock: true)
+        authenticator.completion?.resume(returning: true)
+        await first.value
+        XCTAssertTrue(lock.isLocked)
+        XCTAssertTrue(lock.isSnapshotCovered)
+        authenticator.completion = nil
+        let retry = Task { await lock.unlockIfNeeded(requiresLock: true) }
+        while authenticator.completion == nil { await Task.yield() }
+        authenticator.completion?.resume(returning: true)
+        await retry.value
+        XCTAssertFalse(lock.hidesJournalContent)
+    }
+
+    func testInactiveAuthenticationSuccessDoesNotPromptAgainOnActive() async {
+        let authenticator = SuspendedAuthenticator()
+        let lock = AppLockModel(authenticator: authenticator)
+        let task = Task { await lock.unlockIfNeeded(requiresLock: true) }
+        while authenticator.completion == nil { await Task.yield() }
+        lock.protectSnapshot(requiresLock: true)
+        authenticator.completion?.resume(returning: true)
+        await task.value
+        await lock.unlockIfNeeded(requiresLock: true)
+        XCTAssertFalse(lock.hidesJournalContent)
+    }
+
+    func testDisablingLockIgnoresPendingAuthenticationFailure() async {
+        let authenticator = SuspendedAuthenticator()
+        let lock = AppLockModel(authenticator: authenticator)
+        let task = Task { await lock.unlockIfNeeded(requiresLock: true) }
+        while authenticator.completion == nil { await Task.yield() }
+        lock.disableLock()
+        authenticator.completion?.resume(returning: false)
+        await task.value
+        XCTAssertFalse(lock.hidesJournalContent)
+    }
+
+    func testBackgroundInvalidatesPendingExportAuthorization() async {
+        let authenticator = SuspendedAuthenticator()
+        let lock = AppLockModel(authenticator: authenticator)
+        let task = Task { await lock.authenticateForExport(requiresLock: true) }
+        while authenticator.completion == nil { await Task.yield() }
+        lock.didEnterBackground(requiresLock: true)
+        authenticator.completion?.resume(returning: true)
+        let authorized = await task.value
+        XCTAssertFalse(authorized)
+        XCTAssertTrue(lock.hidesJournalContent)
+    }
+
     func testSuccessfulLaunchAuthenticationShowsContent() async {
         let authenticator = FakeAuthenticator(results: [true])
         let lock = AppLockModel(authenticator: authenticator)
@@ -83,6 +147,24 @@ final class AppLockTests: XCTestCase {
         XCTAssertTrue(authorized)
         XCTAssertFalse(lock.hidesJournalContent)
         XCTAssertEqual(authenticator.callCount, 0)
+    }
+
+    func testGateMountsContentBehindInitialLockCover() async {
+        let lock = AppLockModel(authenticator: FakeAuthenticator(results: []))
+        let probe = MountProbe()
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = UIHostingController(
+            rootView: AppLockGate(requiresAppLock: .constant(true), appLock: lock) {
+                MountProbeView(probe: probe)
+            }
+        )
+        window.makeKeyAndVisible()
+        await flushSwiftUIUpdates()
+
+        XCTAssertTrue(lock.hidesJournalContent)
+        XCTAssertEqual(probe.appearances, 1)
+        XCTAssertEqual(probe.disappearances, 0)
+        window.isHidden = true
     }
 
     func testGateKeepsUnlockedContentMountedBehindLockCover() async {
@@ -169,5 +251,12 @@ private struct MountProbeView: View {
             .onDisappear {
                 probe.disappearances += 1
             }
+    }
+}
+
+private final class SuspendedAuthenticator: AppAuthenticating {
+    var completion: CheckedContinuation<Bool, Never>?
+    func authenticate(reason: String) async -> Bool {
+        await withCheckedContinuation { completion = $0 }
     }
 }

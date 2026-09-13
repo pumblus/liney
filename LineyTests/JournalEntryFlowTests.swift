@@ -27,6 +27,121 @@ final class JournalEntryFlowTests: XCTestCase {
         container = nil
     }
 
+    func testReopenedPhotoOnlyEntryCanContinueWriting() async throws {
+        context = container.mainContext
+        let entry = JournalEntry()
+        context.insert(entry)
+        _ = entry.insertPhotoGroup(fileNames: ["synthetic-missing.jpg"], in: context)
+        try context.save()
+
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = UIHostingController(rootView:
+            NavigationStack { EntryEditorView(entry: entry, isNew: false) }
+                .modelContainer(container)
+                .environment(\.modelContext, context)
+        )
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        try await Task.sleep(for: .milliseconds(150))
+        window.rootViewController?.view.layoutIfNeeded()
+
+        func textViews(in view: UIView) -> [UITextView] {
+            (view as? UITextView).map { [$0] } ?? view.subviews.flatMap { textViews(in: $0) }
+        }
+        let textView = try XCTUnwrap(textViews(in: window).last,
+                                    "A reopened photo-only entry must expose a body input after the photo group")
+        for value in ["S", "Synthetic", "Synthetic continuation 中文 🌿"] {
+            textView.text = value
+            textView.delegate?.textViewDidChange?(textView)
+            try await Task.sleep(for: .milliseconds(20))
+            XCTAssertTrue(textViews(in: window).last === textView)
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(entry.orderedBlocks.map(\.kind), [.photoGroup, .text])
+        XCTAssertEqual(entry.plainTextBody, "Synthetic continuation 中文 🌿")
+        let reopenedContext = ModelContext(container)
+        let reopened = try XCTUnwrap(try reopenedContext.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(reopened.plainTextBody, "Synthetic continuation 中文 🌿")
+    }
+
+    func testRapidTypingIntoEmptyEntryDoesNotAppendIntermediateValues() async throws {
+        context = container.mainContext
+        let entry = JournalEntry()
+        context.insert(entry)
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = UIHostingController(rootView:
+            NavigationStack { EntryEditorView(entry: entry, isNew: true) }
+                .modelContainer(container)
+                .environment(\.modelContext, context)
+        )
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        try await Task.sleep(for: .milliseconds(150))
+        window.rootViewController?.view.layoutIfNeeded()
+        func textViews(in view: UIView) -> [UITextView] {
+            (view as? UITextView).map { [$0] } ?? view.subviews.flatMap { textViews(in: $0) }
+        }
+        let textView = try XCTUnwrap(textViews(in: window).first)
+        for value in ["S", "Sy", "Synthetic"] {
+            textView.text = value
+            textView.delegate?.textViewDidChange?(textView)
+            try await Task.sleep(for: .milliseconds(20))
+            XCTAssertTrue(textViews(in: window).first === textView,
+                          "Promoting transient text must preserve the native input identity")
+        }
+        textView.delegate?.textViewDidEndEditing?(textView)
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertEqual(entry.plainTextBody, "Synthetic")
+        XCTAssertEqual(entry.orderedBlocks.count, 1)
+        let reopened = try XCTUnwrap(try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(reopened.plainTextBody, "Synthetic")
+    }
+
+    func testFailedSaveRetainsPendingTextAndCanRetry() throws {
+        let entry = JournalEntry(title: "Synthetic")
+        context.insert(entry)
+        try context.save()
+        entry.setBody("Pending synthetic edit", in: context)
+        XCTAssertThrowsError(try saveEntryChanges(entry, in: context, save: { throw CocoaError(.fileWriteOutOfSpace) }))
+        XCTAssertEqual(entry.plainTextBody, "Pending synthetic edit")
+        try saveEntryChanges(entry, in: context)
+        let reopened = try XCTUnwrap(try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(reopened.plainTextBody, "Pending synthetic edit")
+    }
+
+    func testFailedDeletionRestoresEntryAndSuccessfulDeletionReturnsPhotoFiles() throws {
+        let entry = JournalEntry(title: "Synthetic")
+        context.insert(entry)
+        _ = entry.insertPhotoGroup(fileNames: ["synthetic.jpg"], in: context)
+        try context.save()
+        XCTAssertThrowsError(try deleteEntryAndSave(entry, in: context, save: { throw CocoaError(.fileWriteOutOfSpace) }))
+        let restored = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(restored.photoGroupBlocks.first?.orderedPhotos.first?.fileName, "synthetic.jpg")
+        XCTAssertEqual(try deleteEntryAndSave(restored, in: context), ["synthetic.jpg"])
+        XCTAssertTrue(try context.fetch(FetchDescriptor<JournalEntry>()).isEmpty)
+    }
+
+    func testThumbnailSizeAspectRatioRootsAndDeletion() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = PhotoStorage(baseURL: root.appendingPathComponent("one"))
+        let other = PhotoStorage(baseURL: root.appendingPathComponent("two"))
+        let id = UUID()
+        let name = try storage.saveJPEG(from: qualityPerfJPEGData(size: CGSize(width: 800, height: 500)), id: id)
+        _ = try other.saveJPEG(from: qualityPerfJPEGData(size: CGSize(width: 500, height: 800)), id: id)
+        let image = try XCTUnwrap(storage.thumbnail(for: name, maxPixelSize: 160)?.cgImage)
+        let portrait = try XCTUnwrap(other.thumbnail(for: name, maxPixelSize: 160)?.cgImage)
+        XCTAssertEqual(image.width, 160)
+        XCTAssertEqual(image.height, 100)
+        XCTAssertEqual(portrait.width, 100)
+        XCTAssertEqual(portrait.height, 160)
+        try storage.delete(fileName: name)
+        XCTAssertNil(storage.thumbnail(for: name, maxPixelSize: 160))
+        XCTAssertNotNil(other.thumbnail(for: name, maxPixelSize: 160))
+        try Data("invalid".utf8).write(to: storage.url(for: name))
+        XCTAssertNil(storage.thumbnail(for: name, maxPixelSize: 160))
+    }
+
     func testCreateEditAndReopenEntry() throws {
         let entryDate = try XCTUnwrap(Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 9)))
         let entry = JournalEntry(entryDate: entryDate)
@@ -638,4 +753,193 @@ final class JournalEntryFlowTests: XCTestCase {
         formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
         return formatter.date(from: text)
     }
+}
+
+extension JournalEntryFlowTests {
+// MARK: Photo decode: baseline, cold bounded thumbnails, and warm cache
+
+func testPhotoStorageThumbnailPerformanceOnSyntheticFixtures() throws {
+    let rootURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent("LineyPhotoPerformance-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: rootURL) }
+
+    let storage = PhotoStorage(baseURL: rootURL)
+    let sourceData = qualityPerfJPEGData(size: CGSize(width: 2_400, height: 1_800))
+    let seedFileName = try storage.saveJPEG(from: sourceData)
+    let seedURL = storage.url(for: seedFileName)
+    let seedData = try Data(contentsOf: seedURL)
+
+    let pathSets: [[String]] = try (0..<3).map { round in
+        try (0..<50).map { index in
+            let fileName = "fixture-\(round)-\(index).jpg"
+            let destinationURL = storage.url(for: fileName)
+            try FileManager.default.createDirectory(
+                at: storage.photoDirectoryURL,
+                withIntermediateDirectories: true
+            )
+            try seedData.write(to: destinationURL, options: .atomic)
+            return fileName
+        }
+    }
+
+    var baselineSamples: [Double] = []
+    var coldThumbnailSamples: [Double] = []
+    var warmThumbnailSamples: [Double] = []
+    var baselineDecodedBytes = 0
+    var coldDecodedBytes = 0
+    var warmDecodedBytes = 0
+
+    for fileNames in pathSets {
+        var baselineBytes = 0
+        let baselineStart = DispatchTime.now().uptimeNanoseconds
+        for fileName in fileNames {
+            if let image = storage.image(for: fileName) {
+                baselineBytes += qualityPerfMaterialize(image)
+            }
+        }
+        baselineSamples.append(qualityPerfMilliseconds(since: baselineStart))
+        baselineDecodedBytes = baselineBytes
+
+        var coldBytes = 0
+        let coldStart = DispatchTime.now().uptimeNanoseconds
+        for fileName in fileNames {
+            if let image = storage.thumbnail(for: fileName, maxPixelSize: 160) {
+                coldBytes += qualityPerfMaterialize(image)
+            }
+        }
+        coldThumbnailSamples.append(qualityPerfMilliseconds(since: coldStart))
+        coldDecodedBytes = coldBytes
+
+        var warmBytes = 0
+        let warmStart = DispatchTime.now().uptimeNanoseconds
+        for fileName in fileNames {
+            if let image = storage.thumbnail(for: fileName, maxPixelSize: 160) {
+                warmBytes += qualityPerfMaterialize(image)
+            }
+        }
+        warmThumbnailSamples.append(qualityPerfMilliseconds(since: warmStart))
+        warmDecodedBytes = warmBytes
+    }
+
+    print("[PERF-photo] condition=iOS simulator; image=2400x1800; paths=50; rounds=3")
+    print("[PERF-photo] baseline_image_for median_ms=\(qualityPerfMedian(baselineSamples)) p95_ms=\(qualityPerfP95(baselineSamples)) decoded_bytes_estimate=\(baselineDecodedBytes)")
+    print("[PERF-photo] thumbnail_160_cold median_ms=\(qualityPerfMedian(coldThumbnailSamples)) p95_ms=\(qualityPerfP95(coldThumbnailSamples)) decoded_bytes_estimate=\(coldDecodedBytes)")
+    print("[PERF-photo] thumbnail_160_warm median_ms=\(qualityPerfMedian(warmThumbnailSamples)) p95_ms=\(qualityPerfP95(warmThumbnailSamples)) decoded_bytes_estimate=\(warmDecodedBytes)")
+}
+
+// MARK: Timeline/search pure-function baseline
+
+func testTimelineSearchPerformanceOnSyntheticFixture() throws {
+    let calendar = Calendar(identifier: .gregorian)
+    let startDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+    let commonText = String(repeating: "alpha beta gamma ", count: 256)
+
+    for index in 0..<1_000 {
+        let date = startDate.addingTimeInterval(TimeInterval(index * 60))
+        let entry = JournalEntry(
+            title: "Synthetic Entry \(index)",
+            entryDate: date,
+            createdAt: date
+        )
+        context.insert(entry)
+        entry.setBody("\(commonText)needle-\(String(format: "%04d", index))", in: context)
+    }
+    try context.save()
+
+    let entries = try context.fetch(FetchDescriptor<JournalEntry>())
+    XCTAssertEqual(entries.count, 1_000)
+
+    var searchSamples: [Double] = []
+    var groupingSamples: [Double] = []
+    var matchCount = 0
+    var groupCount = 0
+
+    for _ in 0..<3 {
+        let searchStart = DispatchTime.now().uptimeNanoseconds
+        let matches = searchJournalEntries(entries, matching: "needle")
+        searchSamples.append(qualityPerfMilliseconds(since: searchStart))
+        matchCount = matches.count
+
+        let groupingStart = DispatchTime.now().uptimeNanoseconds
+        let groups = groupEntriesByDay(matches, calendar: calendar)
+        groupingSamples.append(qualityPerfMilliseconds(since: groupingStart))
+        groupCount = groups.count
+    }
+
+    XCTAssertEqual(matchCount, 1_000)
+    XCTAssertGreaterThan(groupCount, 0)
+    print("[PERF-search] entries=1000 body_bytes_each=4363 rounds=3 query=needle")
+    print("[PERF-search] filter median_ms=\(qualityPerfMedian(searchSamples)) p95_ms=\(qualityPerfP95(searchSamples)) matches=\(matchCount)")
+    print("[PERF-search] group_by_day median_ms=\(qualityPerfMedian(groupingSamples)) p95_ms=\(qualityPerfP95(groupingSamples)) groups=\(groupCount)")
+}
+
+// MARK: Synchronous long-text save baseline
+
+func testLongTextSavePerformanceOnSyntheticFixture() throws {
+    let startDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
+    let longText = String(repeating: "0123456789", count: 20_000)
+    XCTAssertEqual(longText.utf8.count, 200_000)
+
+    let entry = JournalEntry(entryDate: startDate, createdAt: startDate)
+    context.insert(entry)
+    entry.setBody(longText, in: context)
+    try context.save()
+
+    var samples: [Double] = []
+    for index in 0..<50 {
+        let start = DispatchTime.now().uptimeNanoseconds
+        entry.setBody("\(longText)\(index % 10)", in: context)
+        try saveEntryChanges(entry, in: context)
+        samples.append(qualityPerfMilliseconds(since: start))
+    }
+
+    print("[PERF-save] text_bytes=200000 saves=50 model_context=in-memory synchronous")
+    print("[PERF-save] save_change_like median_ms=\(qualityPerfMedian(samples)) p95_ms=\(qualityPerfP95(samples)) total_ms=\(String(format: "%.2f", samples.reduce(0, +)))")
+}
+
+// MARK: Helpers
+
+private func qualityPerfJPEGData(size: CGSize) -> Data {
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    return UIGraphicsImageRenderer(size: size, format: format).jpegData(withCompressionQuality: 0.95) { rendererContext in
+        UIColor.systemBlue.setFill()
+        rendererContext.fill(CGRect(origin: .zero, size: size))
+    }
+}
+
+private func qualityPerfMaterialize(_ image: UIImage) -> Int {
+    guard let cgImage = image.cgImage,
+          let context = CGContext(
+            data: nil,
+            width: cgImage.width,
+            height: cgImage.height,
+            bitsPerComponent: 8,
+            bytesPerRow: cgImage.width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+          ) else {
+        return 0
+    }
+    context.draw(cgImage, in: CGRect(x: 0, y: 0, width: cgImage.width, height: cgImage.height))
+    return cgImage.width * cgImage.height * 4
+}
+
+private func qualityPerfMilliseconds(since start: UInt64) -> Double {
+    Double(DispatchTime.now().uptimeNanoseconds - start) / 1_000_000
+}
+
+private func qualityPerfMedian(_ samples: [Double]) -> String {
+    let sorted = samples.sorted()
+    guard !sorted.isEmpty else { return "n/a" }
+    return String(format: "%.2f", sorted[sorted.count / 2])
+}
+
+private func qualityPerfP95(_ samples: [Double]) -> String {
+    let sorted = samples.sorted()
+    guard !sorted.isEmpty else { return "n/a" }
+    let index = min(sorted.count - 1, Int(ceil(Double(sorted.count) * 0.95)) - 1)
+    return String(format: "%.2f", sorted[index])
+}
+
 }

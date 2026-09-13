@@ -11,14 +11,17 @@ struct EntryEditorView: View {
 
     @State private var isShowingDateEditor = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var isShowingPhotoPicker = false
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
     @State private var isImportingPhotos = false
     @State private var photoImportAlert: PhotoImportAlert?
     @State private var photoActionAlert: PhotoActionAlert?
     @State private var focusedTextBlockID: UUID?
+    @State private var focusedTextFocusKey: String?
     @State private var textSelections: [UUID: NSRange] = [:]
     @State private var focusRequest: EditorFocusRequest?
     @State private var transientTextAfterPhotoBlockID: UUID?
+    @State private var transientTextValues: [String: String] = [:]
     @State private var selectedPhoto: EntryPhoto?
     @State private var photoInfoPromptPhoto: EntryPhoto?
 
@@ -49,15 +52,31 @@ struct EntryEditorView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                PhotosPicker(
-                    selection: $selectedPhotoItems,
-                    maxSelectionCount: 0,
-                    selectionBehavior: .ordered,
-                    matching: .images
-                ) {
+                Button {
+                    isShowingPhotoPicker = true
+                } label: {
                     Label("Insert Photos", systemImage: "photo.on.rectangle")
                 }
                 .disabled(isImportingPhotos)
+                .confirmationDialog(
+                    "Use Photo Info?",
+                    isPresented: isPhotoInfoPromptPresented,
+                    titleVisibility: .visible,
+                    presenting: photoInfoPromptPhoto
+                ) { photo in
+                    Button("Use Photo Info") {
+                        usePhotoAsEntryInfo(photo)
+                        photoInfoPromptPhoto = nil
+                    }
+                    Button("Keep Entry Info") {
+                        dismissPhotoInfoPrompt()
+                    }
+                    Button("Cancel", role: .cancel) {
+                        dismissPhotoInfoPrompt()
+                    }
+                } message: { _ in
+                    Text("The first photo has date or place information that differs from this entry.")
+                }
 
                 Menu {
                     Button(role: .destructive) {
@@ -68,10 +87,27 @@ struct EntryEditorView: View {
                 } label: {
                     Label("Entry Actions", systemImage: "ellipsis.circle")
                 }
+                .confirmationDialog(
+                    "Delete Entry?",
+                    isPresented: $isShowingDeleteConfirmation,
+                    titleVisibility: .visible
+                ) {
+                    Button("Delete Entry", role: .destructive, action: deleteEntry)
+                    Button("Cancel", role: .cancel) { }
+                } message: {
+                    Text("This entry will be removed from this device.")
+                }
 
                 Button("Done", action: finish)
             }
         }
+        .photosPicker(
+            isPresented: $isShowingPhotoPicker,
+            selection: $selectedPhotoItems,
+            maxSelectionCount: 0,
+            selectionBehavior: .ordered,
+            matching: .images
+        )
         .sheet(isPresented: $isShowingDateEditor) {
             NavigationStack {
                 EntryDateEditorView(entry: entry) {
@@ -86,37 +122,6 @@ struct EntryEditorView: View {
                 useAsEntryInfo: { usePhotoAsEntryInfo(photo) },
                 deletePhoto: { deletePhoto(photo) }
             )
-        }
-        .confirmationDialog(
-            "Delete Entry?",
-            isPresented: $isShowingDeleteConfirmation,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Entry", role: .destructive, action: deleteEntry)
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("This entry will be removed from this device.")
-        }
-        .confirmationDialog(
-            "Use Photo Info?",
-            isPresented: isPhotoInfoPromptPresented,
-            titleVisibility: .visible,
-            presenting: photoInfoPromptPhoto
-        ) { photo in
-            Button("Use Photo Info") {
-                usePhotoAsEntryInfo(photo)
-                photoInfoPromptPhoto = nil
-            }
-            Button("Keep Entry Info") {
-                entry.hasShownPhotoInfoPrompt = true
-                saveChange()
-                photoInfoPromptPhoto = nil
-            }
-            Button("Cancel", role: .cancel) {
-                photoInfoPromptPhoto = nil
-            }
-        } message: { _ in
-            Text("The first photo has date or place information that differs from this entry.")
         }
         .alert(item: $photoImportAlert) { alert in
             Alert(
@@ -180,37 +185,27 @@ struct EntryEditorView: View {
 
     private var blockEditor: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if entry.orderedBlocks.isEmpty {
+            Group {
                 textEditor(
                     text: transientTextBinding(after: nil),
-                    blockID: nil,
+                    blockID: textBlock(after: nil)?.id,
                     focusKey: Self.emptyEntryTextKey,
                     placeholder: "Write something..."
                 )
             }
 
-            ForEach(entry.orderedBlocks) { block in
-                switch block.kind {
-                case .text:
+            ForEach(entry.photoGroupBlocks) { block in
+                PhotoGroupBlockView(block: block, storage: photoStorage) { photo in
+                    selectedPhoto = photo
+                }
+
+                if textBlock(after: block) != nil || transientTextAfterPhotoBlockID == block.id || entry.orderedBlocks.last?.id == block.id {
                     textEditor(
-                        text: textBinding(for: block),
-                        blockID: block.id,
-                        focusKey: Self.textFocusKey(for: block.id),
+                        text: transientTextBinding(after: block),
+                        blockID: textBlock(after: block)?.id,
+                        focusKey: Self.transientTextFocusKey(after: block.id),
                         placeholder: "Write something..."
                     )
-                case .photoGroup:
-                    PhotoGroupBlockView(block: block, storage: photoStorage) { photo in
-                        selectedPhoto = photo
-                    }
-
-                    if transientTextAfterPhotoBlockID == block.id {
-                        textEditor(
-                            text: transientTextBinding(after: block),
-                            blockID: nil,
-                            focusKey: Self.transientTextFocusKey(after: block.id),
-                            placeholder: "Write something..."
-                        )
-                    }
                 }
             }
         }
@@ -228,7 +223,7 @@ struct EntryEditorView: View {
             get: { photoInfoPromptPhoto != nil },
             set: { isPresented in
                 if !isPresented {
-                    photoInfoPromptPhoto = nil
+                    dismissPhotoInfoPrompt()
                 }
             }
         )
@@ -244,24 +239,36 @@ struct EntryEditorView: View {
         )
     }
 
-    private func textBinding(for block: EntryBlock) -> Binding<String> {
-        Binding(
-            get: { block.text },
-            set: { newValue in
-                block.text = newValue
-                saveChange()
-            }
-        )
+    private func textBlock(after previousBlock: EntryBlock?) -> EntryBlock? {
+        let blocks = entry.orderedBlocks
+        let nextIndex: Int
+        if let previousBlock {
+            guard let index = blocks.firstIndex(where: { $0.id == previousBlock.id }) else { return nil }
+            nextIndex = index + 1
+        } else {
+            nextIndex = 0
+        }
+        guard blocks.indices.contains(nextIndex), blocks[nextIndex].kind == .text else { return nil }
+        return blocks[nextIndex]
     }
 
     private func transientTextBinding(after previousBlock: EntryBlock?) -> Binding<String> {
-        Binding(
-            get: { "" },
+        let key = previousBlock.map { Self.transientTextFocusKey(after: $0.id) } ?? Self.emptyEntryTextKey
+        return Binding(
+            get: { textBlock(after: previousBlock)?.text ?? transientTextValues[key, default: ""] },
             set: { newValue in
-                guard let block = entry.insertTextBlock(newValue, after: previousBlock, in: modelContext) else { return }
+                // UIKit can deliver more callbacks before SwiftUI replaces the transient view.
+                // Resolve its promoted block each time instead of inserting another paragraph.
+                if let block = textBlock(after: previousBlock) {
+                    block.text = newValue
+                    saveChange()
+                    return
+                }
+                transientTextValues[key] = newValue
+                guard entry.insertTextBlock(newValue, after: previousBlock, in: modelContext) != nil else { return }
+                transientTextValues[key] = nil
                 transientTextAfterPhotoBlockID = nil
                 saveChange()
-                focusRequest = EditorFocusRequest(key: Self.textFocusKey(for: block.id), offset: newValue.count)
             }
         )
     }
@@ -273,7 +280,7 @@ struct EntryEditorView: View {
         placeholder: LocalizedStringKey
     ) -> some View {
         ZStack(alignment: .topLeading) {
-            if text.wrappedValue.isEmpty {
+            if text.wrappedValue.isEmpty, focusedTextFocusKey != focusKey {
                 Text(placeholder)
                     .foregroundStyle(.tertiary)
                     .padding(.top, 8)
@@ -286,11 +293,11 @@ struct EntryEditorView: View {
                 blockID: blockID,
                 focusKey: focusKey,
                 focusedTextBlockID: $focusedTextBlockID,
+                focusedTextFocusKey: $focusedTextFocusKey,
                 textSelections: $textSelections,
                 focusRequest: $focusRequest
             )
         }
-        .accessibilityLabel("Body")
     }
 
     private func importPhotoItems(_ items: [PhotosPickerItem]) {
@@ -339,7 +346,7 @@ struct EntryEditorView: View {
     private func focusAfterPhotoInsertion(_ insertion: PhotoGroupInsertion) {
         if let followingTextBlock = insertion.followingTextBlock {
             transientTextAfterPhotoBlockID = nil
-            focusRequest = EditorFocusRequest(key: Self.textFocusKey(for: followingTextBlock.id), offset: 0)
+            focusRequest = EditorFocusRequest(key: textFocusKey(for: followingTextBlock.id), offset: 0)
         } else {
             transientTextAfterPhotoBlockID = insertion.photoBlock.id
             focusRequest = EditorFocusRequest(key: Self.transientTextFocusKey(after: insertion.photoBlock.id), offset: 0)
@@ -360,8 +367,12 @@ struct EntryEditorView: View {
         return text.distance(from: text.startIndex, to: index)
     }
 
-    private static func textFocusKey(for blockID: UUID) -> String {
-        blockID.uuidString
+    private func textFocusKey(for blockID: UUID) -> String {
+        let blocks = entry.orderedBlocks
+        guard let index = blocks.firstIndex(where: { $0.id == blockID }), index > 0 else {
+            return Self.emptyEntryTextKey
+        }
+        return Self.transientTextFocusKey(after: blocks[index - 1].id)
     }
 
     private static func transientTextFocusKey(after blockID: UUID) -> String {
@@ -370,29 +381,41 @@ struct EntryEditorView: View {
 
     @discardableResult
     private func saveChange() -> Bool {
-        entry.normalizeBlocks(in: modelContext)
-        entry.updatedAt = .now
         do {
-            try modelContext.save()
+            try saveEntryChanges(entry, in: modelContext)
             return true
         } catch {
+            showSaveError()
             return false
         }
     }
 
+    private func showSaveError() {
+        photoActionAlert = PhotoActionAlert(
+            title: String(localized: "Could Not Save Entry"),
+            message: String(localized: "Your changes could not be saved. Please try again.")
+        )
+    }
+
     private func finish() {
-        entry.normalizeBlocks(in: modelContext)
-        if isNew {
-            _ = discardBlankNewEntry(entry, in: modelContext)
+        do {
+            try saveEntryChanges(entry, in: modelContext, discardIfBlank: isNew)
+            dismiss()
+        } catch {
+            showSaveError()
         }
-        try? modelContext.save()
-        dismiss()
     }
 
     private func usePhotoAsEntryInfo(_ photo: EntryPhoto) {
         entry.applyInfo(from: photo)
         entry.hasShownPhotoInfoPrompt = true
         saveChange()
+    }
+
+    private func dismissPhotoInfoPrompt() {
+        entry.hasShownPhotoInfoPrompt = true
+        saveChange()
+        photoInfoPromptPhoto = nil
     }
 
     private func deletePhoto(_ photo: EntryPhoto) {
@@ -434,10 +457,15 @@ struct EntryEditorView: View {
     }
 
     private func deleteEntry() {
-        modelContext.delete(entry)
-        try? modelContext.save()
-        dismiss()
+        do {
+            let fileNames = try deleteEntryAndSave(entry, in: modelContext)
+            _ = deleteStoredFiles(fileNames)
+            dismiss()
+        } catch {
+            showSaveError()
+        }
     }
+
 }
 
 private struct PhotoActionAlert: Identifiable {
@@ -489,7 +517,7 @@ struct PhotoGroupBlockView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Open Photo")
+                        .accessibilityLabel(Text("Open Photo \(index + 1) of \(photos.count)"))
                         .gridCellColumns(cellLayout.columnSpan)
                     }
                 }
@@ -543,24 +571,24 @@ private struct PhotoDetailView: View {
                     } label: {
                         Label("Photo Actions", systemImage: "ellipsis.circle")
                     }
+                    .confirmationDialog(
+                        "Delete Photo?",
+                        isPresented: $isShowingDeleteConfirmation,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete Photo", role: .destructive) {
+                            deletePhoto()
+                            dismiss()
+                        }
+                        Button("Cancel", role: .cancel) { }
+                    } message: {
+                        Text("This photo will be removed from this entry.")
+                    }
 
                     Button("Done") {
                         dismiss()
                     }
                 }
-            }
-            .confirmationDialog(
-                "Delete Photo?",
-                isPresented: $isShowingDeleteConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button("Delete Photo", role: .destructive) {
-                    deletePhoto()
-                    dismiss()
-                }
-                Button("Cancel", role: .cancel) { }
-            } message: {
-                Text("This photo will be removed from this entry.")
             }
         }
     }
@@ -621,12 +649,14 @@ private struct CursorTextView: UIViewRepresentable {
     let blockID: UUID?
     let focusKey: String
     @Binding var focusedTextBlockID: UUID?
+    @Binding var focusedTextFocusKey: String?
     @Binding var textSelections: [UUID: NSRange]
     @Binding var focusRequest: EditorFocusRequest?
 
     func makeUIView(context: Context) -> UITextView {
         let textView = UITextView()
         textView.delegate = context.coordinator
+        textView.accessibilityLabel = String(localized: "Body")
         textView.font = .preferredFont(forTextStyle: .body)
         textView.adjustsFontForContentSizeCategory = true
         textView.backgroundColor = .clear
@@ -639,7 +669,10 @@ private struct CursorTextView: UIViewRepresentable {
 
     func updateUIView(_ textView: UITextView, context: Context) {
         context.coordinator.parent = self
-        if textView.text != text {
+        context.coordinator.isUpdatingView = true
+        defer { context.coordinator.isUpdatingView = false }
+
+        if textView.markedTextRange == nil, textView.text != text {
             textView.text = text
         }
 
@@ -673,17 +706,22 @@ private struct CursorTextView: UIViewRepresentable {
 
     final class Coordinator: NSObject, UITextViewDelegate {
         var parent: CursorTextView
+        var isUpdatingView = false
 
         init(parent: CursorTextView) {
             self.parent = parent
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
-            parent.focusedTextBlockID = parent.blockID
+            saveFocus(blockID: parent.blockID, focusKey: parent.focusKey)
             saveSelection(textView)
         }
 
         func textViewDidChange(_ textView: UITextView) {
+            guard textView.markedTextRange == nil else {
+                saveSelection(textView)
+                return
+            }
             parent.text = textView.text
             saveSelection(textView)
         }
@@ -692,9 +730,52 @@ private struct CursorTextView: UIViewRepresentable {
             saveSelection(textView)
         }
 
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.text = textView.text
+            clearFocusIfCurrent()
+            saveSelection(textView)
+        }
+
+        private func saveFocus(blockID: UUID?, focusKey: String?) {
+            let apply = { [weak self] in
+                self?.parent.focusedTextBlockID = blockID
+                self?.parent.focusedTextFocusKey = focusKey
+            }
+            if isUpdatingView {
+                DispatchQueue.main.async(execute: apply)
+            } else {
+                apply()
+            }
+        }
+
+        private func clearFocusIfCurrent() {
+            let focusKey = parent.focusKey
+            let apply = { [weak self] in
+                guard let self, self.parent.focusedTextFocusKey == focusKey else { return }
+                self.parent.focusedTextFocusKey = nil
+            }
+            if isUpdatingView {
+                DispatchQueue.main.async(execute: apply)
+            } else {
+                apply()
+            }
+        }
+
         private func saveSelection(_ textView: UITextView) {
+            let range = textView.selectedRange
+            if isUpdatingView {
+                DispatchQueue.main.async { [weak self] in
+                    self?.saveSelection(range)
+                }
+            } else {
+                saveSelection(range)
+            }
+        }
+
+        private func saveSelection(_ range: NSRange) {
             guard let blockID = parent.blockID else { return }
-            parent.textSelections[blockID] = textView.selectedRange
+            if let currentRange = parent.textSelections[blockID], NSEqualRanges(currentRange, range) { return }
+            parent.textSelections[blockID] = range
         }
     }
 }

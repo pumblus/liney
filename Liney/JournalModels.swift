@@ -513,25 +513,22 @@ func searchJournalEntries(_ entries: [JournalEntry], matching query: String) -> 
 }
 
 func groupEntriesByDay(_ entries: [JournalEntry], calendar: Calendar = .current) -> [EntryDayGroup] {
-    Dictionary(grouping: entries) { entry in
-        calendar.startOfDay(for: entry.entryDate)
+    // Read observable model keys once, rather than for every sorting comparison.
+    let values = entries.map { entry in
+        (entry: entry, date: entry.entryDate, created: entry.createdAt, allDay: entry.isAllDay)
     }
-    .map { day, entries in
+    return Dictionary(grouping: values) { value in
+        calendar.startOfDay(for: value.date)
+    }
+    .map { day, values in
         EntryDayGroup(
             id: day,
             date: day,
-            entries: entries.sorted {
-                if $0.isAllDay != $1.isAllDay {
-                    return !$0.isAllDay
-                }
-                if $0.isAllDay {
-                    return $0.createdAt > $1.createdAt
-                }
-                if $0.entryDate == $1.entryDate {
-                    return $0.createdAt > $1.createdAt
-                }
-                return $0.entryDate > $1.entryDate
-            }
+            entries: values.sorted {
+                if $0.allDay != $1.allDay { return !$0.allDay }
+                if $0.allDay || $0.date == $1.date { return $0.created > $1.created }
+                return $0.date > $1.date
+            }.map(\.entry)
         )
     }
     .sorted { $0.date > $1.date }
@@ -542,4 +539,39 @@ func discardBlankNewEntry(_ entry: JournalEntry, in context: ModelContext) -> Bo
     guard entry.isBlank else { return false }
     context.delete(entry)
     return true
+}
+
+@MainActor
+func saveEntryChanges(
+    _ entry: JournalEntry,
+    in context: ModelContext,
+    discardIfBlank: Bool = false,
+    save: (() throws -> Void)? = nil
+) throws {
+    entry.normalizeBlocks(in: context)
+    entry.updatedAt = .now
+    let discarded = discardIfBlank && discardBlankNewEntry(entry, in: context)
+    do {
+        try (save ?? { try context.save() })()
+    } catch {
+        if discarded { context.rollback() }
+        throw error
+    }
+}
+
+@MainActor
+func deleteEntryAndSave(
+    _ entry: JournalEntry,
+    in context: ModelContext,
+    save: (() throws -> Void)? = nil
+) throws -> [String] {
+    let fileNames = entry.photoGroupBlocks.flatMap { $0.orderedPhotos.map(\.fileName) }
+    context.delete(entry)
+    do {
+        try (save ?? { try context.save() })()
+        return fileNames
+    } catch {
+        context.rollback()
+        throw error
+    }
 }

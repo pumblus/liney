@@ -63,6 +63,8 @@ struct TimelineView: View {
         .overlay {
             if entries.isEmpty {
                 emptyState
+            } else if timelineEntries.isEmpty {
+                ContentUnavailableView.search(text: searchText)
             }
         }
         .navigationTitle("Journal")
@@ -104,7 +106,7 @@ struct TimelineView: View {
             }
             .interactiveDismissDisabled()
         }
-        .sheet(isPresented: $isShowingSettings) {
+        .navigationDestination(isPresented: $isShowingSettings) {
             SettingsView(requiresAppLock: $requiresAppLock, appLock: appLock)
         }
         .background {
@@ -145,6 +147,7 @@ struct TimelineView: View {
 }
 
 private struct EntryRowView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let entry: JournalEntry
     private let photoStorage = PhotoStorage()
 
@@ -153,13 +156,13 @@ private struct EntryRowView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(entry.rowTitle)
                     .font(.headline)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
 
                 if let rowSubtitle = entry.rowSubtitle {
                     Text(rowSubtitle)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? 4 : 2)
                 }
             }
 
@@ -169,12 +172,14 @@ private struct EntryRowView: View {
                         Color.clear
                             .frame(width: 48, height: 48)
                             .overlay {
-                                StoredPhotoThumbnail(photo: photo, storage: photoStorage, cornerRadius: 6)
+                                StoredPhotoThumbnail(photo: photo, storage: photoStorage, cornerRadius: 6, maxPixelSize: 160)
                             }
                             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                 }
+                .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Entry Photos")
+                .accessibilityValue(Text("\(entry.photoCount)"))
             }
         }
         .padding(.vertical, 4)

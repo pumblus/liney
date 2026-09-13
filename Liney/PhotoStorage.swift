@@ -70,24 +70,69 @@ enum PhotoStorageError: Error {
     case cannotWriteImage
 }
 
+private final class PhotoThumbnailCache: @unchecked Sendable {
+    private final class Variants: @unchecked Sendable {
+        var values: [Int: (image: UIImage, cost: Int)] = [:]
+
+        var totalCost: Int {
+            values.values.reduce(0) { $0 + $1.cost }
+        }
+    }
+
+    private let cache: NSCache<NSString, Variants> = {
+        let cache = NSCache<NSString, Variants>()
+        cache.countLimit = 128
+        cache.totalCostLimit = 64 * 1024 * 1024
+        return cache
+    }()
+    private let lock = NSLock()
+
+    func image(forPath path: String, maxPixelSize: Int) -> UIImage? {
+        lock.lock()
+        defer { lock.unlock() }
+        return cache.object(forKey: path as NSString)?.values[maxPixelSize]?.image
+    }
+
+    func insert(
+        _ image: UIImage,
+        forPath path: String,
+        maxPixelSize: Int,
+        cost: Int,
+        fileExists: Bool
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard fileExists else { return }
+        let variants = cache.object(forKey: path as NSString) ?? Variants()
+        variants.values[maxPixelSize] = (image, cost)
+        cache.setObject(variants, forKey: path as NSString, cost: variants.totalCost)
+    }
+
+    func remove(path: String) {
+        lock.lock()
+        cache.removeObject(forKey: path as NSString)
+        lock.unlock()
+    }
+}
+
 struct PhotoStorage: @unchecked Sendable {
     static let targetLongEdge = 2400
     static let jpegQuality = 0.85
+    static let defaultThumbnailMaxPixelSize = 1200
 
     private let fileManager: FileManager
     private let baseURL: URL
+
+    private static let thumbnailCache = PhotoThumbnailCache()
 
     init(fileManager: FileManager = .default, baseURL: URL? = nil) {
         self.fileManager = fileManager
         if let baseURL {
             self.baseURL = baseURL
         } else {
-            self.baseURL = (try? fileManager.url(
-                for: .applicationSupportDirectory,
-                in: .userDomainMask,
-                appropriateFor: nil,
-                create: true
-            )) ?? fileManager.temporaryDirectory
+            self.baseURL = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ??
+                URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support", isDirectory: true)
         }
     }
 
@@ -103,10 +148,47 @@ struct PhotoStorage: @unchecked Sendable {
         UIImage(contentsOfFile: url(for: fileName).path)
     }
 
+    func thumbnail(for fileName: String, maxPixelSize: Int = PhotoStorage.defaultThumbnailMaxPixelSize) -> UIImage? {
+        let fileURL = url(for: fileName)
+        let pixelSize = max(1, maxPixelSize)
+
+        if let cached = Self.thumbnailCache.image(forPath: fileURL.path, maxPixelSize: pixelSize) {
+            return cached
+        }
+
+        guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(
+                source,
+                0,
+                [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceShouldCacheImmediately: true,
+                    kCGImageSourceThumbnailMaxPixelSize: pixelSize
+                ] as CFDictionary
+              ) else {
+            return nil
+        }
+
+        let thumbnail = UIImage(cgImage: image)
+        Self.thumbnailCache.insert(
+            thumbnail,
+            forPath: fileURL.path,
+            maxPixelSize: pixelSize,
+            cost: image.width * image.height * 4,
+            fileExists: fileManager.fileExists(atPath: fileURL.path)
+        )
+        return thumbnail
+    }
+
     func delete(fileName: String) throws {
         let fileURL = url(for: fileName)
-        guard fileManager.fileExists(atPath: fileURL.path) else { return }
+        guard fileManager.fileExists(atPath: fileURL.path) else {
+            Self.thumbnailCache.remove(path: fileURL.path)
+            return
+        }
         try fileManager.removeItem(at: fileURL)
+        Self.thumbnailCache.remove(path: fileURL.path)
     }
 
     func saveJPEGs(from imageData: [Data]) -> PhotoImportResult {
@@ -150,6 +232,7 @@ struct PhotoStorage: @unchecked Sendable {
 
         let fileName = "\(id.uuidString).jpg"
         let destinationURL = url(for: fileName)
+        Self.thumbnailCache.remove(path: destinationURL.path)
         guard let destination = CGImageDestinationCreateWithURL(
             destinationURL as CFURL,
             UTType.jpeg.identifier as CFString,
@@ -234,10 +317,11 @@ struct StoredPhotoThumbnail: View {
     let storage: PhotoStorage
     var cornerRadius: CGFloat = 8
     var contentMode: ContentMode = .fill
+    var maxPixelSize: Int = PhotoStorage.defaultThumbnailMaxPixelSize
 
     var body: some View {
         Group {
-            if let image = storage.image(for: photo.fileName) {
+            if let image = storage.thumbnail(for: photo.fileName, maxPixelSize: maxPixelSize) {
                 resizedImage(image)
             } else {
                 Rectangle()

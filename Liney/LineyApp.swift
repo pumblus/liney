@@ -126,6 +126,7 @@ final class AppLockModel: ObservableObject {
     @Published private(set) var isSnapshotCovered = true
     @Published private(set) var isAuthenticating = false
 
+    private var authenticationGeneration = 0
     private let authenticator: AppAuthenticating
 
     init(authenticator: AppAuthenticating = LocalAuthenticator()) {
@@ -166,6 +167,11 @@ final class AppLockModel: ObservableObject {
         isSnapshotCovered = true
     }
 
+    func didEnterBackground(requiresLock: Bool) {
+        authenticationGeneration += 1
+        protectSnapshot(requiresLock: requiresLock)
+    }
+
     func authenticateForExport(requiresLock: Bool) async -> Bool {
         guard requiresLock else {
             disableLock()
@@ -180,17 +186,19 @@ final class AppLockModel: ObservableObject {
         isAuthenticating = true
         defer { isAuthenticating = false }
 
+        let generation = authenticationGeneration
         let success = await authenticator.authenticate(
             reason: String(localized: "Authenticate to require Face ID for Liney.")
         )
+        guard generation == authenticationGeneration else { return false }
         if success {
             isLocked = false
-            isSnapshotCovered = false
         }
         return success
     }
 
     func disableLock() {
+        authenticationGeneration += 1
         isLocked = false
         isSnapshotCovered = false
     }
@@ -199,9 +207,10 @@ final class AppLockModel: ObservableObject {
         isAuthenticating = true
         defer { isAuthenticating = false }
 
+        let generation = authenticationGeneration
         let success = await authenticator.authenticate(reason: reason)
+        guard generation == authenticationGeneration else { return false }
         isLocked = !success
-        isSnapshotCovered = false
         return success
     }
 }
@@ -210,7 +219,6 @@ struct AppLockGate<Content: View>: View {
     @Binding private var requiresAppLock: Bool
     @ObservedObject private var appLock: AppLockModel
     @Environment(\.scenePhase) private var scenePhase
-    @State private var hasMountedUnlockedContent = false
     private let content: () -> Content
 
     init(
@@ -224,29 +232,19 @@ struct AppLockGate<Content: View>: View {
     }
 
     var body: some View {
-        Group {
-            if shouldMountContent {
-                content()
-                    .privacySensitive(requiresAppLock)
-                    .disabled(shouldHideContent)
-                    .accessibilityHidden(shouldHideContent)
-                    .overlay {
-                        if shouldHideContent {
-                            lockCover
-                        }
-                    }
-            } else {
-                lockCover
+        content()
+            .privacySensitive(shouldHideContent)
+            .disabled(shouldHideContent)
+            .accessibilityHidden(shouldHideContent)
+            .overlay {
+                if shouldHideContent {
+                    lockCover
+                }
             }
-        }
         .onAppear {
-            rememberUnlockedContent()
             Task {
                 await appLock.unlockIfNeeded(requiresLock: requiresAppLock)
             }
-        }
-        .onChange(of: shouldHideContent) { _, _ in
-            rememberUnlockedContent()
         }
         .onChange(of: requiresAppLock) { _, requiresAppLock in
             if requiresAppLock {
@@ -263,7 +261,9 @@ struct AppLockGate<Content: View>: View {
                 Task {
                     await appLock.unlockIfNeeded(requiresLock: requiresAppLock)
                 }
-            case .background, .inactive:
+            case .background:
+                appLock.didEnterBackground(requiresLock: requiresAppLock)
+            case .inactive:
                 appLock.protectSnapshot(requiresLock: requiresAppLock)
             @unknown default:
                 break
@@ -275,10 +275,6 @@ struct AppLockGate<Content: View>: View {
         requiresAppLock && appLock.hidesJournalContent
     }
 
-    private var shouldMountContent: Bool {
-        !shouldHideContent || hasMountedUnlockedContent
-    }
-
     private var lockCover: some View {
         LockedJournalView(isAuthenticating: appLock.isAuthenticating) {
             Task {
@@ -287,11 +283,6 @@ struct AppLockGate<Content: View>: View {
         }
     }
 
-    private func rememberUnlockedContent() {
-        if !shouldHideContent {
-            hasMountedUnlockedContent = true
-        }
-    }
 }
 
 private struct LockedJournalView: View {
@@ -334,50 +325,40 @@ private struct LockedJournalView: View {
 struct SettingsView: View {
     @Binding var requiresAppLock: Bool
     @ObservedObject var appLock: AppLockModel
-    @Environment(\.dismiss) private var dismiss
     @State private var alert: SettingsAlert?
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Toggle(isOn: appLockBinding) {
-                        Label("Require Face ID", systemImage: "faceid")
-                    }
-                    .disabled(appLock.isAuthenticating)
-                } footer: {
-                    Text("Use Face ID, Touch ID, or your device passcode to protect Liney.")
+        Form {
+            Section {
+                Toggle(isOn: appLockBinding) {
+                    Label("Require Face ID", systemImage: "faceid")
+                }
+                .disabled(appLock.isAuthenticating)
+            } footer: {
+                Text("Use Face ID, Touch ID, or your device passcode to protect Liney.")
+            }
+
+            Section {
+                NavigationLink {
+                    PrivacyView()
+                } label: {
+                    Label("Privacy", systemImage: "hand.raised")
                 }
 
-                Section {
-                    NavigationLink {
-                        PrivacyView()
-                    } label: {
-                        Label("Privacy", systemImage: "hand.raised")
-                    }
-
-                    NavigationLink {
-                        AboutView()
-                    } label: {
-                        Label("About", systemImage: "info.circle")
-                    }
+                NavigationLink {
+                    AboutView()
+                } label: {
+                    Label("About", systemImage: "info.circle")
                 }
             }
-            .navigationTitle("Settings")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-            .alert(item: $alert) { alert in
-                Alert(
-                    title: Text(alert.title),
-                    message: Text(alert.message),
-                    dismissButton: .default(Text("OK"))
-                )
-            }
+        }
+        .navigationTitle("Settings")
+        .alert(item: $alert) { alert in
+            Alert(
+                title: Text(alert.title),
+                message: Text(alert.message),
+                dismissButton: .default(Text("OK"))
+            )
         }
     }
 

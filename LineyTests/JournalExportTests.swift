@@ -132,6 +132,65 @@ final class JournalExportTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: export.url.path))
     }
 
+    func testMissingPhotoFailureRemovesPartialExportDirectory() throws {
+        let exportRootURL = temporaryDirectory.appendingPathComponent("Exports", isDirectory: true)
+        let exporter = JournalExporter(photoStorage: photoStorage, exportRootURL: exportRootURL)
+        let entry = JournalExportEntry(
+            id: UUID(),
+            title: "Missing photo",
+            entryDate: .now,
+            isAllDay: false,
+            createdAt: .now,
+            locationText: nil,
+            locationLatitude: nil,
+            locationLongitude: nil,
+            blocks: [.text("Before"), .photoGroup(["missing.jpg"]), .text("After")]
+        )
+
+        XCTAssertThrowsError(try exporter.export(entries: [entry])) { error in
+            XCTAssertEqual(error.localizedDescription, JournalExportError.missingPhoto.localizedDescription)
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: exportRootURL.path))
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(at: exportRootURL, includingPropertiesForKeys: nil), [])
+    }
+
+    func testPerformanceBatchExport500SyntheticEntries() throws {
+        let syntheticEntries = makePerformanceEntries(count: 500)
+        var durationsMilliseconds: [Double] = []
+
+        for iteration in 0..<3 {
+            let runDirectory = temporaryDirectory
+                .appendingPathComponent("performance-export-\(iteration)", isDirectory: true)
+            let exportRootURL = runDirectory.appendingPathComponent("Exports", isDirectory: true)
+            try FileManager.default.createDirectory(at: runDirectory, withIntermediateDirectories: true)
+
+            do {
+                defer { try? FileManager.default.removeItem(at: runDirectory) }
+
+                let exporter = JournalExporter(
+                    photoStorage: photoStorage,
+                    exportRootURL: exportRootURL,
+                    calendar: utcCalendar()
+                )
+                let exportedAt = try XCTUnwrap(utcCalendar().date(from: DateComponents(year: 2026, month: 7, day: 7)))
+                let start = DispatchTime.now().uptimeNanoseconds
+                let export = try exporter.export(entries: syntheticEntries, exportedAt: exportedAt)
+                let end = DispatchTime.now().uptimeNanoseconds
+
+                XCTAssertTrue(FileManager.default.fileExists(atPath: export.url.path))
+                durationsMilliseconds.append(Double(end - start) / 1_000_000)
+                exporter.deleteExport(export)
+            }
+        }
+
+        logPerformance(
+            "JournalExport",
+            entries: syntheticEntries.count,
+            durationsMilliseconds: durationsMilliseconds
+        )
+    }
+
     func testDeleteTemporaryExportsRemovesExportRoot() throws {
         let exportRootURL = temporaryDirectory.appendingPathComponent("Exports", isDirectory: true)
         let staleDirectoryURL = exportRootURL.appendingPathComponent("stale", isDirectory: true)
@@ -146,9 +205,10 @@ final class JournalExportTests: XCTestCase {
     private func extract(_ path: String, from archive: Archive) throws -> Data {
         let entry = try XCTUnwrap(archive[path])
         var data = Data()
-        _ = try archive.extract(entry, skipCRC32: true) { chunk in
+        let checksum = try archive.extract(entry) { chunk in
             data.append(chunk)
         }
+        XCTAssertEqual(checksum, entry.checksum)
         return data
     }
 
@@ -156,6 +216,43 @@ final class JournalExportTests: XCTestCase {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return calendar
+    }
+
+    private func makePerformanceEntries(count: Int) -> [JournalExportEntry] {
+        let calendar = utcCalendar()
+        let baseDate = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!
+
+        return (0..<count).map { index in
+            JournalExportEntry(
+                id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", index))!,
+                title: "Synthetic entry \(index)",
+                entryDate: baseDate.addingTimeInterval(Double(index) * 60),
+                isAllDay: false,
+                createdAt: baseDate.addingTimeInterval(Double(index) * 60),
+                locationText: nil,
+                locationLatitude: nil,
+                locationLongitude: nil,
+                blocks: [.text("Synthetic entry body \(index)")]
+            )
+        }
+    }
+
+    private func logPerformance(
+        _ label: String,
+        entries: Int,
+        durationsMilliseconds: [Double]
+    ) {
+        guard !durationsMilliseconds.isEmpty else { return }
+        let sortedDurations = durationsMilliseconds.sorted()
+        let median = sortedDurations[sortedDurations.count / 2]
+        let durations = durationsMilliseconds
+            .map { String(format: "%.2f", $0) }
+            .joined(separator: ",")
+        print(
+            "[PERF] \(label) environment=iOS-Simulator syntheticEntries=\(entries) " +
+                "repeats=\(durationsMilliseconds.count) " +
+                "durations_ms=[\(durations)] median_ms=\(String(format: "%.2f", median))"
+        )
     }
 
     private func makeJPEGData(size: CGSize = CGSize(width: 32, height: 24), color: UIColor = .systemBlue) -> Data {

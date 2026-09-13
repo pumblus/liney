@@ -1,18 +1,82 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "About" : {
+    "Your changes could not be saved. Please try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your changes could not be saved. Please try again."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改未能保存，请重试。"
+          }
+        }
+      }
+    },
+    "Could Not Save Entry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could Not Save Entry"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存日记"
+          }
+        }
+      }
+    },
+    "Open Photo %lld of %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Photo %1$lld of %2$lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开第 %1$lld 张照片，共 %2$lld 张"
+          }
+        }
+      }
+    },
+    "Import Cancelled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import Cancelled"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入已取消"
+          }
+        }
+      }
+    },
+    "A copied photo file is missing." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "About"
+            "value" : "A copied photo file is missing."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "关于"
+            "value" : "找不到已复制的照片文件。"
           }
         }
       }
@@ -33,18 +97,18 @@
         }
       }
     },
-    "A copied photo file is missing." : {
+    "About" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A copied photo file is missing."
+            "value" : "About"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "找不到已复制的照片文件。"
+            "value" : "关于"
           }
         }
       }
@@ -77,6 +141,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全天"
+          }
+        }
+      }
+    },
+    "Authenticate to export your journal." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticate to export your journal."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请验证以导出日记。"
+          }
+        }
+      }
+    },
+    "Authenticate to require Face ID for Liney." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authenticate to require Face ID for Liney."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请验证以为 Liney 开启 Face ID。"
           }
         }
       }
@@ -145,6 +241,22 @@
         }
       }
     },
+    "Could Not Enable App Lock" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could Not Enable App Lock"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法开启 App 锁"
+          }
+        }
+      }
+    },
     "Could Not Export Journal" : {
       "localizations" : {
         "en" : {
@@ -189,22 +301,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "日期"
-          }
-        }
-      }
-    },
-    "Day One Export (.zip)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Day One Export (.zip)"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Day One 导出 (.zip)"
           }
         }
       }
@@ -385,6 +481,22 @@
         }
       }
     },
+    "Face ID or device passcode authentication was not completed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Face ID or device passcode authentication was not completed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未完成 Face ID 或设备密码验证。"
+          }
+        }
+      }
+    },
     "Failed Entries" : {
       "localizations" : {
         "en" : {
@@ -465,22 +577,6 @@
         }
       }
     },
-    "Imports and exports happen only when you choose them." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Imports and exports happen only when you choose them."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只有在你选择时，Liney 才会导入或导出。"
-          }
-        }
-      }
-    },
     "Imported" : {
       "localizations" : {
         "en" : {
@@ -509,6 +605,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在导入…"
+          }
+        }
+      }
+    },
+    "Imports and exports happen only when you choose them." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Imports and exports happen only when you choose them."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有在你选择时，Liney 才会导入或导出。"
           }
         }
       }
@@ -621,6 +733,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Liney 不需要账号。"
+          }
+        }
+      }
+    },
+    "Liney Locked" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liney Locked"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liney 已锁定"
           }
         }
       }
@@ -977,6 +1105,22 @@
         }
       }
     },
+    "Require Face ID" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Require Face ID"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要 Face ID"
+          }
+        }
+      }
+    },
     "Search Entries" : {
       "localizations" : {
         "en" : {
@@ -1233,182 +1377,6 @@
         }
       }
     },
-    "Untitled Entry" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Untitled Entry"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未命名日记"
-          }
-        }
-      }
-    },
-    "Use as Entry Info" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use as Entry Info"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用作日记信息"
-          }
-        }
-      }
-    },
-    "Version" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Version"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "版本"
-          }
-        }
-      }
-    },
-    "Use Photo Info" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use Photo Info"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用照片信息"
-          }
-        }
-      }
-    },
-    "Use Photo Info?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use Photo Info?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用照片信息？"
-          }
-        }
-      }
-    },
-    "Authenticate to export your journal." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Authenticate to export your journal."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请验证以导出日记。"
-          }
-        }
-      }
-    },
-    "Authenticate to require Face ID for Liney." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Authenticate to require Face ID for Liney."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请验证以为 Liney 开启 Face ID。"
-          }
-        }
-      }
-    },
-    "Could Not Enable App Lock" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could Not Enable App Lock"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法开启 App 锁"
-          }
-        }
-      }
-    },
-    "Face ID or device passcode authentication was not completed." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Face ID or device passcode authentication was not completed."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未完成 Face ID 或设备密码验证。"
-          }
-        }
-      }
-    },
-    "Liney Locked" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Liney Locked"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Liney 已锁定"
-          }
-        }
-      }
-    },
-    "Require Face ID" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Require Face ID"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "需要 Face ID"
-          }
-        }
-      }
-    },
     "Unlock" : {
       "localizations" : {
         "en" : {
@@ -1457,6 +1425,38 @@
         }
       }
     },
+    "Untitled Entry" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untitled Entry"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未命名日记"
+          }
+        }
+      }
+    },
+    "Use as Entry Info" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use as Entry Info"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用作日记信息"
+          }
+        }
+      }
+    },
     "Use Face ID, Touch ID, or your device passcode to protect Liney." : {
       "localizations" : {
         "en" : {
@@ -1469,6 +1469,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用 Face ID、Touch ID 或设备密码保护 Liney。"
+          }
+        }
+      }
+    },
+    "Use Photo Info" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Photo Info"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用照片信息"
+          }
+        }
+      }
+    },
+    "Use Photo Info?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use Photo Info?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用照片信息？"
+          }
+        }
+      }
+    },
+    "Version" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "版本"
           }
         }
       }
@@ -1489,22 +1537,6 @@
         }
       }
     },
-    "Your journal stays on this device. No account, no server, no ads, and no analytics." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your journal stays on this device. No account, no server, no ads, and no analytics."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你的日记只留在这台设备上。无需账号、没有服务器、广告或分析。"
-          }
-        }
-      }
-    },
     "Your journal is stored on this device." : {
       "localizations" : {
         "en" : {
@@ -1517,6 +1549,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的日记存储在这台设备上。"
+          }
+        }
+      }
+    },
+    "Your journal stays on this device. No account, no server, no ads, and no analytics." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your journal stays on this device. No account, no server, no ads, and no analytics."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的日记只留在这台设备上。无需账号、没有服务器、广告或分析。"
           }
         }
       }

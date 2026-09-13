@@ -76,10 +76,11 @@ struct DayOneImporter {
 
         do {
             let archive = try Archive(url: plan.archiveURL, accessMode: .read, pathEncoding: nil)
-            let documents = try dayOneDocuments(in: archive)
+            let archiveContents = try await archiveContentsOffMain(in: archive)
+            let documents = archiveContents.documents
             guard !documents.isEmpty else { throw DayOneImportError.missingDayOneJSON }
 
-            let archiveEntries = entriesByPath(in: archive)
+            let archiveEntries = archiveContents.entriesByPath
             var existingSourceIDs = try existingExternalSourceIDs(in: context)
             progress(DayOneImportProgress(processedEntries: 0, totalEntries: plan.entryCount))
 
@@ -177,15 +178,14 @@ struct DayOneImporter {
         var copiedFileNames: [String] = []
 
         do {
-            let result = try buildEntry(
+            let result = try await buildEntryDataOffMain(
                 from: rawEntry,
                 sourceID: sourceID,
                 archive: archive,
-                archiveEntries: archiveEntries,
-                context: context
+                archiveEntries: archiveEntries
             )
             copiedFileNames = result.copiedFileNames
-            context.insert(result.entry)
+            context.insert(makeEntry(from: result.entry, in: context))
             try context.save()
             existingSourceIDs.insert(sourceID)
             summary.importedEntries += 1
@@ -201,13 +201,44 @@ struct DayOneImporter {
         }
     }
 
-    @MainActor
-    private func buildEntry(
+    private func buildEntryDataOffMain(
         from rawEntry: JSONObject,
         sourceID: String,
         archive: Archive,
-        archiveEntries: [String: Entry],
-        context: ModelContext
+        archiveEntries: [String: Entry]
+    ) async throws -> DayOneBuiltEntry {
+        try await withThrowingTaskGroup(of: DayOneBuiltEntry.self) { group in
+            group.addTask(priority: .userInitiated) {
+                try buildEntryData(
+                    from: rawEntry,
+                    sourceID: sourceID,
+                    archive: archive,
+                    archiveEntries: archiveEntries
+                )
+            }
+            guard let result = try await group.next() else { throw CancellationError() }
+            return result
+        }
+    }
+
+    private func archiveContentsOffMain(in archive: Archive) async throws -> DayOneArchiveContents {
+        try await withThrowingTaskGroup(of: DayOneArchiveContents.self) { group in
+            group.addTask(priority: .userInitiated) {
+                DayOneArchiveContents(
+                    documents: try dayOneDocuments(in: archive),
+                    entriesByPath: entriesByPath(in: archive)
+                )
+            }
+            guard let result = try await group.next() else { throw CancellationError() }
+            return result
+        }
+    }
+
+    private func buildEntryData(
+        from rawEntry: JSONObject,
+        sourceID: String,
+        archive: Archive,
+        archiveEntries: [String: Entry]
     ) throws -> DayOneBuiltEntry {
         guard let creationDate = dateValue(rawEntry["creationDate"]) else {
             throw DayOneEntryBuildError(skippedMedia: unsupportedMediaCount(in: rawEntry))
@@ -231,19 +262,42 @@ struct DayOneImporter {
         }
 
         let modifiedDate = dateValue(rawEntry["modifiedDate"]) ?? creationDate
-        let entry = JournalEntry(
+        let allDay = allDayValue(rawEntry, creationDate: creationDate)
+        let entry = DayOneEntryData(
             externalSourceID: sourceID,
             title: stringValue(rawEntry["title"]) ?? "",
-            entryDate: creationDate,
+            entryDate: allDay.entryDate,
+            isAllDay: allDay.isAllDay,
             createdAt: creationDate,
             updatedAt: modifiedDate,
             locationName: location.displayName,
             locationLatitude: location.latitude,
-            locationLongitude: location.longitude
+            locationLongitude: location.longitude,
+            blocks: blockResult.blocks
         )
-        applyAllDayIfNeeded(rawEntry, to: entry, creationDate: creationDate)
 
-        for (index, block) in blockResult.blocks.enumerated() {
+        return DayOneBuiltEntry(
+            entry: entry,
+            skippedMedia: blockResult.skippedMedia + unsupportedMediaCount(in: rawEntry),
+            copiedFileNames: blockResult.copiedFileNames
+        )
+    }
+
+    @MainActor
+    private func makeEntry(from data: DayOneEntryData, in context: ModelContext) -> JournalEntry {
+        let entry = JournalEntry(
+            externalSourceID: data.externalSourceID,
+            title: data.title,
+            entryDate: data.entryDate,
+            isAllDay: data.isAllDay,
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+            locationName: data.locationName,
+            locationLatitude: data.locationLatitude,
+            locationLongitude: data.locationLongitude
+        )
+
+        for (index, block) in data.blocks.enumerated() {
             switch block {
             case .text(let text):
                 let entryBlock = EntryBlock(kind: .text, sortIndex: index, text: text, entry: entry)
@@ -270,11 +324,7 @@ struct DayOneImporter {
         }
         entry.normalizeBlocks(in: context)
 
-        return DayOneBuiltEntry(
-            entry: entry,
-            skippedMedia: blockResult.skippedMedia + unsupportedMediaCount(in: rawEntry),
-            copiedFileNames: blockResult.copiedFileNames
-        )
+        return entry
     }
 
     private func importedBlocks(
@@ -427,10 +477,7 @@ struct DayOneImporter {
             throw DayOneEntryBuildError(skippedMedia: 1)
         }
 
-        var data = Data()
-        _ = try archive.extract(entry, skipCRC32: true) { chunk in
-            data.append(chunk)
-        }
+        let data = try extractChecked(entry, from: archive)
 
         let saved = try photoStorage.saveJPEGWithMetadata(from: data)
         return PhotoGroupItem(
@@ -468,10 +515,7 @@ struct DayOneImporter {
             guard entry.type == .file,
                   entry.path.lowercased().hasSuffix(".json") else { continue }
 
-            var data = Data()
-            _ = try archive.extract(entry, skipCRC32: true) { chunk in
-                data.append(chunk)
-            }
+            let data = try extractChecked(entry, from: archive)
 
             guard let root = try? JSONSerialization.jsonObject(with: data) as? JSONObject,
                   let entries = root["entries"] as? [JSONObject] else { continue }
@@ -486,6 +530,17 @@ struct DayOneImporter {
         archive.reduce(into: [:]) { result, entry in
             result[normalizePath(entry.path)] = entry
         }
+    }
+
+    private func extractChecked(_ entry: Entry, from archive: Archive) throws -> Data {
+        var data = Data()
+        let checksum = try archive.extract(entry) { chunk in
+            data.append(chunk)
+        }
+        guard checksum == entry.checksum else {
+            throw Archive.ArchiveError.invalidCRC32
+        }
+        return data
     }
 
     @MainActor
@@ -532,16 +587,24 @@ struct DayOneImporter {
         }
     }
 
-    private func applyAllDayIfNeeded(_ rawEntry: JSONObject, to entry: JournalEntry, creationDate: Date) {
-        guard boolValue(rawEntry["isAllDay"]) == true else { return }
+    private func allDayValue(_ rawEntry: JSONObject, creationDate: Date) -> (isAllDay: Bool, entryDate: Date) {
+        guard boolValue(rawEntry["isAllDay"]) == true else { return (false, creationDate) }
 
-        var calendar = Calendar(identifier: .gregorian)
+        var sourceCalendar = Calendar(identifier: .gregorian)
         if let timeZoneID = stringValue(rawEntry["timeZone"]),
            let timeZone = TimeZone(identifier: timeZoneID) {
-            calendar.timeZone = timeZone
+            sourceCalendar.timeZone = timeZone
         }
-        entry.isAllDay = true
-        entry.entryDate = calendar.startOfDay(for: creationDate)
+
+        let sourceDateComponents = sourceCalendar.dateComponents(
+            [.year, .month, .day],
+            from: creationDate
+        )
+        var deviceCalendar = Calendar(identifier: .gregorian)
+        deviceCalendar.timeZone = Calendar.current.timeZone
+        let deviceDate = deviceCalendar.date(from: sourceDateComponents) ??
+            deviceCalendar.startOfDay(for: creationDate)
+        return (true, deviceDate)
     }
 
     private func normalizePath(_ path: String) -> String {
@@ -749,9 +812,27 @@ struct DayOneImporter {
     }
 
     private struct DayOneBuiltEntry {
-        let entry: JournalEntry
+        let entry: DayOneEntryData
         let skippedMedia: Int
         let copiedFileNames: [String]
+    }
+
+    private struct DayOneArchiveContents {
+        let documents: [DayOneDocument]
+        let entriesByPath: [String: Entry]
+    }
+
+    private struct DayOneEntryData {
+        let externalSourceID: String
+        let title: String
+        let entryDate: Date
+        let isAllDay: Bool
+        let createdAt: Date
+        let updatedAt: Date
+        let locationName: String?
+        let locationLatitude: Double?
+        let locationLongitude: Double?
+        let blocks: [ImportedEntryBlock]
     }
 
     private struct DayOneEntryBuildError: Error {

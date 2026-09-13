@@ -21,13 +21,10 @@ struct ImportJournalFlow: View {
     var body: some View {
         Color.clear
             .frame(width: 0, height: 0)
-            .confirmationDialog("Import Journal", isPresented: $isPresented) {
-                Button {
+            .onChange(of: isPresented) { _, isPresented in
+                if isPresented {
                     showFileImporter = true
-                } label: {
-                    Label("Day One Export (.zip)", systemImage: "doc.zipper")
                 }
-                Button("Cancel", role: .cancel) {}
             }
             .fileImporter(
                 isPresented: $showFileImporter,
@@ -77,6 +74,7 @@ struct ImportJournalFlow: View {
     }
 
     private func handleFileImport(_ result: Result<[URL], Error>) {
+        isPresented = false
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
@@ -153,7 +151,7 @@ private struct ImportJournalConfirmationView: View {
     }
 }
 
-private struct ImportJournalProgressView: View {
+struct ImportJournalProgressView: View {
     let isImporting: Bool
     let progress: DayOneImportProgress
     let summary: DayOneImportSummary?
@@ -175,6 +173,13 @@ private struct ImportJournalProgressView: View {
                         }
                     }
                 } else if let summary {
+                    if summary.wasCancelled {
+                        Section {
+                            Text("Import Cancelled")
+                                .font(.headline)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                     Section {
                         LabeledContent("Imported", value: "\(summary.importedEntries)")
                         LabeledContent("Skipped Duplicates", value: "\(summary.skippedDuplicates)")
@@ -183,7 +188,7 @@ private struct ImportJournalProgressView: View {
                     }
                 }
             }
-            .navigationTitle(isImporting ? "Importing..." : "Import Complete")
+            .navigationTitle(isImporting ? "Importing..." : (summary?.wasCancelled == true ? "Import Cancelled" : "Import Complete"))
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     if isImporting {
