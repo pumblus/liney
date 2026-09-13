@@ -1,0 +1,40 @@
+{
+  "fill" : {
+    "automatic-gradient" : "display-p3:0.35207,0.76746,0.74041,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : {
+            "automatic-gradient" : "extended-gray:1.00000,1.00000"
+          },
+          "image-name" : "L.svg",
+          "name" : "L",
+          "position" : {
+            "scale" : 0.9,
+            "translation-in-points" : [
+              -6.048000000000002,
+              8.5
+            ]
+          }
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.6
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.2
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}
