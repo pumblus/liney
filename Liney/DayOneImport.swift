@@ -8,6 +8,7 @@ struct DayOneImportPlan: Identifiable, Equatable {
     let entryCount: Int
     let photoCount: Int
     let unsupportedMediaCount: Int
+    var ignoredMetadataCount = 0
 }
 
 struct DayOneImportProgress: Equatable {
@@ -23,6 +24,45 @@ struct DayOneImportSummary: Equatable {
     var processedEntries = 0
     var totalEntries = 0
     var wasCancelled = false
+    var repairedEntries = 0
+    var recoveredPhotos = 0
+    var failedPhotos = 0
+    var ignoredMetadata = 0
+    var issues: [DayOneImportIssue] = []
+}
+
+struct DayOneImportIssue: Identifiable, Equatable {
+    let id = UUID()
+    let sourceID: String?
+    let entryNumber: Int
+    let entryDate: Date?
+    let reason: Reason
+
+    enum Reason: String, Equatable {
+        case missingIdentity, invalidDate, noContent, photosUnavailable, saveFailed
+        case recoveryUnavailable, appendedPhotos, archiveFailed
+
+        var message: String {
+            switch self {
+            case .missingIdentity: "This entry has no source ID. Check the Day One export."
+            case .invalidDate: "This entry has an unreadable date. Check the Day One export."
+            case .noContent: "No supported text or readable photos were found. Export again with media included."
+            case .photosUnavailable: "Some photos could not be read. Export again with media included and import the zip to retry."
+            case .saveFailed: "This entry could not be saved. Check available storage and retry."
+            case .recoveryUnavailable: "Photo recovery information could not be read. Existing content was kept."
+            case .appendedPhotos: "The original photo position was removed. Recovered photos were added at the end of the entry."
+            case .archiveFailed: "The archive could not be read completely. Export again and retry; saved entries are kept."
+            }
+        }
+    }
+}
+
+private struct DayOnePendingPhoto: Codable {
+    let key: String
+    let groupID: UUID
+    let photoID: UUID
+    let followingPhotoIDs: [UUID]
+    let beforeBlockID: UUID?
 }
 
 enum DayOneImportError: LocalizedError {
@@ -42,21 +82,38 @@ enum DayOneImportError: LocalizedError {
 struct DayOneImporter {
     private let fileManager: FileManager
     private let photoStorage: PhotoStorage
+    private let saveContext: @MainActor (ModelContext) throws -> Void
 
-    init(fileManager: FileManager = .default, photoStorage: PhotoStorage = PhotoStorage()) {
+    init(fileManager: FileManager = .default, photoStorage: PhotoStorage = PhotoStorage(),
+         saveContext: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }) {
         self.fileManager = fileManager
         self.photoStorage = photoStorage
+        self.saveContext = saveContext
     }
 
     func prepareImport(from sourceURL: URL) throws -> DayOneImportPlan {
         let temporaryURL = try copyToTemporaryArchive(sourceURL)
 
         do {
+            try Task.checkCancellation()
             let plan = try preflightArchive(at: temporaryURL)
+            try Task.checkCancellation()
             return plan
         } catch {
             try? fileManager.removeItem(at: temporaryURL)
             throw error
+        }
+    }
+
+    func prepareImportInBackground(from sourceURL: URL) async throws -> DayOneImportPlan {
+        try await withThrowingTaskGroup(of: DayOneImportPlan.self) { group in
+            group.addTask(priority: .userInitiated) { try prepareImport(from: sourceURL) }
+            guard let plan = try await group.next() else { throw CancellationError() }
+            if Task.isCancelled {
+                deleteTemporaryArchive(plan)
+                throw CancellationError()
+            }
+            return plan
         }
     }
 
@@ -81,10 +138,19 @@ struct DayOneImporter {
             guard !documents.isEmpty else { throw DayOneImportError.missingDayOneJSON }
 
             let archiveEntries = archiveContents.entriesByPath
-            var existingSourceIDs = try existingExternalSourceIDs(in: context)
+            var existingEntries = try existingEntriesBySourceID(in: context)
             progress(DayOneImportProgress(processedEntries: 0, totalEntries: plan.entryCount))
 
-            for rawEntry in documents.flatMap(\.entries) {
+            let scopedArchives = documents.map { document -> [String: Entry] in
+                let prefix = document.directory.isEmpty ? "" : normalizePath(document.directory) + "/"
+                return prefix.isEmpty ? archiveEntries : archiveEntries.reduce(into: [:]) { result, pair in
+                    if pair.key.hasPrefix(prefix) { result[String(pair.key.dropFirst(prefix.count))] = pair.value }
+                }
+            }
+            let records = documents.enumerated().flatMap { index, document in document.entries.map { ($0, index) } }
+            for (entryIndex, record) in records.enumerated() {
+                let (rawEntry, documentIndex) = record
+                let scopedEntries = scopedArchives[documentIndex]
                 if Task.isCancelled {
                     summary.wasCancelled = true
                     break
@@ -93,8 +159,9 @@ struct DayOneImporter {
                 await importEntry(
                     rawEntry,
                     archive: archive,
-                    archiveEntries: archiveEntries,
-                    existingSourceIDs: &existingSourceIDs,
+                    archiveEntries: scopedEntries,
+                    entryNumber: entryIndex + 1,
+                    existingEntries: &existingEntries,
                     context: context,
                     summary: &summary
                 )
@@ -106,8 +173,11 @@ struct DayOneImporter {
                 ))
                 await Task.yield()
             }
+        } catch is CancellationError {
+            summary.wasCancelled = true
         } catch {
             summary.failedEntries += max(1, plan.entryCount - summary.processedEntries)
+            summary.issues.append(DayOneImportIssue(sourceID: nil, entryNumber: 0, entryDate: nil, reason: .archiveFailed))
         }
 
         return summary
@@ -151,7 +221,8 @@ struct DayOneImporter {
             archiveURL: archiveURL,
             entryCount: entries.count,
             photoCount: entries.reduce(0) { $0 + photoDictionaries(in: $1).count },
-            unsupportedMediaCount: entries.reduce(0) { $0 + unsupportedMediaCount(in: $1) }
+            unsupportedMediaCount: entries.reduce(0) { $0 + unsupportedMediaCount(in: $1) },
+            ignoredMetadataCount: entries.reduce(0) { $0 + ignoredMetadataCount(in: $1) }
         )
     }
 
@@ -160,44 +231,144 @@ struct DayOneImporter {
         _ rawEntry: JSONObject,
         archive: Archive,
         archiveEntries: [String: Entry],
-        existingSourceIDs: inout Set<String>,
+        entryNumber: Int,
+        existingEntries: inout [String: JournalEntry],
         context: ModelContext,
         summary: inout DayOneImportSummary
     ) async {
-        guard let sourceID = trimmedString(rawEntry["uuid"]) else {
+        let sourceID = trimmedString(rawEntry["uuid"])
+        func issue(_ reason: DayOneImportIssue.Reason) -> DayOneImportIssue {
+            DayOneImportIssue(sourceID: sourceID, entryNumber: entryNumber,
+                              entryDate: dateValue(rawEntry["creationDate"]), reason: reason)
+        }
+        guard let sourceID else {
             summary.failedEntries += 1
-            summary.skippedMedia += unsupportedMediaCount(in: rawEntry)
+            summary.issues.append(issue(.missingIdentity))
+            return
+        }
+        if let existing = existingEntries[sourceID] {
+            guard let recoveryData = existing.dayOnePendingPhotos else {
+                summary.skippedDuplicates += 1
+                return
+            }
+            await recoverPhotos(in: existing, data: recoveryData, rawEntry: rawEntry,
+                                archive: archive, archiveEntries: archiveEntries,
+                                context: context, summary: &summary, issue: issue)
             return
         }
 
-        guard !existingSourceIDs.contains(sourceID) else {
-            summary.skippedDuplicates += 1
+        summary.skippedMedia += unsupportedMediaCount(in: rawEntry)
+        summary.ignoredMetadata += ignoredMetadataCount(in: rawEntry)
+        guard dateValue(rawEntry["creationDate"]) != nil else {
+            summary.failedEntries += 1
+            summary.issues.append(issue(.invalidDate))
             return
         }
-
         var copiedFileNames: [String] = []
-
         do {
-            let result = try await buildEntryDataOffMain(
-                from: rawEntry,
-                sourceID: sourceID,
-                archive: archive,
-                archiveEntries: archiveEntries
-            )
+            let result = try await buildEntryDataOffMain(from: rawEntry, sourceID: sourceID,
+                                                        archive: archive, archiveEntries: archiveEntries)
             copiedFileNames = result.copiedFileNames
-            context.insert(makeEntry(from: result.entry, in: context))
-            try context.save()
-            existingSourceIDs.insert(sourceID)
+            let entry = try makeEntry(from: result.entry, in: context)
+            context.insert(entry)
+            try saveContext(context)
+            existingEntries[sourceID] = entry
             summary.importedEntries += 1
-            summary.skippedMedia += result.skippedMedia
+            summary.failedPhotos += result.skippedMedia
+            if result.skippedMedia > 0 { summary.issues.append(issue(.photosUnavailable)) }
         } catch let error as DayOneEntryBuildError {
             summary.failedEntries += 1
-            summary.skippedMedia += error.skippedMedia
+            summary.failedPhotos += error.skippedMedia
+            summary.issues.append(issue(.noContent))
             deleteCopiedPhotos(error.copiedFileNames)
         } catch {
             context.rollback()
             summary.failedEntries += 1
+            summary.issues.append(issue(.saveFailed))
             deleteCopiedPhotos(copiedFileNames)
+        }
+    }
+
+    @MainActor
+    private func recoverPhotos(
+        in entry: JournalEntry, data: Data, rawEntry: JSONObject,
+        archive: Archive, archiveEntries: [String: Entry], context: ModelContext,
+        summary: inout DayOneImportSummary,
+        issue: (DayOneImportIssue.Reason) -> DayOneImportIssue
+    ) async {
+        guard let pending = try? JSONDecoder().decode([DayOnePendingPhoto].self, from: data) else {
+            summary.failedEntries += 1
+            summary.issues.append(issue(.recoveryUnavailable))
+            return
+        }
+        let photos = dayOnePhotos(in: rawEntry)
+        var remaining: [DayOnePendingPhoto] = []
+        var copied: [String] = []
+        var appended = false
+        do {
+            for (index, record) in pending.enumerated() {
+                if Task.isCancelled {
+                    remaining.append(contentsOf: pending[index...])
+                    summary.wasCancelled = true
+                    break
+                }
+                guard !record.key.hasPrefix("index:"),
+                      let photo = photos.first(where: { $0.recoveryKey == record.key || $0.lookupKeys.contains(record.key) }) else {
+                    remaining.append(record)
+                    continue
+                }
+                let item: PhotoGroupItem
+                do {
+                    item = try await withThrowingTaskGroup(of: PhotoGroupItem.self) { group in
+                        group.addTask(priority: .userInitiated) {
+                            try importPhoto(photo, archive: archive, archiveEntries: archiveEntries)
+                        }
+                        guard let value = try await group.next() else { throw CancellationError() }
+                        return value
+                    }
+                } catch {
+                    remaining.append(record)
+                    continue
+                }
+                copied.append(item.fileName)
+                let block: EntryBlock
+                if let existing = entry.blocks.first(where: { $0.id == record.groupID && $0.kind == .photoGroup }) {
+                    block = existing
+                } else {
+                    var ordered = entry.orderedBlocks
+                    block = EntryBlock(id: record.groupID, kind: .photoGroup, entry: entry)
+                    if let anchor = record.beforeBlockID, let position = ordered.firstIndex(where: { $0.id == anchor }) {
+                        ordered.insert(block, at: position)
+                    } else {
+                        ordered.append(block)
+                        appended = appended || record.beforeBlockID != nil
+                    }
+                    for (position, element) in ordered.enumerated() { element.sortIndex = position }
+                    entry.blocks.append(block)
+                    context.insert(block)
+                }
+                var orderedPhotos = block.orderedPhotos
+                let position = record.followingPhotoIDs.compactMap { id in orderedPhotos.firstIndex { $0.id == id } }.first ?? orderedPhotos.count
+                let newPhoto = makePhoto(item, order: position, block: block)
+                newPhoto.id = record.photoID
+                orderedPhotos.insert(newPhoto, at: position)
+                for (position, element) in orderedPhotos.enumerated() { element.displayOrder = position }
+                block.photos.append(newPhoto)
+                context.insert(newPhoto)
+            }
+            entry.dayOnePendingPhotos = remaining.isEmpty ? nil : try JSONEncoder().encode(remaining)
+            try saveContext(context)
+            summary.recoveredPhotos += copied.count
+            summary.failedPhotos += remaining.count
+            if !copied.isEmpty { summary.repairedEntries += 1 }
+            else if !summary.wasCancelled { summary.failedEntries += 1 }
+            if !remaining.isEmpty && !summary.wasCancelled { summary.issues.append(issue(.photosUnavailable)) }
+            if appended { summary.issues.append(issue(.appendedPhotos)) }
+        } catch {
+            context.rollback()
+            deleteCopiedPhotos(copied)
+            summary.failedEntries += 1
+            summary.issues.append(issue(.saveFailed))
         }
     }
 
@@ -245,18 +416,19 @@ struct DayOneImporter {
         }
 
         let location = DayOneLocation(rawEntry["location"] as? JSONObject)
-        let text = stringValue(rawEntry["text"]) ?? ""
+        let text = sourceText(in: rawEntry)
         let photos = dayOnePhotos(in: rawEntry)
         let blockResult = try importedBlocks(
             text: text,
             photos: photos,
+            unsupportedKeys: unsupportedPhotoReferenceKeys(in: rawEntry),
             archive: archive,
             archiveEntries: archiveEntries
         )
 
-        guard blockResult.blocks.contains(where: \.hasContent) else {
+        guard blockResult.blocks.contains(where: \.hasContent) || trimmedString(rawEntry["title"]) != nil else {
             throw DayOneEntryBuildError(
-                skippedMedia: blockResult.skippedMedia + unsupportedMediaCount(in: rawEntry),
+                skippedMedia: blockResult.skippedMedia,
                 copiedFileNames: blockResult.copiedFileNames
             )
         }
@@ -278,58 +450,67 @@ struct DayOneImporter {
 
         return DayOneBuiltEntry(
             entry: entry,
-            skippedMedia: blockResult.skippedMedia + unsupportedMediaCount(in: rawEntry),
+            skippedMedia: blockResult.skippedMedia,
             copiedFileNames: blockResult.copiedFileNames
         )
     }
 
     @MainActor
-    private func makeEntry(from data: DayOneEntryData, in context: ModelContext) -> JournalEntry {
-        let entry = JournalEntry(
-            externalSourceID: data.externalSourceID,
-            title: data.title,
-            entryDate: data.entryDate,
-            isAllDay: data.isAllDay,
-            createdAt: data.createdAt,
-            updatedAt: data.updatedAt,
-            locationName: data.locationName,
-            locationLatitude: data.locationLatitude,
-            locationLongitude: data.locationLongitude
-        )
+    private func makePhoto(_ photo: PhotoGroupItem, order: Int, block: EntryBlock) -> EntryPhoto {
+        EntryPhoto(fileName: photo.fileName, displayOrder: order, capturedAt: photo.capturedAt,
+                   placeName: photo.placeName, locationLatitude: photo.locationLatitude,
+                   locationLongitude: photo.locationLongitude, block: block)
+    }
 
+    @MainActor
+    private func makeEntry(from data: DayOneEntryData, in context: ModelContext) throws -> JournalEntry {
+        let entry = JournalEntry(externalSourceID: data.externalSourceID, title: data.title,
+                                 entryDate: data.entryDate, isAllDay: data.isAllDay,
+                                 createdAt: data.createdAt, updatedAt: data.updatedAt,
+                                 locationName: data.locationName, locationLatitude: data.locationLatitude,
+                                 locationLongitude: data.locationLongitude)
+        let blockIDs = data.blocks.map { _ in UUID() }
+        var pending: [DayOnePendingPhoto] = []
         for (index, block) in data.blocks.enumerated() {
             switch block {
             case .text(let text):
-                let entryBlock = EntryBlock(kind: .text, sortIndex: index, text: text, entry: entry)
-                entry.blocks.append(entryBlock)
-                context.insert(entryBlock)
+                let model = EntryBlock(id: blockIDs[index], kind: .text, sortIndex: index, text: text, entry: entry)
+                entry.blocks.append(model)
+                context.insert(model)
             case .photoGroup(let photos):
-                let entryBlock = EntryBlock(kind: .photoGroup, sortIndex: index, entry: entry)
-                let entryPhotos = photos.enumerated().map { order, photo in
-                    EntryPhoto(
-                        fileName: photo.fileName,
-                        displayOrder: order,
-                        capturedAt: photo.capturedAt,
-                        placeName: photo.placeName,
-                        locationLatitude: photo.locationLatitude,
-                        locationLongitude: photo.locationLongitude,
-                        block: entryBlock
-                    )
+                let model = EntryBlock(id: blockIDs[index], kind: .photoGroup, sortIndex: index, entry: entry)
+                let photoIDs = photos.map { _ in UUID() }
+                let models = photos.enumerated().map { order, photo in
+                    photo.item.map { item in
+                        let modelPhoto = makePhoto(item, order: order, block: model)
+                        modelPhoto.id = photoIDs[order]
+                        return modelPhoto
+                    }
                 }
-                entryBlock.photos = entryPhotos
-                entry.blocks.append(entryBlock)
-                context.insert(entryBlock)
-                entryPhotos.forEach { context.insert($0) }
+                for (position, photo) in photos.enumerated() where photo.item == nil {
+                    pending.append(DayOnePendingPhoto(key: photo.key, groupID: model.id,
+                        photoID: photoIDs[position], followingPhotoIDs: Array(photoIDs.dropFirst(position + 1)),
+                        beforeBlockID: blockIDs.dropFirst(index + 1).first))
+                }
+                model.photos = models.compactMap { $0 }
+                if !model.photos.isEmpty {
+                    entry.blocks.append(model)
+                    context.insert(model)
+                    model.photos.forEach { context.insert($0) }
+                }
             }
         }
-        entry.normalizeBlocks(in: context)
-
+        // Keep text anchors distinct while photos are missing. Editor normalization may
+        // later remove an anchor; recovery then appends instead of rewriting user text.
+        if pending.isEmpty { entry.normalizeBlocks(in: context) }
+        entry.dayOnePendingPhotos = pending.isEmpty ? nil : try JSONEncoder().encode(pending)
         return entry
     }
 
     private func importedBlocks(
         text: String,
         photos: [DayOnePhoto],
+        unsupportedKeys: Set<String>,
         archive: Archive,
         archiveEntries: [String: Entry]
     ) throws -> DayOneBlockImportResult {
@@ -349,7 +530,8 @@ struct DayOneImporter {
 
         var blocks: [ImportedEntryBlock] = []
         var usedPhotoIndexes = Set<Int>()
-        var pendingPhotos: [PhotoGroupItem] = []
+        var unresolvedKeys = Set<String>()
+        var pendingPhotos: [ImportedPhoto] = []
         var skippedMedia = 0
         var copiedFileNames: [String] = []
         var previousLocation = 0
@@ -364,7 +546,7 @@ struct DayOneImporter {
 
         func appendText(_ range: NSRange) {
             guard range.length > 0 else { return }
-            let value = nsText.substring(with: range)
+            let value = plainText(nsText.substring(with: range))
             guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             flushPhotos()
             blocks.append(.text(value))
@@ -379,18 +561,25 @@ struct DayOneImporter {
                 continue
             }
 
-            let key = nsText.substring(with: match.range(at: 1)).lowercased()
-            guard let photoIndex = photosByKey[key], !usedPhotoIndexes.contains(photoIndex) else {
-                skippedMedia += 1
+            let tokenRange = match.range(at: 1).location != NSNotFound ? match.range(at: 1) : match.range(at: 2)
+            let key = nsText.substring(with: tokenRange).lowercased()
+            if unsupportedKeys.contains(key) { continue }
+            guard let photoIndex = photosByKey[key] else {
+                if unresolvedKeys.insert(key).inserted {
+                    pendingPhotos.append(ImportedPhoto(key: key, item: nil))
+                    skippedMedia += 1
+                }
                 continue
             }
+            guard !usedPhotoIndexes.contains(photoIndex) else { continue }
 
             usedPhotoIndexes.insert(photoIndex)
             do {
                 let item = try importPhoto(photos[photoIndex], archive: archive, archiveEntries: archiveEntries)
-                pendingPhotos.append(item)
+                pendingPhotos.append(ImportedPhoto(key: photos[photoIndex].recoveryKey, item: item))
                 copiedFileNames.append(item.fileName)
             } catch {
+                pendingPhotos.append(ImportedPhoto(key: photos[photoIndex].recoveryKey, item: nil))
                 skippedMedia += 1
             }
         }
@@ -427,7 +616,7 @@ struct DayOneImporter {
     ) throws -> DayOneBlockImportResult {
         var blocks: [ImportedEntryBlock] = []
         if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            blocks.append(.text(text))
+            blocks.append(.text(plainText(text)))
         }
 
         let result = try importPhotoGroup(
@@ -450,17 +639,18 @@ struct DayOneImporter {
         _ photos: [DayOnePhoto],
         archive: Archive,
         archiveEntries: [String: Entry]
-    ) throws -> (photos: [PhotoGroupItem], skippedMedia: Int, copiedFileNames: [String]) {
-        var importedPhotos: [PhotoGroupItem] = []
+    ) throws -> (photos: [ImportedPhoto], skippedMedia: Int, copiedFileNames: [String]) {
+        var importedPhotos: [ImportedPhoto] = []
         var skippedMedia = 0
         var copiedFileNames: [String] = []
 
         for photo in photos {
             do {
                 let item = try importPhoto(photo, archive: archive, archiveEntries: archiveEntries)
-                importedPhotos.append(item)
+                importedPhotos.append(ImportedPhoto(key: photo.recoveryKey, item: item))
                 copiedFileNames.append(item.fileName)
             } catch {
+                importedPhotos.append(ImportedPhoto(key: photo.recoveryKey, item: nil))
                 skippedMedia += 1
             }
         }
@@ -500,27 +690,30 @@ struct DayOneImporter {
         }
 
         let lookupKeys = Set(photo.lookupKeys)
-        return entries.first { path, _ in
+        let matches = entries.filter { path, _ in
             guard path.contains("photos/") else { return false }
             let lastComponent = (path as NSString).lastPathComponent
             let stem = ((lastComponent as NSString).deletingPathExtension).lowercased()
             return lookupKeys.contains(stem)
-        }?.value
+        }
+        return matches.count == 1 ? matches.first?.value : nil
     }
 
     private func dayOneDocuments(in archive: Archive) throws -> [DayOneDocument] {
         var documents: [DayOneDocument] = []
 
         for entry in archive {
+            try Task.checkCancellation()
             guard entry.type == .file,
                   entry.path.lowercased().hasSuffix(".json") else { continue }
 
             let data = try extractChecked(entry, from: archive)
 
             guard let root = try? JSONSerialization.jsonObject(with: data) as? JSONObject,
-                  let entries = root["entries"] as? [JSONObject] else { continue }
+                  let values = root["entries"] as? [Any] else { continue }
+            let entries = values.map { $0 as? JSONObject ?? [:] }
 
-            documents.append(DayOneDocument(entries: entries))
+            documents.append(DayOneDocument(entries: entries, directory: (entry.path as NSString).deletingLastPathComponent))
         }
 
         return documents
@@ -544,9 +737,11 @@ struct DayOneImporter {
     }
 
     @MainActor
-    private func existingExternalSourceIDs(in context: ModelContext) throws -> Set<String> {
+    private func existingEntriesBySourceID(in context: ModelContext) throws -> [String: JournalEntry] {
         let entries = try context.fetch(FetchDescriptor<JournalEntry>())
-        return Set(entries.compactMap { trimmedString($0.externalSourceID) })
+        return entries.reduce(into: [:]) { result, entry in
+            if let key = trimmedString(entry.externalSourceID), result[key] == nil { result[key] = entry }
+        }
     }
 
     @MainActor
@@ -566,17 +761,28 @@ struct DayOneImporter {
         rawEntry["photos"] as? [JSONObject] ?? []
     }
 
+    private func unsupportedPhotoReferenceKeys(in rawEntry: JSONObject) -> Set<String> {
+        let keys = ["videos", "audios", "audio", "pdfs", "attachments", "files"]
+        return Set(keys.flatMap { rawEntry[$0] as? [JSONObject] ?? [] }
+            .flatMap { [trimmedString($0["identifier"]), trimmedString($0["md5"])] }
+            .compactMap { $0?.lowercased() })
+    }
+
     private func unsupportedMediaCount(in rawEntry: JSONObject) -> Int {
         let arrayKeys = ["videos", "audios", "audio", "pdfs", "attachments", "files"]
         let arrayCount = arrayKeys.reduce(0) { count, key in
             count + ((rawEntry[key] as? [Any])?.count ?? 0)
         }
-        let metadataKeys = ["weather", "music", "activity", "steps"]
+        return arrayCount
+    }
+
+    private func ignoredMetadataCount(in rawEntry: JSONObject) -> Int {
+        let metadataKeys = ["weather", "music", "activity", "userActivity", "steps", "starred", "isPinned"]
         let metadataCount = metadataKeys.reduce(0) { count, key in
             count + (rawEntry[key] == nil ? 0 : 1)
         }
         let tagCount = (rawEntry["tags"] as? [Any])?.count ?? 0
-        return arrayCount + metadataCount + tagCount
+        return metadataCount + tagCount
     }
 
     private func indexedPhotosByKey(_ photos: [DayOnePhoto]) -> [String: Int] {
@@ -652,14 +858,87 @@ struct DayOneImporter {
         return formatter.date(from: text)
     }
 
+    private func sourceText(in rawEntry: JSONObject) -> String {
+        if let text = stringValue(rawEntry["text"]), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return text
+        }
+        let rich: JSONObject?
+        if let encoded = stringValue(rawEntry["richText"]), let data = encoded.data(using: .utf8) {
+            rich = (try? JSONSerialization.jsonObject(with: data)) as? JSONObject
+        } else {
+            rich = rawEntry["richText"] as? JSONObject
+        }
+        guard let contents = rich?["contents"] as? [JSONObject] else { return "" }
+        var text = ""
+        for content in contents {
+            if let value = content["text"] as? String {
+                let line = (content["attributes"] as? JSONObject)?["line"] as? JSONObject
+                let indent = String(repeating: "  ", count: min(20, max(0, (line?["indentLevel"] as? Int ?? 1) - 1)))
+                switch line?["listStyle"] as? String {
+                case "bulleted": text += indent + "• "
+                case "checkbox": text += indent + (boolValue(line?["checked"]) == true ? "☑ " : "☐ ")
+                case "numbered": text += indent + "1. "
+                default: break
+                }
+                // Escape literal syntax so the Markdown fallback does not reinterpret rich text.
+                text += value.replacingOccurrences(of: "\\", with: "\\\\")
+                    .replacingOccurrences(of: "*", with: "\\*")
+                    .replacingOccurrences(of: "_", with: "\\_")
+            }
+            for object in content["embeddedObjects"] as? [JSONObject] ?? [] {
+                switch object["type"] as? String {
+                case "photo":
+                    if let key = trimmedString(object["identifier"]) { text += "\ndayone-moment://\(key)\n" }
+                case "horizontalRuleLine": text += "\n———\n"
+                default: break
+                }
+            }
+        }
+        return text
+    }
+
+    private func plainText(_ markdown: String) -> String {
+        var inCode = false
+        return markdown.components(separatedBy: "\n").map { line in
+            if line.trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                inCode.toggle()
+                return ""
+            }
+            if inCode { return line }
+            let readable = line.replacingOccurrences(of: #"^\s{0,3}#{1,6}\s+"#, with: "", options: .regularExpression)
+                .replacingOccurrences(of: #"^(\s*)[-*+] \[[xX]\] "#, with: "$1☑ ", options: .regularExpression)
+                .replacingOccurrences(of: #"^(\s*)[-*+] \[ \] "#, with: "$1☐ ", options: .regularExpression)
+                .replacingOccurrences(of: #"^(\s*)[-*+] "#, with: "$1• ", options: .regularExpression)
+            guard let attributed = try? AttributedString(markdown: readable,
+                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) else { return readable }
+            var result = ""
+            var activeLink: URL?
+            var linkText = ""
+            func finishLink() {
+                if let url = activeLink, linkText != url.absoluteString { result += " (\(url.absoluteString))" }
+                activeLink = nil
+                linkText = ""
+            }
+            for run in attributed.runs {
+                if activeLink != run.link { finishLink(); activeLink = run.link }
+                let value = String(attributed[run.range].characters)
+                result += value
+                if activeLink != nil { linkText += value }
+            }
+            finishLink()
+            return result
+        }.joined(separator: "\n")
+    }
+
     private static let momentRegex = try! NSRegularExpression(
-        pattern: #"dayone-moment://([A-Za-z0-9_-]+)"#
+        pattern: #"!\[[^\]\n]*\]\(dayone-moment://([A-Za-z0-9_-]+)\)|dayone-moment://([A-Za-z0-9_-]+)"#
     )
 
     private typealias JSONObject = [String: Any]
 
     private struct DayOneDocument {
         let entries: [JSONObject]
+        let directory: String
     }
 
     private struct DayOnePhoto {
@@ -681,6 +960,10 @@ struct DayOneImporter {
             orderInEntry = Self.integer(rawPhoto["orderInEntry"])
             capturedAt = Self.date(rawPhoto["date"]) ?? Self.date(rawPhoto["creationDate"])
             location = DayOneLocation(rawPhoto["location"] as? JSONObject ?? rawPhoto)
+        }
+
+        var recoveryKey: String {
+            identifier?.lowercased() ?? md5?.lowercased() ?? fileName?.lowercased() ?? "index:\(index)"
         }
 
         var lookupKeys: [String] {
@@ -791,16 +1074,21 @@ struct DayOneImporter {
         }
     }
 
+    private struct ImportedPhoto {
+        let key: String
+        let item: PhotoGroupItem?
+    }
+
     private enum ImportedEntryBlock {
         case text(String)
-        case photoGroup([PhotoGroupItem])
+        case photoGroup([ImportedPhoto])
 
         var hasContent: Bool {
             switch self {
             case .text(let text):
                 !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             case .photoGroup(let photos):
-                !photos.isEmpty
+                photos.contains { $0.item != nil }
             }
         }
     }

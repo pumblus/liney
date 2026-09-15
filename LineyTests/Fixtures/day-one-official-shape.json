@@ -1,0 +1,221 @@
+{
+  "entries": [
+    {
+      "uuid": "official-shape-0",
+      "creationDate": "2020-01-01T12:00:00Z",
+      "modifiedDate": "2020-01-02T12:00:00Z",
+      "timeZone": "America/Denver",
+      "isAllDay": false,
+      "text": "\n![](dayone-moment://fixture-0-3)\n# Synthetic text 1.\n![](dayone-moment://fixture-unlisted-photo)\n\n![](dayone-moment://fixture-0-0)\nSynthetic text 3.\n![](dayone-moment://fixture-0-1)\n\n![](dayone-moment://fixture-0-2)\n",
+      "richText": "{\"meta\": {\"version\": 1, \"small-lines-removed\": true, \"created\": {\"platform\": \"com.bloombuilt.dayone-ios\", \"version\": 569}}, \"contents\": [{\"embeddedObjects\": [{\"type\": \"photo\", \"identifier\": \"fixture-0-3\"}]}, {\"attributes\": {\"line\": {\"header\": 1}}, \"text\": \"Synthetic text 1.\"}, {\"embeddedObjects\": [{\"type\": \"photo\", \"identifier\": \"fixture-unlisted-photo\"}, {\"type\": \"photo\", \"identifier\": \"fixture-0-0\"}]}, {\"text\": \"Synthetic text 3.\"}, {\"embeddedObjects\": [{\"type\": \"photo\", \"identifier\": \"fixture-0-1\"}, {\"type\": \"photo\", \"identifier\": \"fixture-0-2\"}]}]}",
+      "photos": [
+        {
+          "identifier": "fixture-0-0",
+          "md5": "hash-0-0",
+          "type": "jpeg",
+          "orderInEntry": 0,
+          "date": "2020-01-01T12:00:00Z"
+        },
+        {
+          "identifier": "fixture-0-1",
+          "md5": "hash-0-1",
+          "type": "jpeg",
+          "orderInEntry": 1,
+          "date": "2020-01-01T12:00:00Z"
+        },
+        {
+          "identifier": "fixture-0-2",
+          "md5": "hash-0-2",
+          "type": "jpeg",
+          "orderInEntry": 2,
+          "date": "2020-01-01T12:00:00Z"
+        },
+        {
+          "identifier": "fixture-0-3",
+          "md5": "hash-0-3",
+          "type": "jpeg",
+          "orderInEntry": 3,
+          "date": "2020-01-01T12:00:00Z"
+        }
+      ],
+      "tags": [
+        "fixture"
+      ],
+      "weather": {},
+      "userActivity": {
+        "activityName": "walking",
+        "stepCount": 12
+      }
+    },
+    {
+      "uuid": "official-shape-1",
+      "creationDate": "2020-01-01T12:00:00Z",
+      "modifiedDate": "2020-01-02T12:00:00Z",
+      "timeZone": "America/Los_Angeles",
+      "isAllDay": false,
+      "text": "# Synthetic text 0.\n![](dayone-moment://fixture-1-0)\nSynthetic text 2.",
+      "richText": "{\"meta\": {\"version\": 1, \"small-lines-removed\": true, \"created\": {\"platform\": \"com.bloombuilt.dayone-ios\", \"version\": 556}}, \"contents\": [{\"attributes\": {\"line\": {\"header\": 1}}, \"text\": \"Synthetic text 0.\"}, {\"embeddedObjects\": [{\"type\": \"photo\", \"identifier\": \"fixture-1-0\"}]}, {\"text\": \"Synthetic text 2.\"}]}",
+      "photos": [
+        {
+          "identifier": "fixture-1-0",
+          "md5": "hash-1-0",
+          "type": "jpeg",
+          "orderInEntry": 0,
+          "date": "2020-01-01T12:00:00Z"
+        }
+      ],
+      "tags": [
+        "fixture"
+      ],
+      "weather": {},
+      "userActivity": {
+        "activityName": "walking",
+        "stepCount": 12
+      }
+    },
+    {
+      "uuid": "official-shape-2",
+      "creationDate": "2020-01-01T12:00:00Z",
+      "modifiedDate": "2020-01-02T12:00:00Z",
+      "timeZone": "America/Los_Angeles",
+      "isAllDay": false,
+      "text": "# Synthetic text 0.\nSynthetic text 1.\n- Synthetic text 2.\n- Synthetic text 3.\n- Synthetic text 4.\nSynthetic text 5.\nSynthetic text 6.\n![](dayone-moment://fixture-2-0)\nSynthetic text 8.\n",
+      "richText": "{\"meta\": {\"version\": 1, \"small-lines-removed\": true, \"created\": {\"platform\": \"com.bloombuilt.dayone-mac\", \"version\": 1095}}, \"contents\": [{\"attributes\": {\"line\": {\"header\": 1}}, \"text\": \"Synthetic text 0.\\n\"}, {\"text\": \"Synthetic text 1.\\n\"}, {\"attributes\": {\"line\": {\"indentLevel\": 1, \"listStyle\": \"bulleted\"}}, \"text\": \"Synthetic text 2.\\n\"}, {\"attributes\": {\"line\": {\"indentLevel\": 1, \"listStyle\": \"bulleted\"}}, \"text\": \"Synthetic text 3.\\n\"}, {\"attributes\": {\"line\": {\"indentLevel\": 1, \"listStyle\": \"bulleted\"}}, \"text\": \"Synthetic text 4.\\n\"}, {\"text\": \"Synthetic text 5.\\n\"}, {\"text\": \"Synthetic text 6.\"}, {\"embeddedObjects\": [{\"type\": \"photo\", \"identifier\": \"fixture-2-0\"}]}, {\"text\": \"Synthetic text 8.\\n\"}]}",
+      "photos": [
+        {
+          "identifier": "fixture-2-0",
+          "md5": "hash-2-0",
+          "type": "jpeg",
+          "orderInEntry": 0,
+          "date": "2020-01-01T12:00:00Z"
+        }
+      ],
+      "tags": [
+        "fixture"
+      ],
+      "weather": {},
+      "userActivity": {
+        "activityName": "walking",
+        "stepCount": 12
+      }
+    },
+    {
+      "uuid": "official-shape-3",
+      "creationDate": "2020-01-01T12:00:00Z",
+      "modifiedDate": "2020-01-02T12:00:00Z",
+      "timeZone": "America/Boise",
+      "isAllDay": false,
+      "text": "# Synthetic text 0.\nSynthetic text 1.\n![](dayone-moment://fixture-3-1)\n\n![](dayone-moment://fixture-3-0)\n",
+      "richText": "{\"meta\": {\"version\": 1, \"small-lines-removed\": true, \"created\": {\"platform\": \"com.bloombuilt.dayone-ios\", \"version\": 2327}}, \"contents\": [{\"attributes\": {\"line\": {\"header\": 1}}, \"text\": \"Synthetic text 0.\\n\"}, {\"text\": \"Synthetic text 1.\"}, {\"embeddedObjects\": [{\"type\": \"photo\", \"identifier\": \"fixture-3-1\"}, {\"type\": \"photo\", \"identifier\": \"fixture-3-0\"}]}]}",
+      "photos": [
+        {
+          "identifier": "fixture-3-0",
+          "md5": "hash-3-0",
+          "type": "jpeg",
+          "orderInEntry": 0,
+          "date": "2020-01-01T12:00:00Z"
+        },
+        {
+          "identifier": "fixture-3-1",
+          "md5": "hash-3-1",
+          "type": "jpeg",
+          "orderInEntry": 1,
+          "date": "2020-01-01T12:00:00Z"
+        }
+      ],
+      "tags": [
+        "fixture"
+      ],
+      "weather": {},
+      "userActivity": {
+        "activityName": "walking",
+        "stepCount": 12
+      }
+    },
+    {
+      "uuid": "official-shape-4",
+      "creationDate": "2020-01-01T12:00:00Z",
+      "modifiedDate": "2020-01-02T12:00:00Z",
+      "timeZone": "America/Boise",
+      "isAllDay": false,
+      "text": "# Synthetic text 0.\nSynthetic text 1._Synthetic text 2._Synthetic text 3.**Synthetic text 4.**Synthetic text 5.\n\n![](dayone-moment://fixture-4-0)\nSynthetic text 7.\n",
+      "richText": "{\"meta\": {\"version\": 1, \"small-lines-removed\": true, \"created\": {\"platform\": \"com.bloombuilt.dayone-ios\", \"version\": 823}}, \"contents\": [{\"attributes\": {\"line\": {\"header\": 1}}, \"text\": \"Synthetic text 0.\\n\"}, {\"text\": \"Synthetic text 1.\"}, {\"attributes\": {\"italic\": true}, \"text\": \"Synthetic text 2.\"}, {\"text\": \"Synthetic text 3.\"}, {\"attributes\": {\"bold\": true}, \"text\": \"Synthetic text 4.\"}, {\"text\": \"Synthetic text 5.\\n\"}, {\"embeddedObjects\": [{\"type\": \"photo\", \"identifier\": \"fixture-4-0\"}]}, {\"text\": \"Synthetic text 7.\\n\"}]}",
+      "photos": [
+        {
+          "identifier": "fixture-4-0",
+          "md5": "hash-4-0",
+          "type": "jpeg",
+          "orderInEntry": 0,
+          "date": "2020-01-01T12:00:00Z"
+        }
+      ],
+      "tags": [
+        "fixture"
+      ],
+      "weather": {},
+      "userActivity": {
+        "activityName": "walking",
+        "stepCount": 12
+      }
+    },
+    {
+      "uuid": "official-shape-5",
+      "creationDate": "2020-01-01T12:00:00Z",
+      "modifiedDate": "2020-01-02T12:00:00Z",
+      "timeZone": "Europe/Berlin",
+      "isAllDay": false,
+      "text": "# Synthetic text 0.\n![](dayone-moment://fixture-5-1)\n\n![](dayone-moment://fixture-5-0)\nSynthetic text 2.",
+      "richText": "{\"meta\": {\"version\": 1, \"small-lines-removed\": true, \"created\": {\"platform\": \"com.bloombuilt.dayone-mac\", \"version\": 1405}}, \"contents\": [{\"attributes\": {\"line\": {\"header\": 1}}, \"text\": \"Synthetic text 0.\"}, {\"embeddedObjects\": [{\"type\": \"photo\", \"identifier\": \"fixture-5-1\"}, {\"type\": \"photo\", \"identifier\": \"fixture-5-0\"}]}, {\"text\": \"Synthetic text 2.\"}]}",
+      "photos": [
+        {
+          "identifier": "fixture-5-0",
+          "md5": "hash-5-0",
+          "type": "jpeg",
+          "orderInEntry": 0,
+          "date": "2020-01-01T12:00:00Z"
+        },
+        {
+          "identifier": "fixture-5-1",
+          "md5": "hash-5-1",
+          "type": "jpeg",
+          "orderInEntry": 1,
+          "date": "2020-01-01T12:00:00Z"
+        }
+      ],
+      "tags": [
+        "fixture"
+      ],
+      "weather": {},
+      "userActivity": {
+        "activityName": "walking",
+        "stepCount": 12
+      }
+    },
+    {
+      "uuid": "official-shape-6",
+      "creationDate": "2020-01-01T12:00:00Z",
+      "modifiedDate": "2020-01-02T12:00:00Z",
+      "timeZone": "America/Denver",
+      "isAllDay": false,
+      "text": "# Synthetic text 0.\nSynthetic text 1.\n![](dayone-moment://fixture-6-0)\nSynthetic text 3.\n- [ ] Synthetic text 4.\n- [ ] Synthetic text 5.\n- [ ] Synthetic text 6.\n---\nSynthetic text 8.Synthetic text 9.",
+      "richText": "{\"meta\": {\"version\": 1, \"small-lines-removed\": true, \"created\": {\"platform\": \"com.bloombuilt.dayone-ios\", \"version\": 791}}, \"contents\": [{\"attributes\": {\"line\": {\"header\": 1}}, \"text\": \"Synthetic text 0.\\n\"}, {\"attributes\": {\"line\": {\"header\": 0}}, \"text\": \"Synthetic text 1.\"}, {\"embeddedObjects\": [{\"type\": \"photo\", \"identifier\": \"fixture-6-0\"}]}, {\"text\": \"Synthetic text 3.\\n\"}, {\"attributes\": {\"line\": {\"checked\": false, \"listStyle\": \"checkbox\", \"indentLevel\": 1}}, \"text\": \"Synthetic text 4.\\n\"}, {\"attributes\": {\"line\": {\"checked\": false, \"listStyle\": \"checkbox\", \"indentLevel\": 1}}, \"text\": \"Synthetic text 5.\\n\"}, {\"attributes\": {\"line\": {\"checked\": false, \"listStyle\": \"checkbox\", \"indentLevel\": 1}}, \"text\": \"Synthetic text 6.\"}, {\"embeddedObjects\": [{\"type\": \"horizontalRuleLine\"}]}, {\"attributes\": {\"highlightedColor\": \"ffc107cc\"}, \"text\": \"Synthetic text 8.\"}, {\"text\": \"Synthetic text 9.\"}]}",
+      "photos": [
+        {
+          "identifier": "fixture-6-0",
+          "md5": "hash-6-0",
+          "type": "jpeg",
+          "orderInEntry": 0,
+          "date": "2020-01-01T12:00:00Z"
+        }
+      ],
+      "tags": [
+        "fixture"
+      ],
+      "weather": {},
+      "userActivity": {
+        "activityName": "walking",
+        "stepCount": 12
+      }
+    }
+  ]
+}

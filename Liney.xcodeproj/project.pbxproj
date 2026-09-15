@@ -26,6 +26,7 @@
 		F0000000000000000000003E /* AppLockTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000003D /* AppLockTests.swift */; };
 		F00000000000000000000040 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000003F /* InfoPlist.strings */; };
 		F00000000000000000000043 /* Liney.icon in Resources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000044 /* Liney.icon */; };
+		F00000000000000000000045 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000046 /* Fixtures */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -59,6 +60,7 @@
 		F00000000000000000000041 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		F00000000000000000000042 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		F00000000000000000000044 /* Liney.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = Liney.icon; sourceTree = "<group>"; };
+		F00000000000000000000046 /* Fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fixtures; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -124,6 +126,7 @@
 			children = (
 				F0000000000000000000001D /* JournalEntryFlowTests.swift */,
 				F0000000000000000000002D /* DayOneImportTests.swift */,
+				F00000000000000000000046 /* Fixtures */,
 				F00000000000000000000037 /* JournalExportTests.swift */,
 				F0000000000000000000003D /* AppLockTests.swift */,
 			);
@@ -231,6 +234,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F00000000000000000000045 /* Fixtures in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

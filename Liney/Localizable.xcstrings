@@ -1,6 +1,423 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Import Needs Review": { "localizations": { "en": { "stringUnit": { "state": "translated", "value": "Import Needs Review" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "导入结果待核对" } } } },
+  "This entry has no source ID. Check the Day One export.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "This entry has no source ID. Check the Day One export."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "这篇日记缺少来源 ID，请检查 Day One 导出文件。"
+        }
+      }
+    }
+  },
+  "This entry has an unreadable date. Check the Day One export.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "This entry has an unreadable date. Check the Day One export."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "这篇日记的日期无法读取，请检查 Day One 导出文件。"
+        }
+      }
+    }
+  },
+  "No supported text or readable photos were found. Export again with media included.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "No supported text or readable photos were found. Export again with media included."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "未找到支持的文字或可读取的照片。请在 Day One 中选择包含媒体后重新导出。"
+        }
+      }
+    }
+  },
+  "Some photos could not be read. Export again with media included and import the zip to retry.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Some photos could not be read. Export again with media included and import the zip to retry."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "部分照片无法读取。请在 Day One 中选择包含媒体后重新导出，再导入 ZIP 补齐照片。"
+        }
+      }
+    }
+  },
+  "This entry could not be saved. Check available storage and retry.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "This entry could not be saved. Check available storage and retry."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "这篇日记未能保存。请检查可用存储空间后重试。"
+        }
+      }
+    }
+  },
+  "Photo recovery information could not be read. Existing content was kept.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Photo recovery information could not be read. Existing content was kept."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "无法读取照片补齐记录，已有内容已保留。"
+        }
+      }
+    }
+  },
+  "The original photo position was removed. Recovered photos were added at the end of the entry.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "The original photo position was removed. Recovered photos were added at the end of the entry."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "原来的照片位置已被移除，补齐的照片已追加到日记末尾。"
+        }
+      }
+    }
+  },
+  "The archive could not be read completely. Export again and retry; saved entries are kept.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "The archive could not be read completely. Export again and retry; saved entries are kept."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "无法完整读取导出包。请重新导出后重试，已保存的日记会保留。"
+        }
+      }
+    }
+  },
+  "Preparing Archive…": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Preparing Archive…"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "正在准备导入文件…"
+        }
+      }
+    }
+  },
+  "In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "在 Day One 中打开“设置 → 导入/导出”，选择 JSON 并包含媒体。Mac 上请选择“文件 → 导出 → JSON”，然后在这里选择导出的 ZIP 文件。"
+        }
+      }
+    }
+  },
+  "Automatic backups may omit photos. Keep the original export until you have checked the imported entries.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Automatic backups may omit photos. Keep the original export until you have checked the imported entries."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "自动备份可能不包含照片。请在核对导入的日记前保留原始导出文件。"
+        }
+      }
+    }
+  },
+  "Choose JSON Zip": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Choose JSON Zip"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "选择 JSON ZIP 文件"
+        }
+      }
+    }
+  },
+  "What Will Be Imported": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "What Will Be Imported"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "导入范围"
+        }
+      }
+    }
+  },
+  "Text, photos, entry dates and available locations are imported into one timeline. Formatting becomes plain text. Photos are saved as compressed JPEGs up to 2400 pixels on the long edge.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Text, photos, entry dates and available locations are imported into one timeline. Formatting becomes plain text. Photos are saved as compressed JPEGs up to 2400 pixels on the long edge."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "文字、照片、日记日期和可用地点会导入同一条时间线。文字格式会转换为纯文本；照片会保存为长边不超过 2400 像素的压缩 JPEG。"
+        }
+      }
+    }
+  },
+  "Videos, audio, PDFs, other attachments, tags, weather and other Day One metadata are not kept. Original journal divisions are not kept. Timed entries use your device’s time zone.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Videos, audio, PDFs, other attachments, tags, weather and other Day One metadata are not kept. Original journal divisions are not kept. Timed entries use your device’s time zone."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "视频、音频、PDF、其他附件、标签、天气等 Day One 附加信息不会保留，原有日记本也会合并。含时间的日记按设备时区显示。"
+        }
+      }
+    }
+  },
+  "Keep Liney open during import. Cancelling keeps saved entries. Import the zip again to continue or recover failed photos; existing text and edits are kept. Older imports without recovery information are skipped.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Keep Liney open during import. Cancelling keeps saved entries. Import the zip again to continue or recover failed photos; existing text and edits are kept. Older imports without recovery information are skipped."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "导入时请保持 Liney 在前台。取消后会保留已保存的日记，再次导入 ZIP 可继续导入或补齐失败的照片，已有文字和修改不会被覆盖。旧版本导入的日记没有补齐记录，会被跳过。"
+        }
+      }
+    }
+  },
+  "Unsupported Media": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Unsupported Media"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "不支持的媒体"
+        }
+      }
+    }
+  },
+  "Unsupported Metadata": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Unsupported Metadata"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "不支持的附加信息"
+        }
+      }
+    }
+  },
+  "Keep Liney open. Cancelling keeps saved entries.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Keep Liney open. Cancelling keeps saved entries."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "请保持 Liney 在前台。取消后会保留已保存的日记。"
+        }
+      }
+    }
+  },
+  "Repaired Entries": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Repaired Entries"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "已补齐照片的日记"
+        }
+      }
+    }
+  },
+  "Recovered Photos": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Recovered Photos"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "已补齐的照片"
+        }
+      }
+    }
+  },
+  "Failed Photos": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Failed Photos"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "待重试的照片"
+        }
+      }
+    }
+  },
+  "Entries to Check": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Entries to Check"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "需要检查的日记"
+        }
+      }
+    }
+  },
+  "Entry %lld": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Entry %lld"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "第 %lld 篇日记"
+        }
+      }
+    }
+  },
+  "Day One ID": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Day One ID"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Day One ID"
+        }
+      }
+    }
+  },
+  "Export again with media included, then import the zip to retry. Existing entries and your edits are kept.": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Export again with media included, then import the zip to retry. Existing entries and your edits are kept."
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "请在 Day One 中选择包含媒体后重新导出，再导入 ZIP 重试。已有日记和修改会保留。"
+        }
+      }
+    }
+  },
     "Your changes could not be saved. Please try again.": {
       "localizations": {
         "en": {

@@ -116,6 +116,43 @@ final class DayOneImportTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(photo.locationLatitude), 48.8566, accuracy: 0.0001)
     }
 
+    func testOfficialMarkdownPhotoMarkersDoNotLeaveWrapperText() async throws {
+        let archive = try makeArchive(journals: ["Journal.json": [[
+            "uuid": "wrapped", "creationDate": "2026-07-06T20:15:00Z",
+            "text": "Before\n![](dayone-moment://first)\n![](dayone-moment://second)\nAfter",
+            "photos": [["identifier": "first", "md5": "hash-a", "type": "jpeg"],
+                       ["identifier": "second", "md5": "hash-b", "type": "jpeg"]]
+        ]]], media: ["photos/hash-a.jpeg": makeJPEGData(), "photos/hash-b.jpeg": makeJPEGData()])
+        let summary = try await importArchive(archive)
+        XCTAssertEqual(summary.importedEntries, 1)
+        let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(entry.orderedBlocks.map(\.kind), [.text, .photoGroup, .text])
+        XCTAssertEqual(entry.textBlocks.map(\.text), ["Before\n", "\nAfter"])
+        XCTAssertEqual(entry.photoGroupBlocks.first?.photos.count, 2)
+    }
+
+    func testRetryRestoresMissingPhotoWithoutOverwritingEdits() async throws {
+        let raw: [String: Any] = [
+            "uuid": "repair", "creationDate": "2026-07-06T20:15:00Z",
+            "text": "Before\ndayone-moment://missing\nAfter",
+            "photos": [["identifier": "missing", "type": "jpg"]]
+        ]
+        _ = try await importArchive(makeArchive(journals: ["Journal.json": [raw]]))
+        let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        entry.title = "My edit"
+        entry.textBlocks.first?.text = "Edited text"
+        try context.save()
+        let complete = try makeArchive(journals: ["Journal.json": [raw]],
+                                       media: ["photos/missing.jpg": makeJPEGData()])
+        _ = try await importArchive(complete)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<JournalEntry>()), 1)
+        XCTAssertEqual(entry.title, "My edit")
+        XCTAssertEqual(entry.textBlocks.first?.text, "Edited text")
+        XCTAssertEqual(entry.photoGroupBlocks.flatMap(\.photos).count, 1)
+        _ = try await importArchive(complete)
+        XCTAssertEqual(entry.photoGroupBlocks.flatMap(\.photos).count, 1)
+    }
+
     func testImportsFallbackAttachmentsAndSkipsDuplicateReimport() async throws {
         let archiveURL = try makeArchive(
             journals: [
@@ -320,7 +357,7 @@ final class DayOneImportTests: XCTestCase {
         let summary = try await importArchive(archiveURL)
 
         XCTAssertEqual(summary.importedEntries, 1)
-        XCTAssertEqual(summary.skippedMedia, 1)
+        XCTAssertEqual(summary.failedPhotos, 1)
         let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
         XCTAssertEqual(entry.plainTextBody, "Good text.\n")
         XCTAssertTrue(entry.photoGroupBlocks.isEmpty)
@@ -350,7 +387,10 @@ final class DayOneImportTests: XCTestCase {
 
         XCTAssertEqual(summary.importedEntries, 1)
         XCTAssertEqual(summary.failedEntries, 1)
-        XCTAssertEqual(summary.skippedMedia, 4)
+        XCTAssertEqual(summary.skippedMedia, 1)
+        XCTAssertEqual(summary.ignoredMetadata, 2)
+        XCTAssertEqual(summary.failedPhotos, 1)
+        XCTAssertEqual(summary.issues.map(\.reason), [.invalidDate, .photosUnavailable])
         let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
         XCTAssertEqual(entry.plainTextBody, "Good text.")
         XCTAssertTrue(entry.photoGroupBlocks.isEmpty)
@@ -432,6 +472,312 @@ final class DayOneImportTests: XCTestCase {
             entries: syntheticEntries.count,
             durationsMilliseconds: durationsMilliseconds
         )
+    }
+
+    func testReadableMarkdownAndRichTextFallback() async throws {
+        let rich: [String: Any] = ["contents": [
+            ["attributes": ["line": ["header": 1]], "text": "Heading\n"],
+            ["attributes": ["line": ["listStyle": "checkbox", "checked": true]], "text": "Done\n"],
+            ["embeddedObjects": [["type": "photo", "identifier": "rich-photo"]]],
+            ["text": "Literal *stars* and _underscores_"]
+        ]]
+        let encoded = String(decoding: try JSONSerialization.data(withJSONObject: rich), as: UTF8.self)
+        let archive = try makeArchive(journals: ["Journal.json": [
+            ["uuid": "markdown", "creationDate": "2026-01-01T00:00:00Z",
+             "text": "# Heading\n- **Bold** and _italic_\n- [x] Done\nVersion 1\\. [Link](https://example.com)"],
+            ["uuid": "rich", "creationDate": "2026-01-02T00:00:00Z", "richText": encoded,
+             "photos": [["identifier": "rich-photo", "type": "jpg"]]]
+        ]], media: ["photos/rich-photo.jpg": makeJPEGData()])
+        let summary = try await importArchive(archive)
+        XCTAssertEqual(summary.importedEntries, 2)
+        let entries = try context.fetch(FetchDescriptor<JournalEntry>())
+        let markdown = try XCTUnwrap(entries.first { $0.externalSourceID == "markdown" })
+        XCTAssertEqual(markdown.plainTextBody, "Heading\n• Bold and italic\n☑ Done\nVersion 1. Link (https://example.com)")
+        let fallback = try XCTUnwrap(entries.first { $0.externalSourceID == "rich" })
+        XCTAssertTrue(fallback.plainTextBody.contains("☑ Done"))
+        XCTAssertTrue(fallback.plainTextBody.contains("Literal *stars* and _underscores_"))
+        XCTAssertEqual(fallback.photoCount, 1)
+    }
+
+    func testRecoverySurvivesReopeningAndPreservesOriginalOrder() async throws {
+        let storeURL = temporaryDirectory.appendingPathComponent("recovery.store")
+        let configuration = ModelConfiguration(url: storeURL)
+        var diskContainer: ModelContainer? = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
+                                                               configurations: configuration)
+        let raw: [String: Any] = ["uuid": "disk-recovery", "creationDate": "2026-01-01T00:00:00Z",
+            "text": "Before\n![](dayone-moment://a)\n![](dayone-moment://b)\n![](dayone-moment://c)\nAfter",
+            "photos": [["identifier": "a", "type": "jpg"], ["identifier": "b", "type": "jpg"],
+                       ["identifier": "c", "type": "jpg", "location": ["placeName": "Last"]]]]
+        let incomplete = try makeArchive(journals: ["Journal.json": [raw]], media: ["photos/c.jpg": makeJPEGData()])
+        let importer = DayOneImporter(photoStorage: photoStorage)
+        do {
+            let diskContext = ModelContext(try XCTUnwrap(diskContainer))
+            let summary = await importer.importPreparedArchive(try importer.prepareImport(from: incomplete), into: diskContext) { _ in }
+            XCTAssertEqual(summary.failedPhotos, 2)
+            let entry = try XCTUnwrap(try diskContext.fetch(FetchDescriptor<JournalEntry>()).first)
+            XCTAssertNotNil(entry.dayOnePendingPhotos)
+            entry.title = "Edited after import"
+            try diskContext.save()
+        }
+        diskContainer = nil
+        diskContainer = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self, configurations: configuration)
+        let reopened = ModelContext(try XCTUnwrap(diskContainer))
+        var fullRaw = raw
+        fullRaw["photos"] = [["identifier": "a", "type": "jpg", "location": ["placeName": "First"]],
+                             ["identifier": "b", "type": "jpg", "location": ["placeName": "Middle"]],
+                             ["identifier": "c", "type": "jpg", "location": ["placeName": "Last"]]]
+        let full = try makeArchive(journals: ["Journal.json": [fullRaw]], media: [
+            "photos/a.jpg": makeJPEGData(), "photos/b.jpg": makeJPEGData(), "photos/c.jpg": makeJPEGData()])
+        let summary = await importer.importPreparedArchive(try importer.prepareImport(from: full), into: reopened) { _ in }
+        XCTAssertEqual(summary.repairedEntries, 1)
+        XCTAssertEqual(summary.recoveredPhotos, 2)
+        let entry = try XCTUnwrap(try reopened.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(entry.title, "Edited after import")
+        XCTAssertEqual(entry.orderedBlocks.map(\.kind), [.text, .photoGroup, .text])
+        XCTAssertEqual(entry.photoGroupBlocks[0].orderedPhotos.map(\.placeName), ["First", "Middle", "Last"])
+        XCTAssertNil(entry.dayOnePendingPhotos)
+        let photo = entry.photoGroupBlocks[0].orderedPhotos[0]
+        _ = entry.deletePhoto(photo, in: reopened)
+        try reopened.save()
+        let repeated = await importer.importPreparedArchive(try importer.prepareImport(from: full), into: reopened) { _ in }
+        XCTAssertEqual(repeated.skippedDuplicates, 1)
+        XCTAssertEqual(entry.photoCount, 2, "A photo deliberately deleted after successful import must not return")
+    }
+
+    func testRecoveryAfterRemovedAnchorAppendsWithoutChangingText() async throws {
+        let raw: [String: Any] = ["uuid": "removed-anchor", "creationDate": "2026-01-01T00:00:00Z",
+                                 "text": "Before\ndayone-moment://p\nAfter", "photos": [["identifier": "p", "type": "jpg"]]]
+        _ = try await importArchive(makeArchive(journals: ["Journal.json": [raw]]))
+        let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        entry.normalizeBlocks(in: context)
+        entry.textBlocks[0].text = "User replacement"
+        try context.save()
+        let full = try makeArchive(journals: ["Journal.json": [raw]], media: ["photos/p.jpg": makeJPEGData()])
+        let summary = try await importArchive(full)
+        XCTAssertEqual(entry.plainTextBody, "User replacement")
+        XCTAssertEqual(entry.orderedBlocks.map(\.kind), [.text, .photoGroup])
+        XCTAssertTrue(summary.issues.contains { $0.reason == .appendedPhotos })
+    }
+
+    func testFailedRecoveryCanBeRetriedAndDoesNotDuplicateSuccessfulPhotos() async throws {
+        let raw: [String: Any] = ["uuid": "multiple-retries", "creationDate": "2026-01-01T00:00:00Z", "text": "Body",
+            "photos": [["identifier": "a", "type": "jpg"], ["identifier": "b", "type": "jpg"]]]
+        _ = try await importArchive(makeArchive(journals: ["Journal.json": [raw]]))
+        let partial = try makeArchive(journals: ["Journal.json": [raw]], media: ["photos/a.jpg": makeJPEGData()])
+        let first = try await importArchive(partial)
+        XCTAssertEqual(first.recoveredPhotos, 1)
+        XCTAssertEqual(first.failedPhotos, 1)
+        let second = try await importArchive(partial)
+        XCTAssertEqual(second.recoveredPhotos, 0)
+        XCTAssertEqual(second.failedPhotos, 1)
+        let full = try makeArchive(journals: ["Journal.json": [raw]], media: ["photos/a.jpg": makeJPEGData(), "photos/b.jpg": makeJPEGData()])
+        let last = try await importArchive(full)
+        XCTAssertEqual(last.recoveredPhotos, 1)
+        XCTAssertEqual(last.failedPhotos, 0)
+        let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(entry.photoCount, 2)
+        XCTAssertNil(entry.dayOnePendingPhotos)
+    }
+
+    func testNestedJournalsResolveTheirOwnPhotoFiles() async throws {
+        let photo: [String: Any] = ["identifier": "same-id", "type": "jpg"]
+        let archive = try makeArchive(journals: [
+            "One/Journal.json": [["uuid": "one", "creationDate": "2026-01-01T00:00:00Z", "photos": [photo]]],
+            "Two/Journal.json": [["uuid": "two", "creationDate": "2026-01-01T00:00:00Z", "photos": [photo]]]
+        ], media: ["One/photos/same-id.jpg": makeJPEGData(color: .red), "Two/photos/same-id.jpg": makeJPEGData(color: .blue)])
+        let summary = try await importArchive(archive)
+        XCTAssertEqual(summary.importedEntries, 2)
+        let entries = try context.fetch(FetchDescriptor<JournalEntry>())
+        let one = try XCTUnwrap(entries.first { $0.externalSourceID == "one" }?.photoGroupBlocks.first?.photos.first)
+        let two = try XCTUnwrap(entries.first { $0.externalSourceID == "two" }?.photoGroupBlocks.first?.photos.first)
+        XCTAssertNotEqual(try Data(contentsOf: photoStorage.url(for: one.fileName)), try Data(contentsOf: photoStorage.url(for: two.fileName)))
+    }
+
+    func testMultiYearPhotoBatchAndRetry() async throws {
+        let entries: [[String: Any]] = (0..<120).map { index in
+            ["uuid": "year-photo-\(index)", "creationDate": String(format: "%04d-01-01T00:00:00Z", 2000 + index / 12),
+             "text": "Before\n![](dayone-moment://p-\(index))\nAfter",
+             "photos": [["identifier": "p-\(index)", "type": "jpg"]]]
+        }
+        let photo = makeJPEGData(size: CGSize(width: 3200, height: 2400))
+        let media = Dictionary(uniqueKeysWithValues: (0..<120).map { ("photos/p-\($0).jpg", photo) })
+        let archive = try makeArchive(journals: ["Journal.json": entries], media: media)
+        let start = Date()
+        let summary = try await importArchive(archive)
+        XCTAssertEqual(summary.importedEntries, 120)
+        XCTAssertEqual(summary.failedPhotos, 0)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<JournalEntry>()).reduce(0) { $0 + $1.photoCount }, 120)
+        let retry = try await importArchive(archive)
+        XCTAssertEqual(retry.skippedDuplicates, 120)
+        print("[PERF] DayOnePhotoBatch syntheticEntries=120 syntheticPhotos=120 importAndRetrySeconds=\(Date().timeIntervalSince(start))")
+    }
+
+    func testCancelledPreparationCleansTemporaryArchive() async throws {
+        let archive = try makeArchive(journals: ["Journal.json": [["uuid": "cancel-prepare", "creationDate": "2026-01-01T00:00:00Z", "text": "Body"]]])
+        let importer = DayOneImporter(photoStorage: photoStorage)
+        let baselinePlan = try importer.prepareImport(from: archive)
+        let stagingDirectory = baselinePlan.archiveURL.deletingLastPathComponent()
+        importer.deleteTemporaryArchive(baselinePlan)
+        let before = try FileManager.default.contentsOfDirectory(atPath: stagingDirectory.path)
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await importer.prepareImportInBackground(from: archive)
+        }
+        do { _ = try await task.value; XCTFail("Expected cancellation") }
+        catch is CancellationError { }
+        XCTAssertEqual(Set(try FileManager.default.contentsOfDirectory(atPath: stagingDirectory.path)), Set(before))
+        let plan = try await importer.prepareImportInBackground(from: archive)
+        XCTAssertEqual(plan.entryCount, 1)
+        importer.deleteTemporaryArchive(plan)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: plan.archiveURL.path))
+    }
+
+    func testOfficialShapeFixtureImportsEveryPhotoAndSupportsRichTextFallback() async throws {
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "day-one-official-shape", withExtension: "json", subdirectory: "Fixtures"))
+        let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let entries = try XCTUnwrap(root["entries"] as? [[String: Any]])
+        var media: [String: Data] = [:]
+        for entry in entries {
+            for photo in entry["photos"] as? [[String: Any]] ?? [] {
+                let hash = try XCTUnwrap(photo["md5"] as? String)
+                let ext = try XCTUnwrap(photo["type"] as? String)
+                media["photos/\(hash).\(ext)"] = makeJPEGData()
+            }
+        }
+        let archive = try makeArchive(journals: ["Journal.json": entries], media: media)
+        let result = try await importArchive(archive)
+        XCTAssertEqual(result.importedEntries, 7)
+        XCTAssertEqual(result.failedPhotos, 1)
+        XCTAssertEqual(result.issues.filter { $0.reason == .photosUnavailable }.count, 1)
+        let imported = try context.fetch(FetchDescriptor<JournalEntry>())
+        XCTAssertEqual(imported.reduce(0) { $0 + $1.photoCount }, 12)
+        XCTAssertTrue(imported.allSatisfy { !$0.plainTextBody.contains("dayone-moment://") && !$0.plainTextBody.contains("![](") })
+        let richOnly = entries.map { entry -> [String: Any] in
+            var value = entry
+            value["uuid"] = "rich-only-" + (entry["uuid"] as? String ?? "")
+            value.removeValue(forKey: "text")
+            return value
+        }
+        let fallback = try await importArchive(makeArchive(journals: ["Journal.json": richOnly], media: media))
+        XCTAssertEqual(fallback.importedEntries, 7)
+        XCTAssertEqual(fallback.failedPhotos, 1)
+    }
+
+    func testRecoveryKeepsOrderWhenLaterMissingPhotoIsRecoveredFirst() async throws {
+        let raw: [String: Any] = ["uuid": "out-of-order-recovery", "creationDate": "2026-01-01T00:00:00Z", "text": "Body",
+            "photos": [["identifier": "a", "type": "jpg", "location": ["placeName": "First"]],
+                       ["identifier": "b", "type": "jpg", "location": ["placeName": "Second"]]]]
+        _ = try await importArchive(makeArchive(journals: ["Journal.json": [raw]]))
+        _ = try await importArchive(makeArchive(journals: ["Journal.json": [raw]], media: ["photos/b.jpg": makeJPEGData()]))
+        _ = try await importArchive(makeArchive(journals: ["Journal.json": [raw]], media: ["photos/a.jpg": makeJPEGData(), "photos/b.jpg": makeJPEGData()]))
+        let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(entry.photoGroupBlocks[0].orderedPhotos.map(\.placeName), ["First", "Second"])
+    }
+
+    func testRecoverySaveFailureRollsBackFilesAndCanRetry() async throws {
+        let raw: [String: Any] = ["uuid": "save-recovery", "creationDate": "2026-01-01T00:00:00Z", "text": "Body",
+                                 "photos": [["identifier": "p", "type": "jpg"]]]
+        _ = try await importArchive(makeArchive(journals: ["Journal.json": [raw]]))
+        let full = try makeArchive(journals: ["Journal.json": [raw]], media: ["photos/p.jpg": makeJPEGData()])
+        let filesBefore = Set(try FileManager.default.subpathsOfDirectory(atPath: temporaryDirectory.path))
+        struct SyntheticSaveFailure: Error { }
+        let failing = DayOneImporter(photoStorage: photoStorage, saveContext: { _ in throw SyntheticSaveFailure() })
+        let failure = await failing.importPreparedArchive(try failing.prepareImport(from: full), into: context) { _ in }
+        XCTAssertEqual(failure.failedEntries, 1)
+        XCTAssertEqual(failure.recoveredPhotos, 0)
+        XCTAssertEqual(failure.issues.last?.reason, .saveFailed)
+        let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(entry.photoCount, 0)
+        XCTAssertNotNil(entry.dayOnePendingPhotos)
+        let filesAfter = Set(try FileManager.default.subpathsOfDirectory(atPath: temporaryDirectory.path))
+        XCTAssertEqual(filesAfter.filter { $0.hasSuffix(".jpg") }, filesBefore.filter { $0.hasSuffix(".jpg") })
+        let retry = try await importArchive(full)
+        XCTAssertEqual(retry.recoveredPhotos, 1)
+    }
+
+    func testUnsupportedVideoReferenceIsNotARecoverablePhoto() async throws {
+        let archive = try makeArchive(journals: ["Journal.json": [[
+            "uuid": "video-reference", "creationDate": "2026-01-01T00:00:00Z",
+            "text": "Body\n![](dayone-moment://video)", "videos": [["identifier": "video"]],
+            "userActivity": ["stepCount": 2], "tags": ["tag"]
+        ]]])
+        let importer = DayOneImporter(photoStorage: photoStorage)
+        let plan = try importer.prepareImport(from: archive)
+        XCTAssertEqual(plan.unsupportedMediaCount, 1)
+        XCTAssertEqual(plan.ignoredMetadataCount, 2)
+        let result = await importer.importPreparedArchive(plan, into: context) { _ in }
+        XCTAssertEqual(result.skippedMedia, 1)
+        XCTAssertEqual(result.failedPhotos, 0)
+        XCTAssertEqual(result.ignoredMetadata, 2)
+        let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertNil(entry.dayOnePendingPhotos)
+    }
+
+    func testExistingStoreUpgradesWithoutChangingEntriesOrPhotos() throws {
+        let url = temporaryDirectory.appendingPathComponent("legacy.store")
+        var legacyContainer: ModelContainer? = try ModelContainer(
+            for: LegacyDayOneSchema.JournalEntry.self, LegacyDayOneSchema.EntryBlock.self, LegacyDayOneSchema.EntryPhoto.self,
+            configurations: ModelConfiguration(url: url))
+        let originalID = UUID()
+        do {
+            let legacy = ModelContext(try XCTUnwrap(legacyContainer))
+            let entry = LegacyDayOneSchema.JournalEntry(id: originalID, externalSourceID: "legacy-source", title: "Legacy fixture")
+            let text = LegacyDayOneSchema.EntryBlock(text: "Synthetic legacy body", entry: entry)
+            let group = LegacyDayOneSchema.EntryBlock(kind: .photoGroup, sortIndex: 1, entry: entry)
+            let photo = LegacyDayOneSchema.EntryPhoto(fileName: "fixture.jpg", block: group)
+            group.photos = [photo]
+            entry.blocks = [text, group]
+            legacy.insert(entry)
+            try legacy.save()
+        }
+        legacyContainer = nil
+        let upgraded = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
+                                          configurations: ModelConfiguration(url: url))
+        let upgradedContext = ModelContext(upgraded)
+        let entry = try XCTUnwrap(try upgradedContext.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(entry.id, originalID)
+        XCTAssertEqual(entry.externalSourceID, "legacy-source")
+        XCTAssertEqual(entry.title, "Legacy fixture")
+        XCTAssertEqual(entry.plainTextBody, "Synthetic legacy body")
+        XCTAssertEqual(entry.photoCount, 1)
+        XCTAssertEqual(entry.photoGroupBlocks.first?.photos.first?.fileName, "fixture.jpg")
+        XCTAssertNil(entry.dayOnePendingPhotos)
+        try upgradedContext.save()
+    }
+
+    func testMigrationSummaryAndConfirmationRendering() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let plan = DayOneImportPlan(archiveURL: temporaryDirectory, entryCount: 7, photoCount: 12, unsupportedMediaCount: 2, ignoredMetadataCount: 4)
+        var summary = DayOneImportSummary(importedEntries: 6, failedEntries: 1, processedEntries: 7, totalEntries: 7)
+        summary.failedPhotos = 2
+        summary.issues = [DayOneImportIssue(sourceID: "FIXTURE-SOURCE-ID", entryNumber: 3,
+                                           entryDate: Date(timeIntervalSince1970: 0), reason: .photosUnavailable)]
+        for locale in ["en", "zh-Hans"] {
+            for screen in ["confirmation", "summary", "confirmation-large", "summary-large"] {
+                let window = UIWindow(windowScene: scene)
+                window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+                let content: AnyView = screen.hasPrefix("confirmation")
+                    ? AnyView(ImportJournalConfirmationView(plan: plan, confirm: {}, cancel: {}))
+                    : AnyView(ImportJournalProgressView(isImporting: false, progress: .init(processedEntries: 7, totalEntries: 7), summary: summary, cancel: {}, done: {}))
+                window.rootViewController = UIHostingController(rootView: content
+                    .environment(\.locale, Locale(identifier: locale))
+                    .environment(\.dynamicTypeSize, screen.hasSuffix("large") ? .accessibility3 : .large)
+                    .preferredColorScheme(screen.hasSuffix("large") ? .dark : .light))
+                window.makeKeyAndVisible()
+                try await Task.sleep(for: .milliseconds(150))
+                let view = try XCTUnwrap(window.rootViewController?.view)
+                view.frame = window.bounds
+                view.layoutIfNeeded()
+                let image = UIGraphicsImageRenderer(bounds: view.bounds).image { _ in
+                    XCTAssertTrue(view.drawHierarchy(in: view.bounds, afterScreenUpdates: true))
+                }
+                let attachment = XCTAttachment(image: image)
+                attachment.name = "migration-\(screen)-\(locale)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                window.isHidden = true
+            }
+        }
     }
 
     private func importArchive(_ archiveURL: URL) async throws -> DayOneImportSummary {
@@ -545,9 +891,117 @@ final class DayOneImportTests: XCTestCase {
     }
 
     private func makeJPEGData(size: CGSize = CGSize(width: 32, height: 24), color: UIColor = .systemBlue) -> Data {
-        UIGraphicsImageRenderer(size: size).jpegData(withCompressionQuality: 1) { context in
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: format).jpegData(withCompressionQuality: 1) { context in
             color.setFill()
             context.fill(CGRect(origin: .zero, size: size))
         }
     }
+}
+
+// Frozen pre-recovery schema; keep unchanged to exercise additive store upgrades.
+private enum LegacyDayOneSchema {
+    @Model
+    final class JournalEntry: Identifiable {
+        @Attribute(.unique) var id: UUID
+        var externalSourceID: String?
+        var title: String
+        var entryDate: Date
+        var isAllDay: Bool = false
+        var createdAt: Date
+        var updatedAt: Date
+        var locationName: String?
+        var locationLatitude: Double?
+        var locationLongitude: Double?
+        var hasShownPhotoInfoPrompt: Bool = false
+        @Relationship(deleteRule: .cascade, inverse: \EntryBlock.entry) var blocks: [EntryBlock]
+
+        init(
+            id: UUID = UUID(),
+            externalSourceID: String? = nil,
+            title: String = "",
+            entryDate: Date = .now,
+            isAllDay: Bool = false,
+            createdAt: Date = .now,
+            updatedAt: Date = .now,
+            locationName: String? = nil,
+            locationLatitude: Double? = nil,
+            locationLongitude: Double? = nil,
+            hasShownPhotoInfoPrompt: Bool = false,
+            blocks: [EntryBlock] = []
+        ) {
+            self.id = id
+            self.externalSourceID = externalSourceID
+            self.title = title
+            self.entryDate = isAllDay ? Calendar.current.startOfDay(for: entryDate) : entryDate
+            self.isAllDay = isAllDay
+            self.createdAt = createdAt
+            self.updatedAt = updatedAt
+            self.locationName = locationName
+            self.locationLatitude = locationLatitude
+            self.locationLongitude = locationLongitude
+            self.hasShownPhotoInfoPrompt = hasShownPhotoInfoPrompt
+            self.blocks = blocks
+        }
+    }
+
+    @Model
+    final class EntryBlock: Identifiable {
+        @Attribute(.unique) var id: UUID
+        var kind: EntryBlockKind
+        var sortIndex: Int
+        var text: String
+        var entry: JournalEntry?
+        @Relationship(deleteRule: .cascade, inverse: \EntryPhoto.block) var photos: [EntryPhoto]
+
+        init(
+            id: UUID = UUID(),
+            kind: EntryBlockKind = .text,
+            sortIndex: Int = 0,
+            text: String = "",
+            entry: JournalEntry? = nil,
+            photos: [EntryPhoto] = []
+        ) {
+            self.id = id
+            self.kind = kind
+            self.sortIndex = sortIndex
+            self.text = text
+            self.entry = entry
+            self.photos = photos
+        }
+    }
+
+    @Model
+    final class EntryPhoto: Identifiable {
+        @Attribute(.unique) var id: UUID
+        var fileName: String
+        var displayOrder: Int
+        var capturedAt: Date?
+        var placeName: String?
+        var locationLatitude: Double?
+        var locationLongitude: Double?
+        var block: EntryBlock?
+
+        init(
+            id: UUID = UUID(),
+            fileName: String,
+            displayOrder: Int = 0,
+            capturedAt: Date? = nil,
+            placeName: String? = nil,
+            locationLatitude: Double? = nil,
+            locationLongitude: Double? = nil,
+            block: EntryBlock? = nil
+        ) {
+            self.id = id
+            self.fileName = fileName
+            self.displayOrder = displayOrder
+            self.capturedAt = capturedAt
+            self.placeName = placeName
+            self.locationLatitude = locationLatitude
+            self.locationLongitude = locationLongitude
+            self.block = block
+        }
+    }
+
 }

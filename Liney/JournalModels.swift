@@ -6,6 +6,7 @@ import SwiftData
 final class JournalEntry: Identifiable {
     @Attribute(.unique) var id: UUID
     var externalSourceID: String?
+    var dayOnePendingPhotos: Data? = nil
     var title: String
     var entryDate: Date
     var isAllDay: Bool = false
