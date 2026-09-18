@@ -1,164 +1,50 @@
-import SwiftUI
+import SwiftData
 import UIKit
 
-struct ExportJournalFlow: View {
-    @Binding var isPresented: Bool
-    let entries: [JournalEntry]
-    let authenticateBeforePackaging: () async -> Bool
-
-    @State private var presentation: ExportJournalPresentation?
-    @State private var activeExport: JournalExport?
-    @State private var exportError: ExportJournalAlert?
-    @State private var exportTask: Task<Void, Never>?
-
+@MainActor
+final class ExportJournalFlow {
+    private weak var presenter: UIViewController?
+    private let container: ModelContainer
+    private let appLock: AppLockModel
     private let exporter = JournalExporter()
-
-    init(
-        isPresented: Binding<Bool>,
-        entries: [JournalEntry],
-        authenticateBeforePackaging: @escaping () async -> Bool = { true }
-    ) {
-        self._isPresented = isPresented
-        self.entries = entries
-        self.authenticateBeforePackaging = authenticateBeforePackaging
+    private var task: Task<Void, Never>?
+    var onFinished: (() -> Void)?
+    init(presenter: UIViewController, container: ModelContainer, appLock: AppLockModel) {
+        self.presenter = presenter; self.container = container; self.appLock = appLock
     }
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onChange(of: isPresented) { _, isPresented in
-                if isPresented {
-                    startExport()
-                }
-            }
-            .sheet(isPresented: exportSheetBinding) {
-                switch presentation {
-                case .preparing:
-                    ExportPreparingView()
-                        .interactiveDismissDisabled()
-                case .sharing(let export):
-                    ActivityViewController(activityItems: [export.url]) {
-                        completeSharing(export)
-                    }
-                case nil:
-                    EmptyView()
-                }
-            }
-            .alert(item: $exportError) { error in
-                Alert(
-                    title: Text("Could Not Export Journal"),
-                    message: Text(error.message),
-                    dismissButton: .default(Text("OK"))
-                )
-            }
-    }
-
-    private var exportSheetBinding: Binding<Bool> {
-        Binding(
-            get: { presentation != nil },
-            set: { isShowing in
-                guard !isShowing else { return }
-                finishExport()
-            }
-        )
-    }
-
-    @MainActor
-    private func startExport() {
-        guard exportTask == nil else { return }
-
-        exportTask = Task { @MainActor in
-            defer { exportTask = nil }
-
+    func start() {
+        guard task == nil else { return }
+        task = Task { [self] in
+            guard await appLock.authenticateForExport(requiresLock: UserDefaults.standard.bool(forKey: "liney.requiresAppLock")),
+                  let presenter else { onFinished?(); return }
+            let progress = MessageController(title: String(localized: "Export Journal"), message: String(localized: "Preparing Export"))
+            progress.isModalInPresentation = true
+            presenter.present(progress, animated: true)
             do {
-                guard await authenticateBeforePackaging() else {
-                    presentation = nil
-                    isPresented = false
-                    return
-                }
-
-                let exportEntries = entries.map(JournalExportEntry.init)
-                presentation = .preparing
+                let container = self.container
+                let exporter = self.exporter
                 let export = try await Task.detached(priority: .userInitiated) {
-                    try exporter.export(entries: exportEntries)
+                    let context = ModelContext(container)
+                    let entries = try context.fetch(FetchDescriptor<JournalEntry>(sortBy: [SortDescriptor(\.entryDate, order: .reverse)]))
+                    return try exporter.export(entries: entries.map(JournalExportEntry.init))
                 }.value
-                guard !Task.isCancelled else {
-                    exporter.deleteExport(export)
-                    return
+                progress.dismiss(animated: true) { [weak self, weak presenter] in
+                    guard let self, let presenter else { exporter.deleteExport(export); return }
+                    let activity = UIActivityViewController(activityItems: [export.url], applicationActivities: nil)
+                    activity.popoverPresentationController?.sourceView = presenter.view
+                    activity.popoverPresentationController?.sourceRect = CGRect(x: presenter.view.bounds.midX, y: presenter.view.bounds.midY, width: 1, height: 1)
+                    activity.completionWithItemsHandler = { [weak self] _, _, _, _ in
+                        exporter.deleteExport(export)
+                        Task { @MainActor in self?.onFinished?() }
+                    }
+                    presenter.present(activity, animated: true)
                 }
-
-                activeExport = export
-                presentation = .sharing(export)
             } catch {
-                guard !Task.isCancelled else { return }
-                presentation = nil
-                isPresented = false
-                exportError = ExportJournalAlert(message: error.localizedDescription)
+                progress.dismiss(animated: true) { [weak self, weak presenter] in
+                    presenter?.showError(String(localized: "Could Not Export Journal"), message: error.localizedDescription)
+                    self?.onFinished?()
+                }
             }
         }
     }
-
-    private func completeSharing(_ export: JournalExport) {
-        cleanup(export)
-        presentation = nil
-        isPresented = false
-    }
-
-    private func finishExport() {
-        exportTask?.cancel()
-        exportTask = nil
-        if let activeExport {
-            cleanup(activeExport)
-        }
-        isPresented = false
-    }
-
-    private func cleanup(_ export: JournalExport) {
-        exporter.deleteExport(export)
-        if activeExport?.id == export.id {
-            activeExport = nil
-        }
-    }
-}
-
-private enum ExportJournalPresentation {
-    case preparing
-    case sharing(JournalExport)
-}
-
-private struct ExportPreparingView: View {
-    var body: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-            Text("Preparing Export")
-                .font(.headline)
-        }
-        .frame(maxWidth: .infinity, minHeight: 160)
-        .padding()
-    }
-}
-
-private struct ActivityViewController: UIViewControllerRepresentable {
-    let activityItems: [Any]
-    let completion: () -> Void
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        let controller = UIActivityViewController(
-            activityItems: activityItems,
-            applicationActivities: nil
-        )
-        controller.completionWithItemsHandler = { _, _, _, _ in
-            DispatchQueue.main.async {
-                completion()
-            }
-        }
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
-private struct ExportJournalAlert: Identifiable {
-    let id = UUID()
-    let message: String
 }

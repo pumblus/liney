@@ -1,4 +1,3 @@
-import SwiftUI
 import UIKit
 import XCTest
 @testable import Liney
@@ -153,15 +152,17 @@ final class AppLockTests: XCTestCase {
         let lock = AppLockModel(authenticator: FakeAuthenticator(results: []))
         let probe = MountProbe()
         let window = UIWindow(frame: UIScreen.main.bounds)
-        window.rootViewController = UIHostingController(
-            rootView: AppLockGate(requiresAppLock: .constant(true), appLock: lock) {
-                MountProbeView(probe: probe)
-            }
-        )
+        window.rootViewController = MountProbeViewController(probe: probe)
         window.makeKeyAndVisible()
-        await flushSwiftUIUpdates()
+        let shield = JournalPrivacyShield(window: window, appLock: lock, requiresLock: { true })
+        shield.update()
+        defer { shield.cover.isHidden = true; window.isHidden = true }
+        await flushUIKitUpdates()
 
         XCTAssertTrue(lock.hidesJournalContent)
+        XCTAssertFalse(shield.cover.isHidden)
+        XCTAssertFalse(window.isUserInteractionEnabled)
+        XCTAssertTrue(window.accessibilityElementsHidden)
         XCTAssertEqual(probe.appearances, 1)
         XCTAssertEqual(probe.disappearances, 0)
         window.isHidden = true
@@ -174,21 +175,23 @@ final class AppLockTests: XCTestCase {
 
         let probe = MountProbe()
         let window = UIWindow(frame: UIScreen.main.bounds)
-        window.rootViewController = UIHostingController(
-            rootView: AppLockGate(requiresAppLock: .constant(true), appLock: lock) {
-                MountProbeView(probe: probe)
-            }
-        )
+        window.rootViewController = MountProbeViewController(probe: probe)
         window.makeKeyAndVisible()
-        await flushSwiftUIUpdates()
+        let shield = JournalPrivacyShield(window: window, appLock: lock, requiresLock: { true })
+        shield.update()
+        defer { shield.cover.isHidden = true; window.isHidden = true }
+        await flushUIKitUpdates()
 
         XCTAssertEqual(probe.appearances, 1)
         XCTAssertEqual(probe.disappearances, 0)
 
         lock.protectSnapshot(requiresLock: true)
-        await flushSwiftUIUpdates()
+        await flushUIKitUpdates()
 
         XCTAssertTrue(lock.hidesJournalContent)
+        XCTAssertFalse(shield.cover.isHidden)
+        XCTAssertFalse(window.isUserInteractionEnabled)
+        XCTAssertTrue(window.accessibilityElementsHidden)
         XCTAssertEqual(probe.appearances, 1)
         XCTAssertEqual(probe.disappearances, 0)
         window.isHidden = true
@@ -196,16 +199,12 @@ final class AppLockTests: XCTestCase {
 
     func testSettingsRenderInDarkModeAndLargestDynamicType() async throws {
         let window = UIWindow(frame: UIScreen.main.bounds)
-        window.rootViewController = UIHostingController(
-            rootView: SettingsView(
-                requiresAppLock: .constant(false),
-                appLock: AppLockModel(authenticator: FakeAuthenticator(results: []))
-            )
-            .environment(\.dynamicTypeSize, .accessibility5)
-            .preferredColorScheme(.dark)
-        )
+        let controller = SettingsViewController(appLock: AppLockModel(authenticator: FakeAuthenticator(results: [])))
+        controller.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
+        controller.overrideUserInterfaceStyle = .dark
+        window.rootViewController = controller
         window.makeKeyAndVisible()
-        await flushSwiftUIUpdates()
+        await flushUIKitUpdates()
 
         let renderedView = try XCTUnwrap(window.rootViewController?.view)
         renderedView.setNeedsLayout()
@@ -215,7 +214,53 @@ final class AppLockTests: XCTestCase {
         window.isHidden = true
     }
 
-    private func flushSwiftUIUpdates() async {
+    func testPrivacyCoverProtectsPresentedSheetAndKeyboardUntilUnlock() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        let root = UIViewController()
+        window.rootViewController = root
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        let sheet = UIViewController()
+        let input = UITextView(frame: CGRect(x: 0, y: 0, width: 200, height: 100))
+        input.text = "Synthetic private input"
+        sheet.view.addSubview(input)
+        root.present(sheet, animated: false)
+        await flushUIKitUpdates()
+        input.becomeFirstResponder()
+        let lock = AppLockModel(authenticator: FakeAuthenticator(results: [true]))
+        let shield = JournalPrivacyShield(window: window, appLock: lock, requiresLock: { true })
+        defer { shield.cover.isHidden = true }
+        shield.update()
+        XCTAssertTrue(shield.cover.isKeyWindow)
+        XCTAssertFalse(input.isFirstResponder)
+        XCTAssertTrue(root.presentedViewController === sheet)
+        XCTAssertTrue(window.accessibilityElementsHidden)
+        XCTAssertFalse(window.isUserInteractionEnabled)
+        await lock.unlockIfNeeded(requiresLock: true)
+        XCTAssertTrue(shield.cover.isHidden)
+        XCTAssertTrue(window.isKeyWindow)
+        XCTAssertFalse(window.accessibilityElementsHidden)
+        XCTAssertTrue(window.isUserInteractionEnabled)
+        XCTAssertTrue(root.presentedViewController === sheet)
+        XCTAssertEqual(input.text, "Synthetic private input")
+        root.dismiss(animated: false)
+    }
+
+    func testPrivacyCoverIsNotShownWhenLockIsDisabled() {
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        window.rootViewController = UIViewController()
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        let lock = AppLockModel(authenticator: FakeAuthenticator(results: []))
+        let shield = JournalPrivacyShield(window: window, appLock: lock, requiresLock: { false })
+        shield.update()
+        XCTAssertTrue(shield.cover.isHidden)
+        XCTAssertTrue(window.isUserInteractionEnabled)
+        XCTAssertFalse(window.accessibilityElementsHidden)
+    }
+
+    private func flushUIKitUpdates() async {
         await Task.yield()
         try? await Task.sleep(for: .milliseconds(50))
     }
@@ -240,18 +285,12 @@ private final class MountProbe {
     var disappearances = 0
 }
 
-private struct MountProbeView: View {
+private final class MountProbeViewController: UIViewController {
     let probe: MountProbe
-
-    var body: some View {
-        Text("Mounted journal content")
-            .onAppear {
-                probe.appearances += 1
-            }
-            .onDisappear {
-                probe.disappearances += 1
-            }
-    }
+    init(probe: MountProbe) { self.probe = probe; super.init(nibName: nil, bundle: nil) }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func viewDidAppear(_ animated: Bool) { super.viewDidAppear(animated); probe.appearances += 1 }
+    override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); probe.disappearances += 1 }
 }
 
 private final class SuspendedAuthenticator: AppAuthenticating {

@@ -1,831 +1,437 @@
 import PhotosUI
 import SwiftData
-import SwiftUI
 import UIKit
 
-struct EntryEditorView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
-    @Bindable var entry: JournalEntry
+/// Owns one editing context; failed photo mutations cannot roll back another screen's work.
+final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHPickerViewControllerDelegate, UIScrollViewDelegate {
+    let entry: JournalEntry
+    let context: ModelContext
     let isNew: Bool
+    private let storage = PhotoStorage()
+    private let scroll = UIScrollView()
+    private let stack = UIStackView()
+    private let titleField = UITextField()
+    private var textViews: [BlockTextView] = []
+    private var photoGroups: [PhotoGroupView] = []
+    private weak var focusedText: BlockTextView?
+    private var saveTask: Task<Void, Never>?
+    private var addingPhotos = false
+    private var finished = false
+    private var insertButton: UIBarButtonItem!
+    private var doneButton: UIBarButtonItem!
+    private var pendingBlockID: UUID?
+    private var pendingOffset: Int?
 
-    @State private var isShowingDateEditor = false
-    @State private var isShowingDeleteConfirmation = false
-    @State private var isShowingPhotoPicker = false
-    @State private var selectedPhotoItems: [PhotosPickerItem] = []
-    @State private var isImportingPhotos = false
-    @State private var photoImportAlert: PhotoImportAlert?
-    @State private var photoActionAlert: PhotoActionAlert?
-    @State private var focusedTextBlockID: UUID?
-    @State private var focusedTextFocusKey: String?
-    @State private var textSelections: [UUID: NSRange] = [:]
-    @State private var focusRequest: EditorFocusRequest?
-    @State private var transientTextAfterPhotoBlockID: UUID?
-    @State private var transientTextValues: [String: String] = [:]
-    @State private var selectedPhoto: EntryPhoto?
-    @State private var photoInfoPromptPhoto: EntryPhoto?
-
-    private let photoStorage = PhotoStorage()
-    private static let emptyEntryTextKey = "empty-entry-text"
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                entryInfo
-
-                TextField("Title", text: titleBinding, prompt: Text("Title"))
-                    .font(.title2.weight(.semibold))
-                    .textFieldStyle(.plain)
-                    .accessibilityLabel("Title")
-
-                blockEditor
-
-                if isImportingPhotos {
-                    Label("Adding Photos...", systemImage: "photo")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding()
-        }
-        .navigationTitle(entry.entryDate.formatted(.dateTime.month(.wide).day().year()))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    isShowingPhotoPicker = true
-                } label: {
-                    Label("Insert Photos", systemImage: "photo.on.rectangle")
-                }
-                .disabled(isImportingPhotos)
-                .confirmationDialog(
-                    "Use Photo Info?",
-                    isPresented: isPhotoInfoPromptPresented,
-                    titleVisibility: .visible,
-                    presenting: photoInfoPromptPhoto
-                ) { photo in
-                    Button("Use Photo Info") {
-                        usePhotoAsEntryInfo(photo)
-                        photoInfoPromptPhoto = nil
-                    }
-                    Button("Keep Entry Info") {
-                        dismissPhotoInfoPrompt()
-                    }
-                    Button("Cancel", role: .cancel) {
-                        dismissPhotoInfoPrompt()
-                    }
-                } message: { _ in
-                    Text("The first photo has date or place information that differs from this entry.")
-                }
-
-                Menu {
-                    Button(role: .destructive) {
-                        isShowingDeleteConfirmation = true
-                    } label: {
-                        Label("Delete Entry", systemImage: "trash")
-                    }
-                } label: {
-                    Label("Entry Actions", systemImage: "ellipsis.circle")
-                }
-                .confirmationDialog(
-                    "Delete Entry?",
-                    isPresented: $isShowingDeleteConfirmation,
-                    titleVisibility: .visible
-                ) {
-                    Button("Delete Entry", role: .destructive, action: deleteEntry)
-                    Button("Cancel", role: .cancel) { }
-                } message: {
-                    Text("This entry will be removed from this device.")
-                }
-
-                Button("Done", action: finish)
-            }
-        }
-        .photosPicker(
-            isPresented: $isShowingPhotoPicker,
-            selection: $selectedPhotoItems,
-            maxSelectionCount: 0,
-            selectionBehavior: .ordered,
-            matching: .images
-        )
-        .sheet(isPresented: $isShowingDateEditor) {
-            NavigationStack {
-                EntryDateEditorView(entry: entry) {
-                    _ = saveChange()
-                }
-            }
-        }
-        .fullScreenCover(item: $selectedPhoto) { photo in
-            PhotoDetailView(
-                photo: photo,
-                storage: photoStorage,
-                useAsEntryInfo: { usePhotoAsEntryInfo(photo) },
-                deletePhoto: { deletePhoto(photo) }
-            )
-        }
-        .alert(item: $photoImportAlert) { alert in
-            Alert(
-                title: Text("Some Photos Couldn’t Be Added"),
-                message: Text(alert.message),
-                dismissButton: .default(Text("OK"))
-            )
-        }
-        .alert(item: $photoActionAlert) { alert in
-            Alert(
-                title: Text(alert.title),
-                message: Text(alert.message),
-                dismissButton: .default(Text("OK"))
-            )
-        }
-        .onChange(of: selectedPhotoItems) { _, newItems in
-            importPhotoItems(newItems)
-        }
+    init(entry: JournalEntry, isNew: Bool, context: ModelContext) {
+        self.entry = entry; self.isNew = isNew; self.context = context
+        context.autosaveEnabled = false
+        super.init(nibName: nil, bundle: nil)
     }
-
-    private var entryInfo: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Button {
-                isShowingDateEditor = true
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "calendar")
-                        .accessibilityHidden(true)
-                    Text(entryDateText)
-                    if entry.isAllDay {
-                        Text("All-day")
-                            .font(.caption)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(.quaternary, in: Capsule())
-                    }
-                }
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Edit Entry Date")
-            .accessibilityValue(entry.isAllDay ? "\(entryDateText), \(String(localized: "All-day"))" : entryDateText)
-
-            if let locationText = entry.locationDisplayText {
-                Label {
-                    Text(locationText)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                } icon: {
-                    Image(systemName: "mappin.and.ellipse")
-                        .foregroundStyle(.secondary)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Location")
-                .accessibilityValue(locationText)
-            }
-        }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+        navigationItem.largeTitleDisplayMode = .never
+        scroll.keyboardDismissMode = .interactive
+        scroll.delegate = self
+        stack.axis = .vertical; stack.spacing = 16
+        scroll.translatesAutoresizingMaskIntoConstraints = false; stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scroll); scroll.addSubview(stack)
+        NSLayoutConstraint.activate([
+            scroll.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 16),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
+            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
+        ])
+        titleField.placeholder = String(localized: "Title")
+        titleField.accessibilityLabel = String(localized: "Title")
+        titleField.font = .preferredFont(forTextStyle: .title2)
+        titleField.adjustsFontForContentSizeCategory = true
+        titleField.addAction(UIAction { [weak self] _ in self?.scheduleSave() }, for: .editingChanged)
+        insertButton = UIBarButtonItem(image: UIImage(systemName: "photo.on.rectangle"), primaryAction: UIAction { [weak self] _ in self?.pickPhotos() })
+        insertButton.accessibilityLabel = String(localized: "Insert Photos")
+        doneButton = UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in self?.finish() })
+        let delete = UIBarButtonItem(image: UIImage(systemName: "trash"), primaryAction: UIAction { [weak self] _ in self?.confirmDeleteEntry() })
+        delete.accessibilityLabel = String(localized: "Delete Entry")
+        navigationItem.rightBarButtonItems = [doneButton, insertButton, delete]
+        // Done is the explicit save boundary, including iPad detail replacement.
+        navigationItem.hidesBackButton = true
+        rebuild()
+        NotificationCenter.default.addObserver(self, selector: #selector(flushBeforeBackground), name: UIApplication.willResignActiveNotification, object: nil)
     }
-
-    private var blockEditor: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Group {
-                textEditor(
-                    text: transientTextBinding(after: nil),
-                    blockID: textBlock(after: nil)?.id,
-                    focusKey: Self.emptyEntryTextKey,
-                    placeholder: "Write something..."
-                )
-            }
-
-            ForEach(entry.photoGroupBlocks) { block in
-                PhotoGroupBlockView(block: block, storage: photoStorage) { photo in
-                    selectedPhoto = photo
-                }
-
-                if textBlock(after: block) != nil || transientTextAfterPhotoBlockID == block.id || entry.orderedBlocks.last?.id == block.id {
-                    textEditor(
-                        text: transientTextBinding(after: block),
-                        blockID: textBlock(after: block)?.id,
-                        focusKey: Self.transientTextFocusKey(after: block.id),
-                        placeholder: "Write something..."
-                    )
-                }
-            }
-        }
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if !finished { _ = flush() }
     }
+    @objc private func flushBeforeBackground() { if !finished { view.endEditing(true); _ = flush() } }
 
-    private var entryDateText: String {
-        if entry.isAllDay {
-            return entry.entryDate.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
-        }
-        return entry.entryDate.formatted(.dateTime.weekday(.wide).month(.wide).day().year().hour().minute())
-    }
-
-    private var isPhotoInfoPromptPresented: Binding<Bool> {
-        Binding(
-            get: { photoInfoPromptPhoto != nil },
-            set: { isPresented in
-                if !isPresented {
-                    dismissPhotoInfoPrompt()
-                }
-            }
-        )
-    }
-
-    private var titleBinding: Binding<String> {
-        Binding(
-            get: { entry.title },
-            set: { newValue in
-                entry.title = newValue
-                saveChange()
-            }
-        )
-    }
-
-    private func textBlock(after previousBlock: EntryBlock?) -> EntryBlock? {
+    private func rebuild(focusAfter: UUID? = nil) {
+        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        textViews = []; photoGroups = []
+        title = entry.entryDate.formatted(.dateTime.month(.wide).day().year())
+        let dateText = entry.isAllDay ? entry.entryDate.formatted(date: .long, time: .omitted) + " · " + String(localized: "All-day") : entry.entryDate.formatted(date: .long, time: .shortened)
+        let date = actionButton(dateText) { [weak self] in self?.editDate() }
+        date.accessibilityLabel = String(localized: "Edit Entry Date"); date.accessibilityValue = dateText
+        stack.addArrangedSubview(date)
+        if let place = entry.locationDisplayText { stack.addArrangedSubview(bodyLabel(place, style: .footnote)) }
+        titleField.text = entry.title; stack.addArrangedSubview(titleField)
         let blocks = entry.orderedBlocks
-        let nextIndex: Int
-        if let previousBlock {
-            guard let index = blocks.firstIndex(where: { $0.id == previousBlock.id }) else { return nil }
-            nextIndex = index + 1
-        } else {
-            nextIndex = 0
+        var previous: EntryBlock?
+        for block in blocks {
+            if block.kind == .text {
+                addText(block: block, after: previous)
+            } else {
+                if previous == nil || previous?.kind == .photoGroup { addText(block: nil, after: previous) }
+                let photos = PhotoGroupView(block: block, storage: storage, deferLoading: true) { [weak self] photo in self?.openPhoto(photo) }
+                photoGroups.append(photos)
+                stack.addArrangedSubview(photos)
+            }
+            previous = block
         }
-        guard blocks.indices.contains(nextIndex), blocks[nextIndex].kind == .text else { return nil }
-        return blocks[nextIndex]
-    }
-
-    private func transientTextBinding(after previousBlock: EntryBlock?) -> Binding<String> {
-        let key = previousBlock.map { Self.transientTextFocusKey(after: $0.id) } ?? Self.emptyEntryTextKey
-        return Binding(
-            get: { textBlock(after: previousBlock)?.text ?? transientTextValues[key, default: ""] },
-            set: { newValue in
-                // UIKit can deliver more callbacks before SwiftUI replaces the transient view.
-                // Resolve its promoted block each time instead of inserting another paragraph.
-                if let block = textBlock(after: previousBlock) {
-                    block.text = newValue
-                    saveChange()
-                    return
-                }
-                transientTextValues[key] = newValue
-                guard entry.insertTextBlock(newValue, after: previousBlock, in: modelContext) != nil else { return }
-                transientTextValues[key] = nil
-                transientTextAfterPhotoBlockID = nil
-                saveChange()
-            }
-        )
-    }
-
-    private func textEditor(
-        text: Binding<String>,
-        blockID: UUID?,
-        focusKey: String,
-        placeholder: LocalizedStringKey
-    ) -> some View {
-        ZStack(alignment: .topLeading) {
-            if text.wrappedValue.isEmpty, focusedTextFocusKey != focusKey {
-                Text(placeholder)
-                    .foregroundStyle(.tertiary)
-                    .padding(.top, 8)
-                    .padding(.leading, 5)
-                    .allowsHitTesting(false)
-            }
-
-            CursorTextView(
-                text: text,
-                blockID: blockID,
-                focusKey: focusKey,
-                focusedTextBlockID: $focusedTextBlockID,
-                focusedTextFocusKey: $focusedTextFocusKey,
-                textSelections: $textSelections,
-                focusRequest: $focusRequest
-            )
+        if previous == nil || previous?.kind == .photoGroup { addText(block: nil, after: previous) }
+        if let focusAfter, let text = textViews.first(where: { $0.previousBlockID == focusAfter }) {
+            text.becomeFirstResponder(); text.selectedRange = NSRange(location: 0, length: 0)
+            scroll.layoutIfNeeded()
+            scroll.scrollRectToVisible(text.convert(text.bounds, to: scroll), animated: true)
         }
     }
-
-    private func importPhotoItems(_ items: [PhotosPickerItem]) {
-        guard !items.isEmpty else { return }
-        selectedPhotoItems = []
-
-        let targetBlockID = focusedTextBlockID
-        let targetCursorOffset = cursorOffset(for: targetBlockID)
-
-        Task { @MainActor in
-            isImportingPhotos = true
-            let result = await PhotoPickerImporter(storage: photoStorage).importItems(items)
-            isImportingPhotos = false
-
-            if let insertion = entry.insertPhotoGroup(
-                photos: result.photos,
-                focusedTextBlockID: targetBlockID,
-                cursorOffset: targetCursorOffset,
-                in: modelContext
-            ) {
-                let promptPhoto = entry.photoInfoPromptCandidate(from: insertion.photoBlock.orderedPhotos)
-
-                if saveChange() {
-                    focusAfterPhotoInsertion(insertion)
-                    photoInfoPromptPhoto = promptPhoto
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        refreshVisiblePhotos()
+    }
+    func scrollViewDidScroll(_ scrollView: UIScrollView) { refreshVisiblePhotos() }
+    private func refreshVisiblePhotos() {
+        let visible = scroll.bounds.insetBy(dx: 0, dy: -scroll.bounds.height / 2)
+        for image in photoGroups.flatMap(\.photoViews) {
+            image.updateVisibility(image.window != nil && visible.intersects(image.convert(image.bounds, to: scroll)))
+        }
+    }
+    private func addText(block: EntryBlock?, after previous: EntryBlock?) {
+        let text = BlockTextView()
+        text.blockID = block?.id; text.previousBlockID = previous?.id
+        text.text = block?.text ?? ""
+        text.delegate = self
+        textViews.append(text); stack.addArrangedSubview(text)
+    }
+    func textViewDidBeginEditing(_ textView: UITextView) { focusedText = textView as? BlockTextView }
+    func textViewDidChange(_ textView: UITextView) {
+        textView.invalidateIntrinsicContentSize()
+        guard textView.markedTextRange == nil else { return }
+        synchronizeText()
+        scheduleSave()
+    }
+    func textViewDidEndEditing(_ textView: UITextView) { synchronizeText(); scheduleSave() }
+    private func synchronizeText() {
+        if titleField.markedTextRange == nil { entry.title = titleField.text ?? "" }
+        for text in textViews where text.markedTextRange == nil {
+            if let id = text.blockID, let block = entry.blocks.first(where: { $0.id == id }) {
+                block.text = text.text
+            } else if !text.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                let previous = entry.blocks.first { $0.id == text.previousBlockID }
+                // A transient editor before the first photo must insert at the beginning.
+                if previous == nil, let first = entry.orderedBlocks.first {
+                    let block = EntryBlock(sortIndex: first.sortIndex - 1, text: text.text, entry: entry)
+                    context.insert(block); entry.blocks.append(block); text.blockID = block.id
                 } else {
-                    modelContext.rollback()
-                    if deleteStoredFiles(result.fileNames) {
-                        photoActionAlert = PhotoActionAlert(
-                            title: String(localized: "Some Photos Couldn’t Be Added"),
-                            message: String(localized: "Some selected photos could not be added.")
-                        )
-                    } else {
-                        photoActionAlert = PhotoActionAlert(
-                            title: String(localized: "Photo File Couldn’t Be Deleted"),
-                            message: String(localized: "Some copied photo files could not be deleted.")
-                        )
-                    }
+                    text.blockID = entry.insertTextBlock(text.text, after: previous, in: context)?.id
                 }
             }
-
-            photoImportAlert = result.alert
         }
     }
-
-    private func focusAfterPhotoInsertion(_ insertion: PhotoGroupInsertion) {
-        if let followingTextBlock = insertion.followingTextBlock {
-            transientTextAfterPhotoBlockID = nil
-            focusRequest = EditorFocusRequest(key: textFocusKey(for: followingTextBlock.id), offset: 0)
-        } else {
-            transientTextAfterPhotoBlockID = insertion.photoBlock.id
-            focusRequest = EditorFocusRequest(key: Self.transientTextFocusKey(after: insertion.photoBlock.id), offset: 0)
+    private func scheduleSave() {
+        guard !finished else { return }
+        saveTask?.cancel()
+        saveTask = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(350)) } catch { return }
+            _ = self?.flush()
         }
     }
-
-    private func cursorOffset(for blockID: UUID?) -> Int? {
-        guard let blockID,
-              let block = entry.orderedBlocks.first(where: { $0.id == blockID }) else { return nil }
-        let range = textSelections[blockID] ?? NSRange(location: block.text.utf16.count, length: 0)
-        return characterOffset(fromUTF16Offset: range.location, in: block.text)
-    }
-
-    private func characterOffset(fromUTF16Offset offset: Int, in text: String) -> Int {
-        let clampedOffset = min(max(offset, 0), text.utf16.count)
-        let utf16Index = text.utf16.index(text.utf16.startIndex, offsetBy: clampedOffset)
-        guard let index = String.Index(utf16Index, within: text) else { return text.count }
-        return text.distance(from: text.startIndex, to: index)
-    }
-
-    private func textFocusKey(for blockID: UUID) -> String {
-        let blocks = entry.orderedBlocks
-        guard let index = blocks.firstIndex(where: { $0.id == blockID }), index > 0 else {
-            return Self.emptyEntryTextKey
-        }
-        return Self.transientTextFocusKey(after: blocks[index - 1].id)
-    }
-
-    private static func transientTextFocusKey(after blockID: UUID) -> String {
-        "after-\(blockID.uuidString)"
-    }
-
+    /// Avoid normalization during typing: it would invalidate live block identities and IME selections.
     @discardableResult
-    private func saveChange() -> Bool {
+    func flush() -> Bool {
+        saveTask?.cancel(); saveTask = nil
+        synchronizeText()
+        guard context.hasChanges else { return true }
+        entry.updatedAt = .now
         do {
-            try saveEntryChanges(entry, in: modelContext)
+            try context.save()
+            NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
             return true
-        } catch {
-            showSaveError()
-            return false
-        }
+        } catch { saveError(); return false }
     }
-
-    private func showSaveError() {
-        photoActionAlert = PhotoActionAlert(
-            title: String(localized: "Could Not Save Entry"),
-            message: String(localized: "Your changes could not be saved. Please try again.")
-        )
+    private func saveError() {
+        guard presentedViewController == nil else { return }
+        showError(String(localized: "Could Not Save Entry"), message: String(localized: "Your changes could not be saved. Please try again."))
+    }
+    func prepareForReplacement() -> Bool {
+        guard !addingPhotos, !finished else { return !addingPhotos }
+        view.endEditing(true)
+        return flush()
     }
 
     private func finish() {
+        guard !addingPhotos else { return }
+        view.endEditing(true)
+        guard flush() else { return }
         do {
-            try saveEntryChanges(entry, in: modelContext, discardIfBlank: isNew)
-            dismiss()
-        } catch {
-            showSaveError()
+            try saveEntryChanges(entry, in: context, discardIfBlank: isNew)
+            finished = true; saveTask?.cancel()
+            NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
+            closeEditor()
+        } catch { saveError() }
+    }
+    private func closeEditor() {
+        if navigationController?.presentingViewController != nil { dismiss(animated: true) }
+        else if (navigationController?.viewControllers.count ?? 0) > 1 { navigationController?.popViewController(animated: true) }
+        else if let splitViewController {
+            splitViewController.setViewController(UINavigationController(rootViewController: MessageController(title: String(localized: "No Entry Selected"), message: String(localized: "Choose an entry from the timeline once entries exist."))), for: .secondary)
         }
     }
-
-    private func usePhotoAsEntryInfo(_ photo: EntryPhoto) {
-        entry.applyInfo(from: photo)
-        entry.hasShownPhotoInfoPrompt = true
-        saveChange()
-    }
-
-    private func dismissPhotoInfoPrompt() {
-        entry.hasShownPhotoInfoPrompt = true
-        saveChange()
-        photoInfoPromptPhoto = nil
-    }
-
-    private func deletePhoto(_ photo: EntryPhoto) {
-        let blockID = photo.block?.id
-        let fileName = entry.deletePhoto(photo, in: modelContext)
-        if let blockID, !entry.orderedBlocks.contains(where: { $0.id == blockID }) {
-            transientTextAfterPhotoBlockID = nil
+    private func pickPhotos() {
+        guard flush() else { return }
+        if let text = focusedText, text.blockID == nil {
+            let previous = entry.blocks.first { $0.id == text.previousBlockID }
+            let block = EntryBlock(sortIndex: (previous?.sortIndex ?? -1) + 1, entry: entry)
+            for other in entry.blocks where other.sortIndex >= block.sortIndex { other.sortIndex += 1 }
+            context.insert(block); entry.blocks.append(block); text.blockID = block.id
         }
-        selectedPhoto = nil
-
-        guard saveChange() else {
-            modelContext.rollback()
-            photoActionAlert = PhotoActionAlert(
-                title: String(localized: "Photo Couldn’t Be Deleted"),
-                message: String(localized: "Try deleting the photo again.")
-            )
-            return
-        }
-
-        do {
-            try photoStorage.delete(fileName: fileName)
-        } catch {
-            photoActionAlert = PhotoActionAlert(
-                title: String(localized: "Photo File Couldn’t Be Deleted"),
-                message: String(localized: "The photo was removed from this entry, but its copied file could not be deleted.")
-            )
-        }
+        pendingBlockID = focusedText?.blockID
+        if let text = focusedText {
+            let offset = min(text.selectedRange.location, text.text.utf16.count)
+            let utf16Index = text.text.utf16.index(text.text.utf16.startIndex, offsetBy: offset)
+            pendingOffset = String.Index(utf16Index, within: text.text).map { text.text.distance(from: text.text.startIndex, to: $0) }
+        } else { pendingOffset = nil }
+        var config = PHPickerConfiguration()
+        config.filter = .images; config.selectionLimit = 0; config.selection = .ordered
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = self
+        present(picker, animated: true)
     }
-
-    private func deleteStoredFiles(_ fileNames: [String]) -> Bool {
-        fileNames.reduce(true) { succeeded, fileName in
-            do {
-                try photoStorage.delete(fileName: fileName)
-                return succeeded
-            } catch {
-                return false
-            }
-        }
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true) { [weak self] in self?.importPhotos(results) }
     }
-
-    private func deleteEntry() {
-        do {
-            let fileNames = try deleteEntryAndSave(entry, in: modelContext)
-            _ = deleteStoredFiles(fileNames)
-            dismiss()
-        } catch {
-            showSaveError()
-        }
-    }
-
-}
-
-private struct PhotoActionAlert: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
-}
-
-private struct EditorFocusRequest: Equatable {
-    let key: String
-    let offset: Int
-}
-
-struct PhotoGroupBlockView: View {
-    let block: EntryBlock
-    let storage: PhotoStorage
-    let openPhoto: (EntryPhoto) -> Void
-
-    var body: some View {
-        let photos = block.orderedPhotos
-
-        Group {
-            if let photo = photos.first, photos.count == 1 {
-                Button {
-                    openPhoto(photo)
-                } label: {
-                    StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 10, contentMode: .fit)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open Photo")
-            } else {
-                let layout = photoGroupLayoutPlan(forPhotoCount: photos.count)
-                let columnCount = photoGroupColumnCount(forPhotoCount: photos.count)
-                LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: columnCount),
-                    spacing: 4
-                ) {
-                    ForEach(Array(photos.enumerated()), id: \.element.id) { index, photo in
-                        let cellLayout = layout[index]
-                        Button {
-                            openPhoto(photo)
-                        } label: {
-                            Color.clear
-                                .aspectRatio(cellLayout.aspectRatio, contentMode: .fit)
-                                .overlay {
-                                    StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 10)
-                                }
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(Text("Open Photo \(index + 1) of \(photos.count)"))
-                        .gridCellColumns(cellLayout.columnSpan)
-                    }
-                }
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Photo Group")
-    }
-}
-
-private struct PhotoDetailView: View {
-    @Environment(\.dismiss) private var dismiss
-    let photo: EntryPhoto
-    let storage: PhotoStorage
-    let useAsEntryInfo: () -> Void
-    let deletePhoto: () -> Void
-    @State private var isShowingDeleteConfirmation = false
-
-    var body: some View {
-        NavigationStack {
-            ZStack(alignment: .bottom) {
-                Color.black.ignoresSafeArea()
-
-                photoContent
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding()
-
-                metadataBar
-            }
-            .navigationTitle("Photo Detail")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(Color.black, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Menu {
-                        if photo.hasUsableEntryInfo {
-                            Button {
-                                useAsEntryInfo()
-                            } label: {
-                                Label("Use as Entry Info", systemImage: "calendar.badge.clock")
-                            }
-                        }
-
-                        Button(role: .destructive) {
-                            isShowingDeleteConfirmation = true
-                        } label: {
-                            Label("Delete Photo", systemImage: "trash")
-                        }
-                    } label: {
-                        Label("Photo Actions", systemImage: "ellipsis.circle")
-                    }
-                    .confirmationDialog(
-                        "Delete Photo?",
-                        isPresented: $isShowingDeleteConfirmation,
-                        titleVisibility: .visible
-                    ) {
-                        Button("Delete Photo", role: .destructive) {
-                            deletePhoto()
-                            dismiss()
-                        }
-                        Button("Cancel", role: .cancel) { }
-                    } message: {
-                        Text("This photo will be removed from this entry.")
-                    }
-
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var photoContent: some View {
-        if let image = storage.image(for: photo.fileName) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .accessibilityLabel("Photo")
-        } else {
-            VStack(spacing: 12) {
-                Image(systemName: "photo")
-                    .font(.largeTitle)
-                Text("Photo unavailable")
-            }
-            .foregroundStyle(.white.opacity(0.7))
-        }
-    }
-
-    @ViewBuilder
-    private var metadataBar: some View {
-        if photo.hasVisibleMetadata {
-            VStack(alignment: .leading, spacing: 8) {
-                if let capturedAt = photo.capturedAt {
-                    Label {
-                        Text(capturedAt.formatted(.dateTime.weekday(.abbreviated).month().day().year().hour().minute()))
-                    } icon: {
-                        Image(systemName: "calendar")
-                    }
-                    .accessibilityLabel("Captured")
-                    .accessibilityValue(capturedAt.formatted(.dateTime.weekday(.wide).month(.wide).day().year().hour().minute()))
-                }
-
-                if let placeText = photo.placeDisplayText {
-                    Label {
-                        Text(placeText)
-                    } icon: {
-                        Image(systemName: "mappin.and.ellipse")
-                    }
-                    .accessibilityLabel("Location")
-                    .accessibilityValue(placeText)
-                }
-            }
-            .font(.footnote)
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .padding()
-            .accessibilityElement(children: .contain)
-        }
-    }
-}
-
-private struct CursorTextView: UIViewRepresentable {
-    @Binding var text: String
-    let blockID: UUID?
-    let focusKey: String
-    @Binding var focusedTextBlockID: UUID?
-    @Binding var focusedTextFocusKey: String?
-    @Binding var textSelections: [UUID: NSRange]
-    @Binding var focusRequest: EditorFocusRequest?
-
-    func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
-        textView.delegate = context.coordinator
-        textView.accessibilityLabel = String(localized: "Body")
-        textView.font = .preferredFont(forTextStyle: .body)
-        textView.adjustsFontForContentSizeCategory = true
-        textView.backgroundColor = .clear
-        textView.isScrollEnabled = false
-        textView.textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
-        textView.textContainer.lineFragmentPadding = 0
-        textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        return textView
-    }
-
-    func updateUIView(_ textView: UITextView, context: Context) {
-        context.coordinator.parent = self
-        context.coordinator.isUpdatingView = true
-        defer { context.coordinator.isUpdatingView = false }
-
-        if textView.markedTextRange == nil, textView.text != text {
-            textView.text = text
-        }
-
-        guard let request = focusRequest, request.key == focusKey else { return }
-        if !textView.isFirstResponder {
-            textView.becomeFirstResponder()
-        }
-        textView.selectedRange = NSRange(location: utf16Offset(forCharacterOffset: request.offset, in: textView.text), length: 0)
-        DispatchQueue.main.async {
-            if focusRequest == request {
-                focusRequest = nil
-            }
-        }
-    }
-
-    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
-        let width = proposal.width ?? UIScreen.main.bounds.width
-        let size = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
-        return CGSize(width: width, height: max(48, size.height))
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    private func utf16Offset(forCharacterOffset offset: Int, in text: String) -> Int {
-        let characterOffset = min(max(offset, 0), text.count)
-        let index = text.index(text.startIndex, offsetBy: characterOffset)
-        return index.samePosition(in: text.utf16).map { text.utf16.distance(from: text.utf16.startIndex, to: $0) } ?? text.utf16.count
-    }
-
-    final class Coordinator: NSObject, UITextViewDelegate {
-        var parent: CursorTextView
-        var isUpdatingView = false
-
-        init(parent: CursorTextView) {
-            self.parent = parent
-        }
-
-        func textViewDidBeginEditing(_ textView: UITextView) {
-            saveFocus(blockID: parent.blockID, focusKey: parent.focusKey)
-            saveSelection(textView)
-        }
-
-        func textViewDidChange(_ textView: UITextView) {
-            guard textView.markedTextRange == nil else {
-                saveSelection(textView)
+    private func importPhotos(_ results: [PHPickerResult]) {
+        guard !results.isEmpty else { return }
+        addingPhotos = true; insertButton.isEnabled = false; doneButton.isEnabled = false
+        view.isUserInteractionEnabled = false
+        Task {
+            let result = await PhotoPickerImporter(storage: storage).importItems(results)
+            defer { addingPhotos = false; insertButton.isEnabled = true; doneButton.isEnabled = true; view.isUserInteractionEnabled = true }
+            guard let insertion = entry.insertPhotoGroup(photos: result.photos, focusedTextBlockID: pendingBlockID, cursorOffset: pendingOffset, in: context) else {
+                if let alert = result.alert { showError(String(localized: "Some Photos Couldn’t Be Added"), message: alert.message) }
                 return
             }
-            parent.text = textView.text
-            saveSelection(textView)
-        }
-
-        func textViewDidChangeSelection(_ textView: UITextView) {
-            saveSelection(textView)
-        }
-
-        func textViewDidEndEditing(_ textView: UITextView) {
-            parent.text = textView.text
-            clearFocusIfCurrent()
-            saveSelection(textView)
-        }
-
-        private func saveFocus(blockID: UUID?, focusKey: String?) {
-            let apply = { [weak self] in
-                self?.parent.focusedTextBlockID = blockID
-                self?.parent.focusedTextFocusKey = focusKey
-            }
-            if isUpdatingView {
-                DispatchQueue.main.async(execute: apply)
-            } else {
-                apply()
+            do {
+                try saveEntryChanges(entry, in: context)
+                NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
+                rebuild(focusAfter: insertion.photoBlock.id)
+                let prompt = entry.photoInfoPromptCandidate(from: insertion.photoBlock.orderedPhotos)
+                if let alert = result.alert {
+                    let message = UIAlertController(title: String(localized: "Some Photos Couldn’t Be Added"), message: alert.message, preferredStyle: .alert)
+                    message.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.promptPhotoInfo(prompt) })
+                    present(message, animated: true)
+                } else { promptPhotoInfo(prompt) }
+            } catch {
+                context.rollback()
+                let removed = removeFiles(result.fileNames)
+                rebuild()
+                showError(String(localized: "Some Photos Couldn’t Be Added"), message: removed ? String(localized: "Some selected photos could not be added.") : String(localized: "Some copied photo files could not be deleted."))
             }
         }
-
-        private func clearFocusIfCurrent() {
-            let focusKey = parent.focusKey
-            let apply = { [weak self] in
-                guard let self, self.parent.focusedTextFocusKey == focusKey else { return }
-                self.parent.focusedTextFocusKey = nil
-            }
-            if isUpdatingView {
-                DispatchQueue.main.async(execute: apply)
-            } else {
-                apply()
-            }
-        }
-
-        private func saveSelection(_ textView: UITextView) {
-            let range = textView.selectedRange
-            if isUpdatingView {
-                DispatchQueue.main.async { [weak self] in
-                    self?.saveSelection(range)
+    }
+    private func promptPhotoInfo(_ photo: EntryPhoto?) {
+        guard let photo else { return }
+        let alert = UIAlertController(title: String(localized: "Use Photo Info?"), message: String(localized: "Use this photo’s date and location for the entry?"), preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: String(localized: "Use Photo Info"), style: .default) { [weak self] _ in self?.usePhotoInfo(photo) })
+        alert.addAction(UIAlertAction(title: String(localized: "Keep Entry Info"), style: .cancel) { [weak self] _ in
+            self?.entry.hasShownPhotoInfoPrompt = true; _ = self?.flush()
+        })
+        present(alert, animated: true)
+    }
+    private func usePhotoInfo(_ photo: EntryPhoto) {
+        entry.applyInfo(from: photo); entry.hasShownPhotoInfoPrompt = true
+        _ = flush(); rebuild()
+    }
+    private func editDate() {
+        guard flush() else { return }
+        let controller = EntryDateViewController(entry: entry) { [weak self] in _ = self?.flush() }
+        controller.onDone = { [weak self] in self?.rebuild() }
+        present(UINavigationController(rootViewController: controller), animated: true)
+    }
+    private func openPhoto(_ photo: EntryPhoto) {
+        guard flush() else { return }
+        let controller = PhotoDetailViewController(photo: photo, storage: storage)
+        controller.useInfo = { [weak self] in self?.usePhotoInfo(photo) }
+        controller.deletePhoto = { [weak self] in self?.deletePhoto(photo) ?? .failed }
+        let navigation = UINavigationController(rootViewController: controller)
+        navigation.modalPresentationStyle = .fullScreen
+        present(navigation, animated: true)
+    }
+    private func deletePhoto(_ photo: EntryPhoto) -> PhotoDeletionResult {
+        let name = entry.deletePhoto(photo, in: context)
+        do {
+            try saveEntryChanges(entry, in: context)
+            NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
+            rebuild()
+            return removeFiles([name]) ? .deleted : .fileCleanupFailed
+        } catch { context.rollback(); rebuild(); return .failed }
+    }
+    private func removeFiles(_ names: [String]) -> Bool {
+        var success = true
+        for name in names { do { try storage.delete(fileName: name) } catch { success = false } }
+        return success
+    }
+    private func confirmDeleteEntry() {
+        guard !addingPhotos, flush() else { return }
+        confirmDeletion(title: String(localized: "Delete Entry"), message: String(localized: "This entry and its photos will be permanently deleted.")) { [weak self] in
+            guard let self else { return }
+            do {
+                let files = try deleteEntryAndSave(self.entry, in: self.context)
+                self.finished = true; self.saveTask?.cancel()
+                NotificationCenter.default.post(name: .journalDidChange, object: self.entry.id)
+                if self.removeFiles(files) { self.closeEditor() }
+                else {
+                    let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "Some copied photo files could not be deleted."), preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.closeEditor() })
+                    self.present(alert, animated: true)
                 }
-            } else {
-                saveSelection(range)
-            }
-        }
-
-        private func saveSelection(_ range: NSRange) {
-            guard let blockID = parent.blockID else { return }
-            if let currentRange = parent.textSelections[blockID], NSEqualRanges(currentRange, range) { return }
-            parent.textSelections[blockID] = range
+            } catch { self.saveError() }
         }
     }
 }
 
-private struct EntryDateEditorView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Bindable var entry: JournalEntry
-    let saveChange: () -> Void
+private final class BlockTextView: UITextView {
+    var blockID: UUID?
+    var previousBlockID: UUID?
+    init() {
+        super.init(frame: .zero, textContainer: nil)
+        font = .preferredFont(forTextStyle: .body)
+        adjustsFontForContentSizeCategory = true
+        backgroundColor = .clear; isScrollEnabled = false
+        textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+        textContainer.lineFragmentPadding = 0
+        accessibilityLabel = String(localized: "Body")
+        accessibilityHint = String(localized: "Write something...")
+        heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
 
-    var body: some View {
-        Form {
-            Section {
-                Toggle("All-day", isOn: allDayBinding)
-
-                DatePicker(
-                    "Date",
-                    selection: entryDateBinding,
-                    displayedComponents: entry.isAllDay ? .date : [.date, .hourAndMinute]
-                )
-                .id(entry.isAllDay)
+final class PhotoGroupView: UIStackView {
+    private(set) var photoViews: [StoredPhotoView] = []
+    init(block: EntryBlock, storage: PhotoStorage, deferLoading: Bool = false, open: @escaping (EntryPhoto) -> Void) {
+        super.init(frame: .zero)
+        axis = .vertical; spacing = 4
+        let photos = block.orderedPhotos
+        let columns = photoGroupColumnCount(forPhotoCount: photos.count)
+        for start in stride(from: 0, to: photos.count, by: max(1, columns)) {
+            let row = UIStackView(); row.spacing = 4; row.distribution = .fillEqually
+            for index in start..<min(start + columns, photos.count) {
+                let photo = photos[index]
+                let button = UIButton(type: .custom)
+                let image = StoredPhotoView(); image.isAccessibilityElement = false
+                image.contentMode = photos.count == 1 ? .scaleAspectFit : .scaleAspectFill
+                image.translatesAutoresizingMaskIntoConstraints = false
+                button.addSubview(image)
+                NSLayoutConstraint.activate([
+                    image.leadingAnchor.constraint(equalTo: button.leadingAnchor), image.trailingAnchor.constraint(equalTo: button.trailingAnchor),
+                    image.topAnchor.constraint(equalTo: button.topAnchor), image.bottomAnchor.constraint(equalTo: button.bottomAnchor),
+                    button.heightAnchor.constraint(equalTo: button.widthAnchor, multiplier: photos.count == 1 ? 0.75 : 1)
+                ])
+                button.accessibilityLabel = String(localized: "Open Photo \(index + 1) of \(photos.count)")
+                button.addAction(UIAction { _ in open(photo) }, for: .touchUpInside)
+                photoViews.append(image)
+                let pixels = photos.count == 1 ? 1200 : 600
+                if deferLoading { image.deferLoading(photo.fileName, storage: storage, pixels: pixels) }
+                else { image.load(photo.fileName, storage: storage, pixels: pixels) }
+                row.addArrangedSubview(button)
             }
+            if photos.count > 1 {
+                for _ in min(start + columns, photos.count)..<(start + columns) { row.addArrangedSubview(UIView()) }
+            }
+            addArrangedSubview(row)
         }
-        .navigationTitle("Entry Date")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") {
-                    dismiss()
+        accessibilityLabel = String(localized: "Photo Group")
+    }
+    required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
+
+final class EntryDateViewController: UIViewController {
+    let entry: JournalEntry
+    let save: () -> Void
+    var onDone: (() -> Void)?
+    init(entry: JournalEntry, save: @escaping () -> Void) {
+        self.entry = entry; self.save = save
+        super.init(nibName: nil, bundle: nil)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = String(localized: "Entry Date")
+        let toggle = UISwitch(); toggle.isOn = entry.isAllDay; toggle.accessibilityLabel = String(localized: "All-day")
+        let row = UIStackView(arrangedSubviews: [bodyLabel(String(localized: "All-day")), toggle])
+        let picker = UIDatePicker(); picker.date = entry.entryDate
+        picker.datePickerMode = entry.isAllDay ? .date : .dateAndTime
+        picker.preferredDatePickerStyle = .compact; picker.accessibilityLabel = String(localized: "Date")
+        toggle.addAction(UIAction { [weak self, weak toggle, weak picker] _ in
+            guard let self, let toggle, let picker else { return }
+            self.entry.setAllDay(toggle.isOn)
+            picker.datePickerMode = toggle.isOn ? .date : .dateAndTime
+            picker.date = self.entry.entryDate; self.save()
+        }, for: .valueChanged)
+        picker.addAction(UIAction { [weak self, weak picker] _ in
+            if let picker { self?.entry.setEntryDate(picker.date); self?.save() }
+        }, for: .valueChanged)
+        installStack([row, picker])
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in
+            self?.dismiss(animated: true); self?.onDone?()
+        })
+    }
+    override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); onDone?() }
+}
+
+enum PhotoDeletionResult { case deleted, fileCleanupFailed, failed }
+
+final class PhotoDetailViewController: UIViewController {
+    let photo: EntryPhoto
+    let storage: PhotoStorage
+    var useInfo: (() -> Void)?
+    var deletePhoto: (() -> PhotoDeletionResult)?
+    init(photo: EntryPhoto, storage: PhotoStorage) {
+        self.photo = photo; self.storage = storage
+        super.init(nibName: nil, bundle: nil)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = String(localized: "Photo Detail")
+        let image = StoredPhotoView(); image.contentMode = .scaleAspectFit
+        image.load(photo.fileName, storage: storage, pixels: PhotoStorage.targetLongEdge)
+        let info = [photo.capturedAt?.formatted(date: .long, time: .shortened), photo.placeDisplayText].compactMap { $0 }.joined(separator: "\n")
+        image.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.6).isActive = true
+        installStack([image, bodyLabel(info, style: .footnote)])
+        var actions: [UIAction] = []
+        if photo.hasUsableEntryInfo { actions.append(UIAction(title: String(localized: "Use as Entry Info")) { [weak self] _ in self?.useInfo?() }) }
+        actions.append(UIAction(title: String(localized: "Delete Photo"), attributes: .destructive) { [weak self] _ in
+            self?.confirmDeletion(title: String(localized: "Delete Photo"), message: String(localized: "This photo will be removed from this entry.")) { [weak self] in
+                guard let self else { return }
+                switch self.deletePhoto?() ?? .failed {
+                case .deleted: self.dismiss(animated: true)
+                case .failed: self.showError(String(localized: "Photo Couldn’t Be Deleted"), message: String(localized: "Try deleting the photo again."))
+                case .fileCleanupFailed:
+                    let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "The photo was removed from this entry, but its copied file could not be deleted."), preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.dismiss(animated: true) })
+                    self.present(alert, animated: true)
                 }
             }
-        }
-    }
-
-    private var allDayBinding: Binding<Bool> {
-        Binding(
-            get: { entry.isAllDay },
-            set: { newValue in
-                entry.setAllDay(newValue)
-                saveChange()
-            }
-        )
-    }
-
-    private var entryDateBinding: Binding<Date> {
-        Binding(
-            get: { entry.entryDate },
-            set: { newValue in
-                entry.setEntryDate(newValue)
-                saveChange()
-            }
-        )
+        })
+        let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: UIMenu(children: actions))
+        more.accessibilityLabel = String(localized: "Photo Actions")
+        navigationItem.rightBarButtonItems = [UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in self?.dismiss(animated: true) }), more]
     }
 }

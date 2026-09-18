@@ -1,7 +1,6 @@
 import Foundation
 import ImageIO
 import PhotosUI
-import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
@@ -41,25 +40,24 @@ struct PhotoImportAlert: Identifiable, Equatable {
 struct PhotoPickerImporter {
     let storage: PhotoStorage
 
-    func importItems(_ items: [PhotosPickerItem]) async -> PhotoImportResult {
-        await Task.detached(priority: .userInitiated) {
-            var photos: [PhotoGroupItem] = []
-            var failedCount = 0
-
-            for item in items {
-                do {
-                    guard let data = try await item.loadTransferable(type: Data.self) else {
-                        failedCount += 1
-                        continue
+    func importItems(_ items: [PHPickerResult]) async -> PhotoImportResult {
+        var photos: [PhotoGroupItem] = []
+        var failedCount = 0
+        for item in items {
+            do {
+                let data: Data = try await withCheckedThrowingContinuation { continuation in
+                    item.itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, error in
+                        if let data { continuation.resume(returning: data) }
+                        else { continuation.resume(throwing: error ?? PhotoStorageError.unreadableImage) }
                     }
-                    photos.append(try storage.saveJPEGWithMetadata(from: data))
-                } catch {
-                    failedCount += 1
                 }
-            }
-
-            return PhotoImportResult(photos: photos, failedCount: failedCount)
-        }.value
+                let photo = try await Task.detached(priority: .userInitiated) {
+                    try storage.saveJPEGWithMetadata(from: data)
+                }.value
+                photos.append(photo)
+            } catch { failedCount += 1 }
+        }
+        return PhotoImportResult(photos: photos, failedCount: failedCount)
     }
 
 }
@@ -309,45 +307,5 @@ struct PhotoStorage: @unchecked Sendable {
         if let value = value as? Double { return value }
         if let value = value as? NSNumber { return value.doubleValue }
         return nil
-    }
-}
-
-struct StoredPhotoThumbnail: View {
-    let photo: EntryPhoto
-    let storage: PhotoStorage
-    var cornerRadius: CGFloat = 8
-    var contentMode: ContentMode = .fill
-    var maxPixelSize: Int = PhotoStorage.defaultThumbnailMaxPixelSize
-
-    var body: some View {
-        Group {
-            if let image = storage.thumbnail(for: photo.fileName, maxPixelSize: maxPixelSize) {
-                resizedImage(image)
-            } else {
-                Rectangle()
-                    .fill(.quaternary)
-                    .overlay {
-                        Image(systemName: "photo")
-                            .foregroundStyle(.secondary)
-                    }
-            }
-        }
-        .clipped()
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .accessibilityLabel("Photo")
-    }
-
-    @ViewBuilder
-    private func resizedImage(_ image: UIImage) -> some View {
-        switch contentMode {
-        case .fit:
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-        case .fill:
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-        }
     }
 }

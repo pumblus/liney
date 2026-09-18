@@ -1,436 +1,96 @@
-import LocalAuthentication
 import SwiftData
-import SwiftUI
+import UIKit
 
 @main
-struct LineyApp: App {
-    @AppStorage("liney.hasCompletedOnboarding") private var hasCompletedOnboarding = false
+final class LineyApp: UIResponder, UIApplicationDelegate {
+    lazy var container: ModelContainer = {
+        do { return try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self) }
+        catch { fatalError("Unable to open the journal store.") }
+    }()
 
-    init() {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         JournalExporter().deleteTemporaryExports()
+        return true
     }
 
-    var body: some Scene {
-        WindowGroup {
-            RootView(hasCompletedOnboarding: $hasCompletedOnboarding)
-                .tint(.lineyAqua)
-        }
-        .modelContainer(for: [JournalEntry.self, EntryBlock.self, EntryPhoto.self])
-    }
-}
-
-private struct RootView: View {
-    @Binding var hasCompletedOnboarding: Bool
-    @AppStorage("liney.requiresAppLock") private var requiresAppLock = false
-    @StateObject private var appLock = AppLockModel()
-
-    var body: some View {
-        AppLockGate(requiresAppLock: $requiresAppLock, appLock: appLock) {
-            if hasCompletedOnboarding {
-                TimelineShellView(requiresAppLock: $requiresAppLock, appLock: appLock)
-            } else {
-                OnboardingView {
-                    hasCompletedOnboarding = true
-                }
-            }
-        }
+    func application(_ application: UIApplication, configurationForConnecting session: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(name: "Journal", sessionRole: session.role)
+        configuration.delegateClass = JournalSceneDelegate.self
+        return configuration
     }
 }
 
-private struct OnboardingView: View {
-    let startWriting: () -> Void
-    @State private var isImportingJournal = false
+final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
+    private var privacyShield: JournalPrivacyShield?
+    private let appLock = AppLockModel()
+    private var requiresLock: Bool { UserDefaults.standard.bool(forKey: "liney.requiresAppLock") }
 
-    var body: some View {
-        NavigationStack {
-            GeometryReader { proxy in
-                ScrollView {
-                    VStack(spacing: 28) {
-                        Spacer()
-
-                        Image(systemName: "book.closed")
-                            .font(.system(size: 56, weight: .regular))
-                            .foregroundStyle(.tint)
-                            .accessibilityHidden(true)
-
-                        VStack(spacing: 12) {
-                            Text("Liney")
-                                .font(.largeTitle.bold())
-
-                            Text("A light journal for words and photos.")
-                                .font(.title3)
-                                .foregroundStyle(.secondary)
-
-                            Text("Your journal stays on this device. No account, no server, no ads, and no analytics.")
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-
-                        VStack(spacing: 12) {
-                            Button(action: startWriting) {
-                                Label("Start Writing", systemImage: "square.and.pencil")
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-
-                            Button {
-                                isImportingJournal = true
-                            } label: {
-                                Label("Import Journal", systemImage: "square.and.arrow.down")
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(32)
-                    .frame(maxWidth: 440)
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: proxy.size.height)
-                }
-            }
-            .navigationTitle("Liney")
-            .navigationBarTitleDisplayMode(.inline)
-            .background {
-                ImportJournalFlow(isPresented: $isImportingJournal, onFinished: startWriting)
-            }
-        }
-    }
-}
-
-protocol AppAuthenticating {
-    func authenticate(reason: String) async -> Bool
-}
-
-struct LocalAuthenticator: AppAuthenticating {
-    func authenticate(reason: String) async -> Bool {
-        let context = LAContext()
-        var error: NSError?
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            return false
-        }
-
-        return await withCheckedContinuation { continuation in
-            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, _ in
-                continuation.resume(returning: success)
-            }
-        }
-    }
-}
-
-@MainActor
-final class AppLockModel: ObservableObject {
-    @Published private(set) var isLocked = true
-    @Published private(set) var isSnapshotCovered = true
-    @Published private(set) var isAuthenticating = false
-
-    private var authenticationGeneration = 0
-    private let authenticator: AppAuthenticating
-
-    init(authenticator: AppAuthenticating = LocalAuthenticator()) {
-        self.authenticator = authenticator
+    func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
+        guard let scene = scene as? UIWindowScene,
+              let app = UIApplication.shared.delegate as? LineyApp else { return }
+        let window = UIWindow(windowScene: scene)
+        window.tintColor = UIColor(named: "LineyAqua") ?? .systemTeal
+        self.window = window
+        privacyShield = JournalPrivacyShield(window: window, appLock: appLock, requiresLock: { [weak self] in
+            self?.requiresLock ?? true
+        })
+        showRoot(container: app.container)
+        window.makeKeyAndVisible()
+        updateLock()
     }
 
-    var hidesJournalContent: Bool {
-        isLocked || isSnapshotCovered
-    }
-
-    func unlockIfNeeded(requiresLock: Bool) async {
-        guard requiresLock else {
-            disableLock()
+    private func showRoot(container: ModelContainer) {
+        if !UserDefaults.standard.bool(forKey: "liney.hasCompletedOnboarding") {
+            window?.rootViewController = UINavigationController(rootViewController: OnboardingController(container: container) { [weak self] in
+                UserDefaults.standard.set(true, forKey: "liney.hasCompletedOnboarding")
+                self?.showRoot(container: container)
+            })
             return
         }
-        isSnapshotCovered = false
-        guard isLocked, !isAuthenticating else { return }
-        _ = await authenticate(reason: String(localized: "Unlock Liney to view your journal."))
+        let timeline = TimelineViewController(container: container, appLock: appLock)
+        let navigation = UINavigationController(rootViewController: timeline)
+        navigation.navigationBar.prefersLargeTitles = true
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            let split = UISplitViewController(style: .doubleColumn)
+            split.preferredDisplayMode = .oneBesideSecondary
+            split.setViewController(navigation, for: .primary)
+            split.setViewController(UINavigationController(rootViewController: MessageController(
+                title: String(localized: "No Entry Selected"),
+                message: String(localized: "Choose an entry from the timeline once entries exist."))), for: .secondary)
+            window?.rootViewController = split
+        } else { window?.rootViewController = navigation }
     }
 
-    func unlock(requiresLock: Bool) async {
-        guard requiresLock else {
-            disableLock()
-            return
-        }
-        isLocked = true
-        isSnapshotCovered = false
-        guard !isAuthenticating else { return }
-        _ = await authenticate(reason: String(localized: "Unlock Liney to view your journal."))
+    private func updateLock() { privacyShield?.update() }
+
+    func sceneDidBecomeActive(_ scene: UIScene) {
+        Task { await appLock.unlockIfNeeded(requiresLock: requiresLock) }
     }
-
-    func protectSnapshot(requiresLock: Bool) {
-        guard requiresLock else {
-            disableLock()
-            return
-        }
-        isLocked = true
-        isSnapshotCovered = true
-    }
-
-    func didEnterBackground(requiresLock: Bool) {
-        authenticationGeneration += 1
-        protectSnapshot(requiresLock: requiresLock)
-    }
-
-    func authenticateForExport(requiresLock: Bool) async -> Bool {
-        guard requiresLock else {
-            disableLock()
-            return true
-        }
-        guard !isAuthenticating else { return false }
-        return await authenticate(reason: String(localized: "Authenticate to export your journal."))
-    }
-
-    func authenticateToEnable() async -> Bool {
-        guard !isAuthenticating else { return false }
-        isAuthenticating = true
-        defer { isAuthenticating = false }
-
-        let generation = authenticationGeneration
-        let success = await authenticator.authenticate(
-            reason: String(localized: "Authenticate to require Face ID for Liney.")
-        )
-        guard generation == authenticationGeneration else { return false }
-        if success {
-            isLocked = false
-        }
-        return success
-    }
-
-    func disableLock() {
-        authenticationGeneration += 1
-        isLocked = false
-        isSnapshotCovered = false
-    }
-
-    private func authenticate(reason: String) async -> Bool {
-        isAuthenticating = true
-        defer { isAuthenticating = false }
-
-        let generation = authenticationGeneration
-        let success = await authenticator.authenticate(reason: reason)
-        guard generation == authenticationGeneration else { return false }
-        isLocked = !success
-        return success
-    }
+    func sceneWillResignActive(_ scene: UIScene) { appLock.protectSnapshot(requiresLock: requiresLock) }
+    func sceneDidEnterBackground(_ scene: UIScene) { appLock.didEnterBackground(requiresLock: requiresLock) }
 }
 
-struct AppLockGate<Content: View>: View {
-    @Binding private var requiresAppLock: Bool
-    @ObservedObject private var appLock: AppLockModel
-    @Environment(\.scenePhase) private var scenePhase
-    private let content: () -> Content
-
-    init(
-        requiresAppLock: Binding<Bool>,
-        appLock: AppLockModel,
-        @ViewBuilder content: @escaping () -> Content
-    ) {
-        self._requiresAppLock = requiresAppLock
-        self._appLock = ObservedObject(wrappedValue: appLock)
-        self.content = content
+final class OnboardingController: UIViewController {
+    let container: ModelContainer
+    let finish: () -> Void
+    init(container: ModelContainer, finish: @escaping () -> Void) {
+        self.container = container; self.finish = finish
+        super.init(nibName: nil, bundle: nil)
     }
-
-    var body: some View {
-        content()
-            .privacySensitive(shouldHideContent)
-            .disabled(shouldHideContent)
-            .accessibilityHidden(shouldHideContent)
-            .overlay {
-                if shouldHideContent {
-                    lockCover
-                }
-            }
-        .onAppear {
-            Task {
-                await appLock.unlockIfNeeded(requiresLock: requiresAppLock)
-            }
-        }
-        .onChange(of: requiresAppLock) { _, requiresAppLock in
-            if requiresAppLock {
-                Task {
-                    await appLock.unlockIfNeeded(requiresLock: true)
-                }
-            } else {
-                appLock.disableLock()
-            }
-        }
-        .onChange(of: scenePhase) { _, scenePhase in
-            switch scenePhase {
-            case .active:
-                Task {
-                    await appLock.unlockIfNeeded(requiresLock: requiresAppLock)
-                }
-            case .background:
-                appLock.didEnterBackground(requiresLock: requiresAppLock)
-            case .inactive:
-                appLock.protectSnapshot(requiresLock: requiresAppLock)
-            @unknown default:
-                break
-            }
-        }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        title = "Liney"
+        installStack([bodyLabel("Liney", style: .largeTitle),
+                      bodyLabel(String(localized: "A light journal for words and photos."), style: .title3),
+                      bodyLabel(String(localized: "Your journal stays on this device. No account, no server, no ads, and no analytics.")),
+                      actionButton(String(localized: "Start Writing"), action: finish),
+                      actionButton(String(localized: "Import Journal")) { [weak self] in
+            guard let self else { return }
+            let controller = ImportJournalViewController(container: self.container, onFinished: self.finish)
+            self.present(UINavigationController(rootViewController: controller), animated: true)
+        }], centered: true)
     }
-
-    private var shouldHideContent: Bool {
-        requiresAppLock && appLock.hidesJournalContent
-    }
-
-    private var lockCover: some View {
-        LockedJournalView(isAuthenticating: appLock.isAuthenticating) {
-            Task {
-                await appLock.unlock(requiresLock: requiresAppLock)
-            }
-        }
-    }
-
-}
-
-private struct LockedJournalView: View {
-    let isAuthenticating: Bool
-    let unlock: () -> Void
-
-    var body: some View {
-        VStack(spacing: 18) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 44, weight: .regular))
-                .foregroundStyle(.tint)
-                .accessibilityHidden(true)
-
-            VStack(spacing: 8) {
-                Text("Liney Locked")
-                    .font(.title2.bold())
-
-                Text("Unlock to view your private journal.")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            Button(action: unlock) {
-                Label("Unlock", systemImage: "lock.open")
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(isAuthenticating)
-
-            if isAuthenticating {
-                ProgressView()
-            }
-        }
-        .padding(32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.systemBackground))
-    }
-}
-
-struct SettingsView: View {
-    @Binding var requiresAppLock: Bool
-    @ObservedObject var appLock: AppLockModel
-    @State private var alert: SettingsAlert?
-
-    var body: some View {
-        Form {
-            Section {
-                Toggle(isOn: appLockBinding) {
-                    Label("Require Face ID", systemImage: "faceid")
-                }
-                .disabled(appLock.isAuthenticating)
-            } footer: {
-                Text("Use Face ID, Touch ID, or your device passcode to protect Liney.")
-            }
-
-            Section {
-                NavigationLink {
-                    PrivacyView()
-                } label: {
-                    Label("Privacy", systemImage: "hand.raised")
-                }
-
-                NavigationLink {
-                    AboutView()
-                } label: {
-                    Label("About", systemImage: "info.circle")
-                }
-            }
-        }
-        .navigationTitle("Settings")
-        .alert(item: $alert) { alert in
-            Alert(
-                title: Text(alert.title),
-                message: Text(alert.message),
-                dismissButton: .default(Text("OK"))
-            )
-        }
-    }
-
-    private var appLockBinding: Binding<Bool> {
-        Binding(
-            get: { requiresAppLock },
-            set: { newValue in
-                if newValue {
-                    Task {
-                        if await appLock.authenticateToEnable() {
-                            requiresAppLock = true
-                        } else {
-                            alert = SettingsAlert(
-                                title: String(localized: "Could Not Enable App Lock"),
-                                message: String(localized: "Face ID or device passcode authentication was not completed.")
-                            )
-                        }
-                    }
-                } else {
-                    requiresAppLock = false
-                    appLock.disableLock()
-                }
-            }
-        )
-    }
-}
-
-private struct PrivacyView: View {
-    var body: some View {
-        Form {
-            Section("Journal Data") {
-                Text("Your journal is stored on this device.")
-                Text("Liney does not require an account.")
-                Text("Liney does not collect analytics or advertising data.")
-            }
-
-            Section("Photos, Imports, and Exports") {
-                Text("Photos you add are copied into Liney so entries keep working.")
-                Text("Imports and exports happen only when you choose them.")
-            }
-        }
-        .navigationTitle("Privacy")
-    }
-}
-
-private struct AboutView: View {
-    var body: some View {
-        Form {
-            Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Liney")
-                        .font(.headline)
-                    Text("A light journal for words and photos.")
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 2)
-
-                LabeledContent("Version", value: appVersion)
-            }
-        }
-        .navigationTitle("About")
-    }
-
-    private var appVersion: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-        return "\(version) (\(build))"
-    }
-}
-
-private struct SettingsAlert: Identifiable {
-    let id = UUID()
-    let title: String
-    let message: String
 }

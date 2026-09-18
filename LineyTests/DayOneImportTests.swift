@@ -1,6 +1,5 @@
 import ImageIO
 import SwiftData
-import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 import XCTest
@@ -14,12 +13,8 @@ final class DayOneImportTests: XCTestCase {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let window = UIWindow(windowScene: scene)
         window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-        window.rootViewController = UIHostingController(rootView:
-            ImportJournalProgressView(isImporting: false,
-                progress: DayOneImportProgress(processedEntries: 1, totalEntries: 2),
-                summary: summary, cancel: {}, done: {})
-                .environment(\.locale, Locale(identifier: "en"))
-        )
+        window.rootViewController = UINavigationController(rootViewController:
+            ImportJournalViewController(container: container, summary: summary))
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
         try await Task.sleep(for: .milliseconds(150))
@@ -752,17 +747,16 @@ final class DayOneImportTests: XCTestCase {
         summary.failedPhotos = 2
         summary.issues = [DayOneImportIssue(sourceID: "FIXTURE-SOURCE-ID", entryNumber: 3,
                                            entryDate: Date(timeIntervalSince1970: 0), reason: .photosUnavailable)]
-        for locale in ["en", "zh-Hans"] {
+        do {
             for screen in ["confirmation", "summary", "confirmation-large", "summary-large"] {
                 let window = UIWindow(windowScene: scene)
                 window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
-                let content: AnyView = screen.hasPrefix("confirmation")
-                    ? AnyView(ImportJournalConfirmationView(plan: plan, confirm: {}, cancel: {}))
-                    : AnyView(ImportJournalProgressView(isImporting: false, progress: .init(processedEntries: 7, totalEntries: 7), summary: summary, cancel: {}, done: {}))
-                window.rootViewController = UIHostingController(rootView: content
-                    .environment(\.locale, Locale(identifier: locale))
-                    .environment(\.dynamicTypeSize, screen.hasSuffix("large") ? .accessibility3 : .large)
-                    .preferredColorScheme(screen.hasSuffix("large") ? .dark : .light))
+                let controller = ImportJournalViewController(container: container,
+                    plan: screen.hasPrefix("confirmation") ? plan : nil,
+                    summary: screen.hasPrefix("summary") ? summary : nil)
+                controller.traitOverrides.preferredContentSizeCategory = screen.hasSuffix("large") ? .accessibilityExtraLarge : .large
+                controller.overrideUserInterfaceStyle = screen.hasSuffix("large") ? .dark : .light
+                window.rootViewController = UINavigationController(rootViewController: controller)
                 window.makeKeyAndVisible()
                 try await Task.sleep(for: .milliseconds(150))
                 let view = try XCTUnwrap(window.rootViewController?.view)
@@ -772,7 +766,7 @@ final class DayOneImportTests: XCTestCase {
                     XCTAssertTrue(view.drawHierarchy(in: view.bounds, afterScreenUpdates: true))
                 }
                 let attachment = XCTAttachment(image: image)
-                attachment.name = "migration-\(screen)-\(locale)"
+                attachment.name = "migration-\(screen)"
                 attachment.lifetime = .keepAlways
                 add(attachment)
                 window.isHidden = true

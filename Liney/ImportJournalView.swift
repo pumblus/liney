@@ -1,250 +1,132 @@
 import SwiftData
-import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
-struct ImportJournalFlow: View {
-    @Environment(\.modelContext) private var modelContext
-    @Environment(\.scenePhase) private var scenePhase
-    @Binding var isPresented: Bool
-    var onFinished: (() -> Void)?
-
-    @State private var showFileImporter = false
-    @State private var showImportSheet = false
-    @State private var pendingPlan: DayOneImportPlan?
-    @State private var progress = DayOneImportProgress(processedEntries: 0, totalEntries: 0)
-    @State private var summary: DayOneImportSummary?
-    @State private var isPreparing = false
-    @State private var isImporting = false
-    @State private var importTask: Task<Void, Never>?
-    @State private var importError: ImportJournalError?
-
+final class ImportJournalViewController: UITableViewController, UIDocumentPickerDelegate {
+    private let context: ModelContext
     private let importer = DayOneImporter()
+    private var plan: DayOneImportPlan?
+    private var summary: DayOneImportSummary?
+    private var task: Task<Void, Never>?
+    private var busy = false
+    private var progress = DayOneImportProgress(processedEntries: 0, totalEntries: 0)
+    private var rows: [String] = []
+    private let onFinished: (() -> Void)?
 
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onChange(of: isPresented) { _, isPresented in
-                if isPresented { showImportSheet = true }
-            }
-            .onChange(of: scenePhase) { _, phase in
-                if phase == .background { importTask?.cancel() }
-            }
-            .sheet(isPresented: $showImportSheet, onDismiss: reset) {
-                Group {
-                    if isPreparing {
-                        NavigationStack {
-                            ProgressView("Preparing Archive…")
-                                .navigationTitle("Import from Day One")
-                                .navigationBarTitleDisplayMode(.inline)
-                                .toolbar {
-                                    ToolbarItem(placement: .cancellationAction) {
-                                        Button("Cancel") { importTask?.cancel() }
-                                    }
-                                }
-                        }
-                    } else if let pendingPlan {
-                        ImportJournalConfirmationView(plan: pendingPlan,
-                            confirm: { startImport(pendingPlan) }, cancel: { showImportSheet = false })
-                    } else if isImporting || summary != nil {
-                        ImportJournalProgressView(isImporting: isImporting, progress: progress,
-                            summary: summary, cancel: { importTask?.cancel() }, done: finishImport)
-                    } else {
-                        NavigationStack {
-                            List {
-                                Section {
-                                    Text("In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here.")
-                                    Text("Automatic backups may omit photos. Keep the original export until you have checked the imported entries.")
-                                }
-                                ImportScopeSection()
-                                Section {
-                                    Button("Choose JSON Zip") { showFileImporter = true }
-                                }
-                            }
-                            .navigationTitle("Import from Day One")
-                            .navigationBarTitleDisplayMode(.inline)
-                            .toolbar {
-                                ToolbarItem(placement: .cancellationAction) {
-                                    Button("Cancel") { showImportSheet = false }
-                                }
-                            }
-                        }
-                    }
-                }
-                .interactiveDismissDisabled(isPreparing || isImporting)
-                .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.zip],
-                              allowsMultipleSelection: false, onCompletion: handleFileImport)
-                .alert(item: $importError) { error in
-                    Alert(title: Text("Could Not Import Journal"), message: Text(error.message),
-                          dismissButton: .default(Text("OK")))
-                }
-            }
+    init(container: ModelContainer, plan: DayOneImportPlan? = nil, summary: DayOneImportSummary? = nil, onFinished: (() -> Void)? = nil) {
+        context = ModelContext(container); context.autosaveEnabled = false
+        self.onFinished = onFinished
+        self.plan = plan; self.summary = summary
+        super.init(style: .insetGrouped)
     }
-
-    private func handleFileImport(_ result: Result<[URL], Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            isPreparing = true
-            importTask = Task {
-                do {
-                    pendingPlan = try await importer.prepareImportInBackground(from: url)
-                } catch is CancellationError {
-                    pendingPlan = nil
-                } catch {
-                    importError = ImportJournalError(message: error.localizedDescription)
-                }
-                isPreparing = false
-                importTask = nil
-            }
-        case .failure(let error):
-            if (error as NSError).code != NSUserCancelledError {
-                importError = ImportJournalError(message: error.localizedDescription)
-            }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        NotificationCenter.default.addObserver(self, selector: #selector(cancelInBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
+        render()
+    }
+    @objc private func cancelInBackground() { task?.cancel() }
+    private var scope: [String] { [
+        String(localized: "Text, photos, entry dates and available locations are imported into one timeline. Formatting becomes plain text. Photos are saved as compressed JPEGs up to 2400 pixels on the long edge."),
+        String(localized: "Videos, audio, PDFs, other attachments, tags, weather and other Day One metadata are not kept. Original journal divisions are not kept. Timed entries use your device’s time zone."),
+        String(localized: "Keep Liney open during import. Cancelling keeps saved entries. Import the zip again to continue or recover failed photos; existing text and edits are kept. Older imports without recovery information are skipped.")
+    ] }
+    private func render() {
+        navigationController?.isModalInPresentation = busy
+        title = String(localized: "Import from Day One")
+        navigationItem.leftBarButtonItem = UIBarButtonItem(title: String(localized: "Cancel"), primaryAction: UIAction { [weak self] _ in self?.cancel() })
+        navigationItem.rightBarButtonItem = nil
+        if busy {
+            rows = [progress.totalEntries == 0 ? String(localized: "Preparing Archive…") : String(localized: "Importing..."),
+                    "\(progress.processedEntries)/\(progress.totalEntries)", String(localized: "Keep Liney open. Cancelling keeps saved entries.")]
+        } else if let summary {
+            title = summary.wasCancelled ? String(localized: "Import Cancelled") : (summary.failedEntries > 0 || summary.failedPhotos > 0 ? String(localized: "Import Needs Review") : String(localized: "Import Complete"))
+            rows = Self.summaryRows(summary)
+            navigationItem.leftBarButtonItem = nil
+            navigationItem.rightBarButtonItem = UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in self?.finish() })
+        } else if let plan {
+            rows = ["\(String(localized: "Entries")): \(plan.entryCount)", "\(String(localized: "Photos")): \(plan.photoCount)",
+                    "\(String(localized: "Unsupported Media")): \(plan.unsupportedMediaCount)", "\(String(localized: "Unsupported Metadata")): \(plan.ignoredMetadataCount)"] + scope
+            navigationItem.rightBarButtonItem = UIBarButtonItem(title: String(localized: "Import"), primaryAction: UIAction { [weak self] _ in self?.startImport() })
+        } else {
+            rows = [String(localized: "In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here."),
+                    String(localized: "Automatic backups may omit photos. Keep the original export until you have checked the imported entries.")] + scope + [String(localized: "Choose JSON Zip")]
+        }
+        tableView.reloadData()
+    }
+    static func summaryRows(_ summary: DayOneImportSummary) -> [String] {
+        var rows = [
+            "\(String(localized: "Imported")): \(summary.importedEntries)",
+            "\(String(localized: "Repaired Entries")): \(summary.repairedEntries)",
+            "\(String(localized: "Recovered Photos")): \(summary.recoveredPhotos)",
+            "\(String(localized: "Skipped Duplicates")): \(summary.skippedDuplicates)",
+            "\(String(localized: "Failed Entries")): \(summary.failedEntries)",
+            "\(String(localized: "Failed Photos")): \(summary.failedPhotos)",
+            "\(String(localized: "Unsupported Media")): \(summary.skippedMedia)",
+            "\(String(localized: "Unsupported Metadata")): \(summary.ignoredMetadata)"
+        ]
+        for issue in summary.issues {
+            rows.append([issue.entryNumber > 0 ? String(localized: "Entry \(issue.entryNumber)") : nil,
+                         issue.entryDate?.formatted(), issue.sourceID.map { String(localized: "Day One ID") + ": " + $0 },
+                         String(localized: String.LocalizationValue(issue.reason.message))].compactMap { $0 }.joined(separator: "\n"))
+        }
+        if summary.failedPhotos > 0 || summary.wasCancelled { rows.append(String(localized: "Export again with media included, then import the zip to retry. Existing entries and your edits are kept.")) }
+        return rows
+    }
+    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { rows.count }
+    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let cell = tableView.dequeueReusableCell(withIdentifier: "row") ?? UITableViewCell(style: .default, reuseIdentifier: "row")
+        var config = cell.defaultContentConfiguration(); config.text = rows[indexPath.row]
+        config.textProperties.numberOfLines = 0
+        let isChoose = !busy && plan == nil && summary == nil && indexPath.row == rows.count - 1
+        config.textProperties.color = isChoose ? view.tintColor : .label
+        cell.contentConfiguration = config; cell.selectionStyle = isChoose ? .default : .none
+        cell.accessibilityTraits = isChoose ? .button : .staticText
+        return cell
+    }
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard !busy, plan == nil, summary == nil, indexPath.row == rows.count - 1 else { return }
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.zip], asCopy: false)
+        picker.delegate = self
+        present(picker, animated: true)
+    }
+    func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+        guard let url = urls.first else { return }
+        busy = true; render()
+        task = Task {
+            do { plan = try await importer.prepareImportInBackground(from: url) }
+            catch is CancellationError { }
+            catch { showError(String(localized: "Could Not Import Journal"), message: error.localizedDescription) }
+            busy = false; task = nil; render()
         }
     }
-
-    private func startImport(_ plan: DayOneImportPlan) {
-        pendingPlan = nil
+    private func startImport() {
+        guard let plan else { return }
+        self.plan = nil; busy = true
         progress = DayOneImportProgress(processedEntries: 0, totalEntries: plan.entryCount)
-        summary = nil
-        isImporting = true
-        importTask = Task {
-            summary = await importer.importPreparedArchive(plan, into: modelContext) { progress = $0 }
-            isImporting = false
-            importTask = nil
+        render()
+        task = Task {
+            summary = await importer.importPreparedArchive(plan, into: context) { [weak self] value in
+                self?.progress = value; self?.render()
+            }
+            busy = false; task = nil
+            NotificationCenter.default.post(name: .journalDidChange, object: nil)
+            render()
         }
     }
-
-    private func reset() {
-        importTask?.cancel()
-        if let pendingPlan { importer.deleteTemporaryArchive(pendingPlan) }
-        pendingPlan = nil
-        summary = nil
-        isPresented = false
+    private func cancel() {
+        if busy { task?.cancel(); return }
+        if let plan { importer.deleteTemporaryArchive(plan); self.plan = nil }
+        dismiss(animated: true)
     }
-
-    private func finishImport() {
-        let didImport = (summary?.importedEntries ?? 0) + (summary?.repairedEntries ?? 0) > 0
-        showImportSheet = false
-        if didImport { onFinished?() }
+    private func finish() {
+        let imported = (summary?.importedEntries ?? 0) + (summary?.repairedEntries ?? 0) > 0
+        dismiss(animated: true) { [onFinished] in if imported { onFinished?() } }
     }
-}
-
-private struct ImportScopeSection: View {
-    var body: some View {
-        Section("What Will Be Imported") {
-            Text("Text, photos, entry dates and available locations are imported into one timeline. Formatting becomes plain text. Photos are saved as compressed JPEGs up to 2400 pixels on the long edge.")
-            Text("Videos, audio, PDFs, other attachments, tags, weather and other Day One metadata are not kept. Original journal divisions are not kept. Timed entries use your device’s time zone.")
-            Text("Keep Liney open during import. Cancelling keeps saved entries. Import the zip again to continue or recover failed photos; existing text and edits are kept. Older imports without recovery information are skipped.")
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if navigationController?.presentingViewController == nil, !busy, let plan {
+            importer.deleteTemporaryArchive(plan); self.plan = nil
         }
     }
-}
-
-struct ImportJournalConfirmationView: View {
-    let plan: DayOneImportPlan
-    let confirm: () -> Void
-    let cancel: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    LabeledContent("Entries", value: "\(plan.entryCount)")
-                    LabeledContent("Photos", value: "\(plan.photoCount)")
-                    LabeledContent("Unsupported Media", value: "\(plan.unsupportedMediaCount)")
-                    LabeledContent("Unsupported Metadata", value: "\(plan.ignoredMetadataCount)")
-                }
-                ImportScopeSection()
-            }
-            .navigationTitle("Import from Day One")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", action: cancel) }
-                ToolbarItem(placement: .confirmationAction) { Button("Import", action: confirm) }
-            }
-        }
-    }
-}
-
-struct ImportJournalProgressView: View {
-    let isImporting: Bool
-    let progress: DayOneImportProgress
-    let summary: DayOneImportSummary?
-    let cancel: () -> Void
-    let done: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if isImporting {
-                    Section {
-                        ProgressView(value: Double(progress.processedEntries), total: Double(max(progress.totalEntries, 1))) {
-                            Text("Importing...")
-                        } currentValueLabel: {
-                            LabeledContent("Entries", value: "\(progress.processedEntries)/\(progress.totalEntries)")
-                        }
-                        Text("Keep Liney open. Cancelling keeps saved entries.")
-                    }
-                } else if let summary {
-                    if summary.failedEntries > 0 || summary.failedPhotos > 0 {
-                        Section {
-                            Text("Import Needs Review").font(.headline).fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    if summary.wasCancelled {
-                        Section {
-                            Text("Import Cancelled").font(.headline).fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    Section {
-                        LabeledContent("Imported", value: "\(summary.importedEntries)")
-                        LabeledContent("Repaired Entries", value: "\(summary.repairedEntries)")
-                        LabeledContent("Recovered Photos", value: "\(summary.recoveredPhotos)")
-                        LabeledContent("Skipped Duplicates", value: "\(summary.skippedDuplicates)")
-                        LabeledContent("Failed Entries", value: "\(summary.failedEntries)")
-                        LabeledContent("Failed Photos", value: "\(summary.failedPhotos)")
-                        LabeledContent("Unsupported Media", value: "\(summary.skippedMedia)")
-                        LabeledContent("Unsupported Metadata", value: "\(summary.ignoredMetadata)")
-                    }
-                    if !summary.issues.isEmpty {
-                        Section("Entries to Check") {
-                            ForEach(summary.issues) { issue in
-                                VStack(alignment: .leading, spacing: 6) {
-                                    if issue.entryNumber > 0 {
-                                        Text("Entry \(issue.entryNumber)").font(.headline)
-                                    }
-                                    if let date = issue.entryDate { Text(date, format: .dateTime).font(.subheadline) }
-                                    if let sourceID = issue.sourceID {
-                                        LabeledContent("Day One ID", value: sourceID).textSelection(.enabled)
-                                    }
-                                    Text(LocalizedStringKey(issue.reason.message)).fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                        }
-                    }
-                    if summary.failedPhotos > 0 || summary.wasCancelled {
-                        Section {
-                            Text("Export again with media included, then import the zip to retry. Existing entries and your edits are kept.")
-                        }
-                    }
-                }
-            }
-            .navigationTitle(isImporting ? "Importing..." : (summary?.wasCancelled == true ? "Import Cancelled" :
-                ((summary?.failedEntries ?? 0) > 0 || (summary?.failedPhotos ?? 0) > 0 ? "Import Needs Review" : "Import Complete")))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    if isImporting { Button("Cancel", action: cancel) }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    if !isImporting { Button("Done", action: done) }
-                }
-            }
-        }
-    }
-}
-
-private struct ImportJournalError: Identifiable {
-    let id = UUID()
-    let message: String
 }

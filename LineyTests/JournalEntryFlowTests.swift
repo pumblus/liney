@@ -1,6 +1,5 @@
 import ImageIO
 import SwiftData
-import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 import XCTest
@@ -27,6 +26,184 @@ final class JournalEntryFlowTests: XCTestCase {
         container = nil
     }
 
+    func testNativeNavigationSavesEditorBeforeSwitchingEntries() async throws {
+        let first = JournalEntry(title: "Synthetic first", entryDate: Date(timeIntervalSince1970: 1_700_100_000))
+        let second = JournalEntry(title: "Synthetic second", entryDate: Date(timeIntervalSince1970: 1_700_000_000))
+        context.insert(first); context.insert(second)
+        first.setBody("Original fixture", in: context)
+        try context.save()
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        let timeline = TimelineViewController(container: container, appLock: AppLockModel())
+        let navigation = FixtureNavigationController(rootViewController: timeline)
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            let split = UISplitViewController(style: .doubleColumn)
+            split.preferredDisplayMode = .oneBesideSecondary
+            split.setViewController(navigation, for: .primary)
+            split.setViewController(UINavigationController(rootViewController: UIViewController()), for: .secondary)
+            window.rootViewController = split
+        } else { window.rootViewController = navigation }
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        for _ in 0..<100 {
+            if timeline.tableView.numberOfSections == 2 { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertEqual(timeline.tableView.numberOfSections, 2)
+        guard timeline.tableView.numberOfSections == 2 else { return }
+        func currentEditor() -> EntryEditorViewController? {
+            if let split = timeline.splitViewController, !split.isCollapsed {
+                return (split.viewController(for: .secondary) as? UINavigationController)?.topViewController as? EntryEditorViewController
+            }
+            return navigation.topViewController as? EntryEditorViewController
+        }
+        timeline.tableView(timeline.tableView, didSelectRowAt: IndexPath(row: 0, section: 0))
+        let editor = try XCTUnwrap(currentEditor())
+        XCTAssertEqual(editor.entry.id, first.id)
+        XCTAssertFalse(editor.context === context)
+        editor.loadViewIfNeeded()
+        func descendants<T: UIView>(_ view: UIView, type: T.Type) -> [T] {
+            (view as? T).map { [$0] } ?? view.subviews.flatMap { descendants($0, type: type) }
+        }
+        let input = try XCTUnwrap(descendants(editor.view, type: UITextView.self).first)
+        input.text = "Updated through UIKit 中文"
+        input.delegate?.textViewDidChange?(input)
+        let dateEditor = EntryDateViewController(entry: editor.entry) { _ = editor.flush() }
+        dateEditor.loadViewIfNeeded()
+        let picker = try XCTUnwrap(descendants(dateEditor.view, type: UIDatePicker.self).first)
+        let adjusted = first.entryDate.addingTimeInterval(60)
+        picker.date = adjusted
+        picker.sendActions(for: .valueChanged)
+        if timeline.splitViewController?.isCollapsed != false {
+            XCTAssertTrue(editor.prepareForReplacement())
+            navigation.popViewController(animated: false)
+        }
+        timeline.tableView(timeline.tableView, didSelectRowAt: IndexPath(row: 0, section: 1))
+        XCTAssertEqual(currentEditor()?.entry.id, second.id)
+        let reloaded = try ModelContext(container).fetch(FetchDescriptor<JournalEntry>())
+        let saved = try XCTUnwrap(reloaded.first { $0.id == first.id })
+        XCTAssertEqual(saved.plainTextBody, "Updated through UIKit 中文")
+        XCTAssertEqual(saved.entryDate.timeIntervalSince1970, adjusted.timeIntervalSince1970, accuracy: 1)
+    }
+
+    func testUIKitOnboardingRendersAtAccessibilitySize() async throws {
+        let controller = OnboardingController(container: container, finish: {})
+        controller.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
+        controller.overrideUserInterfaceStyle = .dark
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = UINavigationController(rootViewController: controller)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        try await Task.sleep(for: .milliseconds(100))
+        controller.view.layoutIfNeeded()
+        XCTAssertFalse(controller.view.hasAmbiguousLayout)
+        let image = UIGraphicsImageRenderer(bounds: controller.view.bounds).image { _ in
+            XCTAssertTrue(controller.view.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true))
+        }
+        let attachment = XCTAttachment(image: image)
+        attachment.name = "UIKit onboarding accessibility"; attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testBackgroundTimelinePreservesSearchOrderingAndIncrementalUpdates() async throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let base = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000))
+        for index in 0..<1_000 {
+            let entry = JournalEntry(title: "Synthetic \(index)", entryDate: base.addingTimeInterval(Double(index * 60)),
+                                     isAllDay: index % 20 == 0, createdAt: base.addingTimeInterval(Double(index)))
+            context.insert(entry)
+            entry.setBody(index == 42 ? "Needle 中文 🌿" : "Fixture body", in: context)
+        }
+        try context.save()
+        let repository = TimelineRepository(container: container)
+        let start = ContinuousClock.now
+        try await repository.reload()
+        let result = try await repository.search("", calendar: calendar)
+        XCTAssertEqual(result.totalCount, 1_000)
+        let expected = groupEntriesByDay(try context.fetch(FetchDescriptor<JournalEntry>()), calendar: calendar)
+        XCTAssertEqual(result.days.map { $0.entries.map(\.id) }, expected.map { $0.entries.map(\.id) })
+        let matching = try await repository.search(" needle 中文 ", calendar: calendar)
+        XCTAssertEqual(matching.days.flatMap(\.entries).count, 1)
+        let value = try XCTUnwrap(matching.days.first?.entries.first)
+        let entry = try XCTUnwrap(context.model(for: value.persistentModelID) as? JournalEntry)
+        entry.setBody("Updated fixture", in: context)
+        try context.save()
+        try await repository.update(id: entry.id)
+        let removedMatch = try await repository.search("needle")
+        XCTAssertTrue(removedMatch.days.isEmpty)
+        let id = entry.id
+        context.delete(entry); try context.save()
+        try await repository.update(id: id)
+        let afterDelete = try await repository.search("")
+        XCTAssertEqual(afterDelete.totalCount, 999)
+        let attachment = XCTAttachment(string: "1,000 synthetic entries: reload, search, update and delete completed in \(start.duration(to: .now)). Simulator timing is diagnostic, not a device performance gate.")
+        attachment.name = "UIKit timeline fixture timing"; attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func testReusedPhotoViewIgnoresCancelledImageRequests() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storage = PhotoStorage(baseURL: directory)
+        let red = try storage.saveJPEG(from: makeJPEGData(color: .red))
+        let green = try storage.saveJPEG(from: makeJPEGData(color: .green))
+        let imageView = StoredPhotoView()
+        imageView.load(red, storage: storage, pixels: 32)
+        imageView.load(green, storage: storage, pixels: 32)
+        for _ in 0..<100 {
+            if imageView.image != nil { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let image = try XCTUnwrap(imageView.image)
+        let pixel = try rgbaPixel(in: image, x: 10, y: 10)
+        XCTAssertGreaterThan(pixel[1], pixel[0])
+        imageView.load(red, storage: storage, pixels: 32)
+        imageView.cancel()
+        try await Task.sleep(for: .milliseconds(100))
+        XCTAssertNil(imageView.image)
+    }
+
+    func testOffscreenPhotoViewsReleaseDecodedImages() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storage = PhotoStorage(baseURL: directory)
+        let file = try storage.saveJPEG(from: makeJPEGData())
+        let image = StoredPhotoView()
+        image.deferLoading(file, storage: storage, pixels: 32)
+        XCTAssertNil(image.image)
+        image.updateVisibility(true)
+        for _ in 0..<100 {
+            if image.image != nil { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertNotNil(image.image)
+        image.updateVisibility(false)
+        XCTAssertNil(image.image)
+        image.updateVisibility(true)
+        for _ in 0..<100 {
+            if image.image != nil { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertNotNil(image.image)
+    }
+
+    func testEditorFlushPersistsImmediatelyWithoutWaitingForDebounce() throws {
+        let entry = JournalEntry()
+        context.insert(entry)
+        let editor = EntryEditorViewController(entry: entry, isNew: true, context: context)
+        editor.loadViewIfNeeded()
+        func textViews(_ view: UIView) -> [UITextView] {
+            (view as? UITextView).map { [$0] } ?? view.subviews.flatMap(textViews)
+        }
+        let input = try XCTUnwrap(textViews(editor.view).first)
+        input.text = "Immediate synthetic save 中文"
+        input.delegate?.textViewDidChange?(input)
+        XCTAssertTrue(editor.flush())
+        let saved = try XCTUnwrap(try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(saved.plainTextBody, "Immediate synthetic save 中文")
+    }
+
     func testReopenedPhotoOnlyEntryCanContinueWriting() async throws {
         context = container.mainContext
         let entry = JournalEntry()
@@ -35,11 +212,7 @@ final class JournalEntryFlowTests: XCTestCase {
         try context.save()
 
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
-        window.rootViewController = UIHostingController(rootView:
-            NavigationStack { EntryEditorView(entry: entry, isNew: false) }
-                .modelContainer(container)
-                .environment(\.modelContext, context)
-        )
+        window.rootViewController = UINavigationController(rootViewController: EntryEditorViewController(entry: entry, isNew: false, context: context))
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
         try await Task.sleep(for: .milliseconds(150))
@@ -56,7 +229,7 @@ final class JournalEntryFlowTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(20))
             XCTAssertTrue(textViews(in: window).last === textView)
         }
-        try await Task.sleep(for: .milliseconds(100))
+        try await Task.sleep(for: .milliseconds(450))
         XCTAssertEqual(entry.orderedBlocks.map(\.kind), [.photoGroup, .text])
         XCTAssertEqual(entry.plainTextBody, "Synthetic continuation 中文 🌿")
         let reopenedContext = ModelContext(container)
@@ -69,11 +242,7 @@ final class JournalEntryFlowTests: XCTestCase {
         let entry = JournalEntry()
         context.insert(entry)
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
-        window.rootViewController = UIHostingController(rootView:
-            NavigationStack { EntryEditorView(entry: entry, isNew: true) }
-                .modelContainer(container)
-                .environment(\.modelContext, context)
-        )
+        window.rootViewController = UINavigationController(rootViewController: EntryEditorViewController(entry: entry, isNew: true, context: context))
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
         try await Task.sleep(for: .milliseconds(150))
@@ -90,7 +259,7 @@ final class JournalEntryFlowTests: XCTestCase {
                           "Promoting transient text must preserve the native input identity")
         }
         textView.delegate?.textViewDidEndEditing?(textView)
-        try await Task.sleep(for: .milliseconds(100))
+        try await Task.sleep(for: .milliseconds(450))
         XCTAssertEqual(entry.plainTextBody, "Synthetic")
         XCTAssertEqual(entry.orderedBlocks.count, 1)
         let reopened = try XCTUnwrap(try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()).first)
@@ -623,7 +792,7 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 5).map(\.aspectRatio), [1, 1, 1, 1, 1])
     }
 
-    func testThreePhotoLayoutSmokeRendersOnSimulator() throws {
+    func testThreePhotoLayoutSmokeRendersOnSimulator() async throws {
         let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let storage = PhotoStorage(baseURL: baseURL)
         let result = storage.saveJPEGs(from: [
@@ -638,12 +807,22 @@ final class JournalEntryFlowTests: XCTestCase {
             EntryPhoto(fileName: photo.fileName, displayOrder: index, block: block)
         }
 
-        let renderer = ImageRenderer(content: PhotoGroupBlockView(block: block, storage: storage) { _ in }
-            .background(Color.white)
-            .frame(width: 320))
-        renderer.scale = 1
-
-        let image = try XCTUnwrap(renderer.uiImage)
+        let group = PhotoGroupView(block: block, storage: storage) { _ in }
+        group.backgroundColor = .white
+        group.frame = CGRect(x: 0, y: 0, width: 320, height: 104)
+        group.layoutIfNeeded()
+        func images(in view: UIView) -> [StoredPhotoView] {
+            (view as? StoredPhotoView).map { [$0] } ?? view.subviews.flatMap { images(in: $0) }
+        }
+        for _ in 0..<100 {
+            if images(in: group).allSatisfy({ $0.image != nil }) { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        XCTAssertEqual(images(in: group).filter { $0.image != nil }.count, 3)
+        let format = UIGraphicsImageRendererFormat(); format.scale = 1
+        let image = UIGraphicsImageRenderer(bounds: group.bounds, format: format).image { ctx in
+            group.layer.render(in: ctx.cgContext)
+        }
         XCTAssertEqual(image.size.height, 104, accuracy: 1)
         XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 106, y: 52)))
         XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 214, y: 52)))
@@ -669,20 +848,22 @@ final class JournalEntryFlowTests: XCTestCase {
             EntryPhoto(fileName: photo.fileName, displayOrder: index)
         }
 
-        let renderer = ImageRenderer(content: HStack(spacing: 6) {
-            ForEach(photos) { photo in
-                Color.clear
-                    .frame(width: 48, height: 48)
-                    .overlay {
-                        StoredPhotoThumbnail(photo: photo, storage: storage, cornerRadius: 6)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
+        let row = UIStackView()
+        row.spacing = 6; row.backgroundColor = .white
+        for photo in photos {
+            let image = StoredPhotoView()
+            image.layer.cornerRadius = 6
+            image.widthAnchor.constraint(equalToConstant: 48).isActive = true
+            image.heightAnchor.constraint(equalToConstant: 48).isActive = true
+            image.load(photo.fileName, storage: storage)
+            row.addArrangedSubview(image)
         }
-        .background(Color.white))
-        renderer.scale = 1
-
-        let image = try XCTUnwrap(renderer.uiImage)
+        row.frame = CGRect(x: 0, y: 0, width: 156, height: 48)
+        row.layoutIfNeeded()
+        let format = UIGraphicsImageRendererFormat(); format.scale = 1
+        let image = UIGraphicsImageRenderer(bounds: row.bounds, format: format).image { ctx in
+            row.layer.render(in: ctx.cgContext)
+        }
         XCTAssertEqual(image.size.height, 48, accuracy: 1)
         XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 51, y: 24)))
         XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 105, y: 24)))
@@ -942,4 +1123,11 @@ private func qualityPerfP95(_ samples: [Double]) -> String {
     return String(format: "%.2f", sorted[index])
 }
 
+}
+
+/// This controller test drives navigation synchronously; animation timing belongs to UI acceptance.
+private final class FixtureNavigationController: UINavigationController {
+    override func pushViewController(_ viewController: UIViewController, animated: Bool) {
+        super.pushViewController(viewController, animated: false)
+    }
 }
