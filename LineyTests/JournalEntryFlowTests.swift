@@ -27,6 +27,33 @@ final class JournalEntryFlowTests: XCTestCase {
         container = nil
     }
 
+    func testPhotoDetailLoadsWithoutConstraintException() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = PhotoStorage(baseURL: root)
+        let name = try storage.saveJPEG(from: makeJPEGData())
+        for file in [name, "missing-fixture.jpg"] {
+            let photo = EntryPhoto(fileName: file, displayOrder: 0)
+            let detail = PhotoDetailViewController(photo: photo, storage: storage)
+            detail.loadViewIfNeeded()
+            detail.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+            detail.view.layoutIfNeeded()
+            func images(in view: UIView) -> [StoredPhotoView] {
+                (view as? StoredPhotoView).map { [$0] } ?? view.subviews.flatMap { images(in: $0) }
+            }
+            let image = try XCTUnwrap(images(in: detail.view).first)
+            XCTAssertEqual(image.bounds.height, 844 * 0.6, accuracy: 1)
+            if file == name {
+                for _ in 0..<100 {
+                    if image.image != nil { break }
+                    try await Task.sleep(for: .milliseconds(10))
+                }
+                XCTAssertNotNil(image.image)
+            }
+            XCTAssertEqual(detail.navigationItem.rightBarButtonItems?.count, 2)
+        }
+    }
+
     func testNativeDesignRendering() async throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let window = UIWindow(windowScene: scene)

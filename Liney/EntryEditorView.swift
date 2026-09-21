@@ -630,8 +630,8 @@ final class PhotoDetailViewController: UIViewController {
         let image = StoredPhotoView(); image.contentMode = .scaleAspectFit
         image.load(photo.fileName, storage: storage, pixels: PhotoStorage.targetLongEdge)
         let info = [photo.capturedAt?.formatted(date: .long, time: .shortened), photo.placeDisplayText].compactMap { $0 }.joined(separator: "\n")
-        image.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.6).isActive = true
         installStack([image, bodyLabel(info, style: .footnote)])
+        image.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.6).isActive = true
         var actions: [UIAction] = []
         if photo.hasUsableEntryInfo { actions.append(UIAction(title: String(localized: "Use as Entry Info")) { [weak self] _ in self?.useInfo?() }) }
         actions.append(UIAction(title: String(localized: "Delete Photo"), attributes: .destructive) { [weak self] _ in
