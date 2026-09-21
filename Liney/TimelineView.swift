@@ -158,9 +158,13 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         let entry = JournalEntry()
         context.insert(entry)
         let editor = EntryEditorViewController(entry: entry, isNew: true, context: context)
-        let navigation = UINavigationController(rootViewController: editor)
-        navigation.isModalInPresentation = true
-        present(navigation, animated: true)
+        if splitViewController?.isCollapsed != false {
+            navigationController?.pushViewController(editor, animated: true)
+        } else {
+            let navigation = UINavigationController(rootViewController: editor)
+            navigation.isModalInPresentation = true
+            present(navigation, animated: true)
+        }
     }
     private func importJournal() {
         present(UINavigationController(rootViewController: ImportJournalViewController(container: container)), animated: true)

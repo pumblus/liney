@@ -46,9 +46,10 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16),
             stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 16),
             stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
+            stack.heightAnchor.constraint(greaterThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor, constant: -40),
             stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
         ])
-        titleField.accessibilityLabel = String(localized: "Title")
+        titleField.accessibilityLabel = String(localized: "Title (optional)")
         titleField.font = .preferredFont(forTextStyle: .title2)
         titleField.adjustsFontForContentSizeCategory = true
         titleField.delegate = self
@@ -58,15 +59,28 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         let delete = UIBarButtonItem(image: UIImage(systemName: "trash"), primaryAction: UIAction { [weak self] _ in self?.confirmDeleteEntry() })
         delete.accessibilityLabel = String(localized: "Delete Entry")
         navigationItem.rightBarButtonItems = [doneButton, insertButton, delete]
-        // Done is the explicit save boundary, including iPad detail replacement.
-        navigationItem.hidesBackButton = true
+        navigationItem.backButtonDisplayMode = .minimal
         rebuild()
         NotificationCenter.default.addObserver(self, selector: #selector(flushBeforeSceneDeactivation(_:)), name: UIScene.willDeactivateNotification, object: nil)
     }
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        if !finished { _ = flush() }
+        if !finished {
+            view.endEditing(true)
+            _ = flush()
+        }
     }
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        guard isMovingFromParent || navigationController == nil, !finished else { return }
+        do {
+            try saveEntryChanges(entry, in: context, discardIfBlank: isNew)
+            finished = true
+            saveTask?.cancel()
+            NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
+        } catch { saveError() }
+    }
+
     @objc private func flushBeforeSceneDeactivation(_ notification: Notification) {
         // Each iPad window has its own lifecycle and editor context.
         guard let scene = notification.object as? UIWindowScene,
@@ -99,6 +113,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             previous = block
         }
         if previous == nil || previous?.kind == .photoGroup { addText(block: nil, after: previous) }
+        // Only the final writing field absorbs spare height; earlier blocks keep their size.
+        textViews.last?.setContentHuggingPriority(UILayoutPriority(249), for: .vertical)
         updateTextSpacing()
         if let focusAfter, let text = textViews.first(where: { $0.previousBlockID == focusAfter }) {
             text.becomeFirstResponder(); text.selectedRange = NSRange(location: 0, length: 0)
@@ -244,6 +260,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         guard !addingPhotos, !finished else { return }
         view.endEditing(true)
         addingPhotos = true
+        navigationItem.hidesBackButton = true
         navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = false }
         let progress = ProcessingViewController(title: String(localized: "Insert Photos"), message: String(localized: "Adding Photos…"))
         addChild(progress)
@@ -268,6 +285,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             scroll.accessibilityElementsHidden = false
             defer {
                 addingPhotos = false
+                navigationItem.hidesBackButton = false
                 navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = true }
                 if presentedViewController == nil {
                     UIAccessibility.post(notification: .layoutChanged, argument: insertButton)
@@ -366,7 +384,7 @@ private final class EntryTitleView: UITextView {
         backgroundColor = .clear
         textContainerInset = .zero
         textContainer.lineFragmentPadding = 0
-        placeholder.text = String(localized: "Title")
+        placeholder.text = String(localized: "Title (optional)")
         placeholder.font = .preferredFont(forTextStyle: .title2)
         placeholder.adjustsFontForContentSizeCategory = true
         placeholder.textColor = .placeholderText
@@ -386,6 +404,7 @@ private final class EntryTitleView: UITextView {
 final class BlockTextView: UITextView {
     var blockID: UUID?
     var previousBlockID: UUID?
+    private let placeholder = UILabel()
     private var checklistButtons: [(range: NSRange, button: UIButton)] = []
     private var formattedText: String?
     private var formattedCategory: UIContentSizeCategory?
@@ -406,11 +425,27 @@ final class BlockTextView: UITextView {
         accessibilityHint = String(localized: "Write something...")
         minimumHeight = heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         minimumHeight.isActive = true
+        placeholder.text = String(localized: "Write something...")
+        placeholder.font = .preferredFont(forTextStyle: .body)
+        placeholder.adjustsFontForContentSizeCategory = true
+        placeholder.textColor = .placeholderText
+        placeholder.numberOfLines = 0
+        placeholder.isAccessibilityElement = false
+        placeholder.isUserInteractionEnabled = false
+        placeholder.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(placeholder)
+        NSLayoutConstraint.activate([
+            placeholder.leadingAnchor.constraint(equalTo: leadingAnchor),
+            placeholder.trailingAnchor.constraint(equalTo: trailingAnchor),
+            placeholder.topAnchor.constraint(equalTo: topAnchor, constant: 8),
+            heightAnchor.constraint(greaterThanOrEqualTo: placeholder.heightAnchor, constant: 16)
+        ])
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     /// The stored text stays portable. Only its leading checklist markers receive native controls.
     func refreshChecklist() {
+        placeholder.isHidden = !text.isEmpty
         guard markedTextRange == nil,
               formattedText != text || formattedCategory != traitCollection.preferredContentSizeCategory else { return }
         formattedText = text

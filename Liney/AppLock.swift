@@ -179,8 +179,24 @@ final class LockedJournalController: UIViewController {
         view.backgroundColor = .systemBackground
         view.accessibilityViewIsModal = true
         button = actionButton(String(localized: "Unlock"), action: unlock)
-        installStack([bodyLabel(String(localized: "Liney Locked"), style: .title2),
-                      bodyLabel(String(localized: "Unlock to view your private journal.")), button], centered: true)
+        button.setContentHuggingPriority(.required, for: .vertical)
+        button.configuration?.cornerStyle = .capsule
+        button.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 28, bottom: 14, trailing: 28)
+        let symbol = UIImageView(image: UIImage(systemName: "lock.fill"))
+        symbol.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 36, weight: .regular)
+        symbol.tintColor = .secondaryLabel
+        symbol.contentMode = .center
+        symbol.isAccessibilityElement = false
+        symbol.heightAnchor.constraint(equalToConstant: 64).isActive = true
+        let heading = bodyLabel(String(localized: "Liney Locked"), style: .title2)
+        heading.textAlignment = .center
+        heading.accessibilityTraits.insert(.header)
+        let detail = bodyLabel(String(localized: "Unlock to view your private journal."))
+        detail.textAlignment = .center
+        detail.textColor = .secondaryLabel
+        let buttonRow = UIStackView(arrangedSubviews: [UIView(), button, UIView()])
+        buttonRow.arrangedSubviews[0].widthAnchor.constraint(equalTo: buttonRow.arrangedSubviews[2].widthAnchor).isActive = true
+        installStack([symbol, heading, detail, buttonRow], centered: true)
         update()
     }
     func update() { button?.isEnabled = !appLock.isAuthenticating }

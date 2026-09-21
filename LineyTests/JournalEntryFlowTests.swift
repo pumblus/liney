@@ -95,6 +95,20 @@ final class JournalEntryFlowTests: XCTestCase {
                 statusAttachment.name = "Native processing \(suffix)"
                 statusAttachment.lifetime = .keepAlways
                 add(statusAttachment)
+
+                let locked = LockedJournalController(appLock: AppLockModel(), unlock: {})
+                locked.traitOverrides.preferredContentSizeCategory = category
+                locked.overrideUserInterfaceStyle = style
+                window.rootViewController = locked
+                window.layoutIfNeeded()
+                try await Task.sleep(for: .milliseconds(50))
+                let lockImage = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                    window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                }
+                let lockAttachment = XCTAttachment(image: lockImage)
+                lockAttachment.name = "Native lock \(suffix)"
+                lockAttachment.lifetime = .keepAlways
+                add(lockAttachment)
             }
         }
     }
@@ -1409,7 +1423,7 @@ struct TimelineDeletionTests {
             #expect(search.presentingViewController != nil)
         }
         func titleInput(in view: UIView) -> UITextView? {
-            if let input = view as? UITextView, input.accessibilityLabel == String(localized: "Title") { return input }
+            if let input = view as? UITextView, input.accessibilityLabel == String(localized: "Title (optional)") { return input }
             return view.subviews.lazy.compactMap { titleInput(in: $0) }.first
         }
         let input = try #require(titleInput(in: editor.view))
@@ -1683,5 +1697,71 @@ struct NativeDesignTests {
             return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
         }
         return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
+    }
+}
+
+@MainActor
+struct EditorUsabilityTests {
+    private func descendants<T: UIView>(_ view: UIView, as type: T.Type) -> [T] {
+        (view as? T).map { [$0] } ?? view.subviews.flatMap { descendants($0, as: type) }
+    }
+
+    @Test func emptyBodyFillsWritingAreaAndNavigationRemainsNative() throws {
+        let container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let entry = JournalEntry(title: "Fixture title")
+        context.insert(entry)
+        let editor = EntryEditorViewController(entry: entry, isNew: true, context: context)
+        let navigation = UINavigationController(rootViewController: UIViewController())
+        navigation.pushViewController(editor, animated: false)
+        let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = navigation
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        window.layoutIfNeeded()
+        editor.view.layoutIfNeeded()
+        let body = try #require(descendants(editor.view, as: BlockTextView.self).last)
+        #expect(body.bounds.height > 200)
+        #expect(descendants(body, as: UILabel.self).contains { $0.text == String(localized: "Write something...") && !$0.isHidden })
+        #expect(!editor.navigationItem.hidesBackButton)
+        #expect(body.becomeFirstResponder())
+        body.text = "Fixture body"
+        editor.textViewDidChange(body)
+        #expect(editor.flush())
+        #expect(entry.plainTextBody == "Fixture body")
+        navigation.popViewController(animated: false)
+        #expect(try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()).first?.plainTextBody == "Fixture body")
+
+        let blank = JournalEntry()
+        context.insert(blank)
+        let blankEditor = EntryEditorViewController(entry: blank, isNew: true, context: context)
+        navigation.pushViewController(blankEditor, animated: false)
+        navigation.popViewController(animated: false)
+        #expect(try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()).count == 1)
+    }
+
+    @Test func leavingAllDayUsesCurrentTimeOnSelectedDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let day = try #require(calendar.date(from: DateComponents(year: 2020, month: 3, day: 8, hour: 13)))
+        let entry = JournalEntry(entryDate: day)
+        entry.setAllDay(true, calendar: calendar)
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 9, day: 21, hour: 19, minute: 38)))
+        entry.setAllDay(false, calendar: calendar, now: now)
+        #expect(calendar.isDate(entry.entryDate, inSameDayAs: day))
+        let actual = calendar.dateComponents([.hour, .minute], from: entry.entryDate)
+        #expect(actual == calendar.dateComponents([.hour, .minute], from: now))
+    }
+
+    @Test func lockButtonHasCompactHeight() throws {
+        let controller = LockedJournalController(appLock: AppLockModel(), unlock: {})
+        controller.loadViewIfNeeded()
+        controller.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        controller.view.layoutIfNeeded()
+        let button = try #require(descendants(controller.view, as: UIButton.self).first)
+        #expect(button.bounds.height >= 44)
+        #expect(button.bounds.height < 100)
     }
 }

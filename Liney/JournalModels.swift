@@ -250,10 +250,15 @@ extension JournalEntry {
         return entryLocation.distance(from: photoLocation) > Self.photoInfoPromptDistanceMeters
     }
 
-    func setAllDay(_ allDay: Bool, calendar: Calendar = .current) {
+    func setAllDay(_ allDay: Bool, calendar: Calendar = .current, now: Date = .now) {
+        guard allDay != isAllDay else { return }
         isAllDay = allDay
         if allDay {
             entryDate = calendar.startOfDay(for: entryDate)
+        } else {
+            let time = calendar.dateComponents([.hour, .minute], from: now)
+            entryDate = calendar.date(bySettingHour: time.hour ?? 0, minute: time.minute ?? 0,
+                                      second: 0, of: entryDate) ?? entryDate
         }
     }
 

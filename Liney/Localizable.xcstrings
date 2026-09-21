@@ -1,6 +1,22 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+  "Title (optional)": {
+    "localizations": {
+      "en": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "Title (optional)"
+        }
+      },
+      "zh-Hans": {
+        "stringUnit": {
+          "state": "translated",
+          "value": "标题（选填）"
+        }
+      }
+    }
+  },
     "Adding Photos…" : {
       "extractionState" : "manual",
       "localizations" : {
