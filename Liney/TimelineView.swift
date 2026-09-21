@@ -12,9 +12,11 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     private var searchTask: Task<Void, Never>?
     private let search = UISearchController(searchResultsController: nil)
     private var exportFlow: ExportJournalFlow?
+    private let storage: PhotoStorage
 
-    init(container: ModelContainer, appLock: AppLockModel) {
+    init(container: ModelContainer, appLock: AppLockModel, storage: PhotoStorage = PhotoStorage()) {
         self.container = container; self.appLock = appLock
+        self.storage = storage
         repository = TimelineRepository(container: container)
         super.init(style: .insetGrouped)
     }
@@ -91,11 +93,52 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "entry", for: indexPath) as! EntryCell
-        cell.configure(groups[indexPath.section].entries[indexPath.row])
+        cell.configure(groups[indexPath.section].entries[indexPath.row], storage: storage)
         return cell
     }
     override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
         (cell as? EntryCell)?.cancelImages()
+    }
+    override func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
+        let id = groups[indexPath.section].entries[indexPath.row].id
+        let delete = UIContextualAction(style: .destructive, title: String(localized: "Delete Entry")) { [weak self] _, _, completion in
+            // Close the swipe without removing the row before confirmation and persistence.
+            completion(false)
+            self?.confirmDeleteEntry(id: id)
+        }
+        delete.image = UIImage(systemName: "trash")
+        let configuration = UISwipeActionsConfiguration(actions: [delete])
+        configuration.performsFirstActionWithFullSwipe = false
+        return configuration
+    }
+    func confirmDeleteEntry(id: UUID) {
+        if let detail = splitViewController?.viewController(for: .secondary) as? UINavigationController,
+           let editor = detail.topViewController as? EntryEditorViewController, editor.entry.id == id {
+            editor.confirmDeleteEntry()
+            return
+        }
+        confirmDeletion(title: String(localized: "Delete Entry"), message: String(localized: "This entry and its photos will be permanently deleted.")) { [weak self] in
+            self?.deleteEntry(id: id)
+        }
+    }
+    func deleteEntry(id: UUID) {
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        do {
+            let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id })
+            guard let entry = try context.fetch(descriptor).first else { reloadEntries(); return }
+            let files = try deleteEntryAndSave(entry, in: context)
+            NotificationCenter.default.post(name: .journalDidChange, object: id)
+            var cleanupFailed = false
+            for file in files {
+                do { try storage.delete(fileName: file) } catch { cleanupFailed = true }
+            }
+            if cleanupFailed {
+                showError(String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "Some copied photo files could not be deleted."))
+            }
+        } catch {
+            showError(String(localized: "Could Not Save Entry"), message: String(localized: "Your changes could not be saved. Please try again."))
+        }
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         if let detail = splitViewController?.viewController(for: .secondary) as? UINavigationController,
@@ -161,7 +204,7 @@ private final class EntryCell: UITableViewCell {
         accessoryType = .disclosureIndicator
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    func configure(_ entry: TimelineEntry) {
+    func configure(_ entry: TimelineEntry, storage: PhotoStorage) {
         heading.text = entry.rowTitle; subtitle.text = entry.rowSubtitle
         subtitle.isHidden = entry.rowSubtitle == nil
         heading.numberOfLines = traitCollection.preferredContentSizeCategory.isAccessibilityCategory ? 3 : 1
@@ -170,7 +213,7 @@ private final class EntryCell: UITableViewCell {
         photos.isHidden = previews.isEmpty
         for (index, image) in thumbnails.enumerated() {
             image.cancel(); image.isHidden = index >= previews.count
-            if index < previews.count { image.load(previews[index], pixels: 160) }
+            if index < previews.count { image.load(previews[index], storage: storage, pixels: 160) }
         }
         photos.isAccessibilityElement = true
         photos.accessibilityLabel = String(localized: "Entry Photos")

@@ -337,14 +337,15 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         for name in names { do { try storage.delete(fileName: name) } catch { success = false } }
         return success
     }
-    private func confirmDeleteEntry() {
-        guard !addingPhotos, flush() else { return }
+    func confirmDeleteEntry() {
+        guard !addingPhotos, !finished, flush() else { return }
         confirmDeletion(title: String(localized: "Delete Entry"), message: String(localized: "This entry and its photos will be permanently deleted.")) { [weak self] in
             guard let self else { return }
             do {
+                let id = self.entry.id
                 let files = try deleteEntryAndSave(self.entry, in: self.context)
                 self.finished = true; self.saveTask?.cancel()
-                NotificationCenter.default.post(name: .journalDidChange, object: self.entry.id)
+                NotificationCenter.default.post(name: .journalDidChange, object: id)
                 if self.removeFiles(files) { self.closeEditor() }
                 else {
                     let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "Some copied photo files could not be deleted."), preferredStyle: .alert)
