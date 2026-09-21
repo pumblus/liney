@@ -102,8 +102,8 @@ final class DayOneImportTests: XCTestCase {
         XCTAssertEqual(entry.externalSourceID, "entry-1")
         XCTAssertEqual(entry.locationDisplayText, "Paris")
         XCTAssertEqual(entry.orderedBlocks.map(\.kind), [.text, .photoGroup, .text])
-        XCTAssertEqual(entry.orderedBlocks[0].text, "Before\n")
-        XCTAssertEqual(entry.orderedBlocks[2].text, "\nAfter")
+        XCTAssertEqual(entry.orderedBlocks[0].text, "Before")
+        XCTAssertEqual(entry.orderedBlocks[2].text, "After")
 
         let photo = try XCTUnwrap(entry.photoGroupBlocks.first?.orderedPhotos.first)
         XCTAssertTrue(FileManager.default.fileExists(atPath: photoStorage.url(for: photo.fileName).path))
@@ -122,7 +122,7 @@ final class DayOneImportTests: XCTestCase {
         XCTAssertEqual(summary.importedEntries, 1)
         let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
         XCTAssertEqual(entry.orderedBlocks.map(\.kind), [.text, .photoGroup, .text])
-        XCTAssertEqual(entry.textBlocks.map(\.text), ["Before\n", "\nAfter"])
+        XCTAssertEqual(entry.textBlocks.map(\.text), ["Before", "After"])
         XCTAssertEqual(entry.photoGroupBlocks.first?.photos.count, 2)
     }
 
@@ -354,7 +354,7 @@ final class DayOneImportTests: XCTestCase {
         XCTAssertEqual(summary.importedEntries, 1)
         XCTAssertEqual(summary.failedPhotos, 1)
         let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
-        XCTAssertEqual(entry.plainTextBody, "Good text.\n")
+        XCTAssertEqual(entry.plainTextBody, "Good text.")
         XCTAssertTrue(entry.photoGroupBlocks.isEmpty)
     }
 
@@ -487,11 +487,77 @@ final class DayOneImportTests: XCTestCase {
         XCTAssertEqual(summary.importedEntries, 2)
         let entries = try context.fetch(FetchDescriptor<JournalEntry>())
         let markdown = try XCTUnwrap(entries.first { $0.externalSourceID == "markdown" })
-        XCTAssertEqual(markdown.plainTextBody, "Heading\n• Bold and italic\n☑ Done\nVersion 1. Link (https://example.com)")
+        XCTAssertEqual(markdown.title, "Heading")
+        XCTAssertEqual(markdown.plainTextBody, "• Bold and italic\n☑ Done\nVersion 1. Link (https://example.com)")
         let fallback = try XCTUnwrap(entries.first { $0.externalSourceID == "rich" })
         XCTAssertTrue(fallback.plainTextBody.contains("☑ Done"))
         XCTAssertTrue(fallback.plainTextBody.contains("Literal *stars* and _underscores_"))
         XCTAssertEqual(fallback.photoCount, 1)
+    }
+
+    func testImportUsesLineyTitleSpacingAndChecklistConventions() async throws {
+        let archive = try makeArchive(journals: ["Journal.json": [[
+            "uuid": "layout", "creationDate": "2026-01-01T00:00:00Z",
+            "text": "# A **quiet** day\n\nFirst paragraph.\n\nSecond paragraph.\n\n![](dayone-moment://p)\n\n- [ ] Testing\n- [x] Finished\n\n---\n\nClosing.",
+            "photos": [["identifier": "p", "type": "jpg"]]
+        ]]], media: ["photos/p.jpg": makeJPEGData()])
+        _ = try await importArchive(archive)
+        let entry = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(entry.title, "A quiet day")
+        XCTAssertEqual(entry.orderedBlocks.map(\.kind), [.text, .photoGroup, .text])
+        XCTAssertEqual(entry.textBlocks.map(\.text), [
+            "First paragraph.\n\nSecond paragraph.", "☐ Testing\n☑ Finished\n\n———\n\nClosing."
+        ])
+    }
+
+    func testHeadingOnlyAndPhotoFirstEntriesPreserveMeaning() async throws {
+        let archive = try makeArchive(journals: ["Journal.json": [
+            ["uuid": "heading-only", "creationDate": "2026-01-01T00:00:00Z", "text": "# Heading only"],
+            ["uuid": "photo-first", "creationDate": "2026-01-01T00:00:00Z",
+             "text": "![](dayone-moment://p)\n\n# Heading after photo\n\nBody",
+             "photos": [["identifier": "p", "type": "jpg"]]],
+            ["uuid": "explicit", "creationDate": "2026-01-01T00:00:00Z", "title": "Explicit", "text": "# Other heading\n\nBody"]
+        ]], media: ["photos/p.jpg": makeJPEGData()])
+        let summary = try await importArchive(archive)
+        XCTAssertEqual(summary.importedEntries, 3)
+        let entries = try context.fetch(FetchDescriptor<JournalEntry>())
+        let heading = try XCTUnwrap(entries.first { $0.externalSourceID == "heading-only" })
+        XCTAssertEqual(heading.title, "Heading only")
+        XCTAssertTrue(heading.blocks.isEmpty)
+        let photoFirst = try XCTUnwrap(entries.first { $0.externalSourceID == "photo-first" })
+        XCTAssertTrue(photoFirst.title.isEmpty)
+        XCTAssertEqual(photoFirst.orderedBlocks.map(\.kind), [.photoGroup, .text])
+        XCTAssertEqual(photoFirst.plainTextBody, "Heading after photo\n\nBody")
+        let explicit = try XCTUnwrap(entries.first { $0.externalSourceID == "explicit" })
+        XCTAssertEqual(explicit.title, "Explicit")
+        XCTAssertEqual(explicit.plainTextBody, "Other heading\n\nBody")
+    }
+
+    func testRichTextTitleAndCodeWhitespaceRemainReadable() async throws {
+        let rich: [String: Any] = ["contents": [
+            ["attributes": ["line": ["header": 1]], "text": "Rich title\n"],
+            ["text": "Literal *stars* and _underscores_\n"],
+            ["attributes": ["line": ["listStyle": "checkbox", "checked": false]], "text": "Pending\n"],
+            ["attributes": ["line": ["listStyle": "checkbox", "checked": true]], "text": "Done"]
+        ]]
+        let archive = try makeArchive(journals: ["Journal.json": [
+            ["uuid": "rich-layout", "creationDate": "2026-01-01T00:00:00Z", "richText": rich],
+            ["uuid": "literal-rich", "creationDate": "2026-01-01T00:00:00Z",
+             "richText": ["contents": [["text": "# Not a title\n---\n[Literal](label)"]]]],
+            ["uuid": "code-layout", "creationDate": "2026-01-01T00:00:00Z",
+             "text": "# Title\r\n\r\nParagraph\r\n\r\n```\r\n  # literal\r\n\r\n    code\r\n```\r\n\r\nEnd"]
+        ]])
+        _ = try await importArchive(archive)
+        let entries = try context.fetch(FetchDescriptor<JournalEntry>())
+        let fallback = try XCTUnwrap(entries.first { $0.externalSourceID == "rich-layout" })
+        XCTAssertEqual(fallback.title, "Rich title")
+        XCTAssertEqual(fallback.plainTextBody, "Literal *stars* and _underscores_\n☐ Pending\n☑ Done")
+        let code = try XCTUnwrap(entries.first { $0.externalSourceID == "code-layout" })
+        XCTAssertEqual(code.title, "Title")
+        XCTAssertTrue(code.plainTextBody.contains("  # literal\n\n    code"))
+        let literal = try XCTUnwrap(entries.first { $0.externalSourceID == "literal-rich" })
+        XCTAssertTrue(literal.title.isEmpty)
+        XCTAssertEqual(literal.plainTextBody, "# Not a title\n---\n[Literal](label)")
     }
 
     func testRecoverySurvivesReopeningAndPreservesOriginalOrder() async throws {

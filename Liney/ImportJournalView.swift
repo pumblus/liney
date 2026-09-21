@@ -10,7 +10,12 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
     private var task: Task<Void, Never>?
     private var busy = false
     private var progress = DayOneImportProgress(processedEntries: 0, totalEntries: 0)
-    private var rows: [String] = []
+    private struct Row {
+        let text: String
+        var value: String? = nil
+    }
+    private var rows: [Row] = []
+    private var footer: String?
     private let onFinished: (() -> Void)?
 
     init(container: ModelContainer, plan: DayOneImportPlan? = nil, summary: DayOneImportSummary? = nil, onFinished: (() -> Void)? = nil) {
@@ -22,12 +27,17 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func viewDidLoad() {
         super.viewDidLoad()
+        tableView.sectionFooterHeight = UITableView.automaticDimension
+        tableView.estimatedSectionFooterHeight = 240
         NotificationCenter.default.addObserver(self, selector: #selector(cancelInBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: ImportJournalViewController, _: UITraitCollection) in
+            controller.tableView.reloadData()
+        }
         render()
     }
     @objc private func cancelInBackground() { task?.cancel() }
     private var scope: [String] { [
-        String(localized: "Text, photos, entry dates and available locations are imported into one timeline. Formatting becomes plain text. Photos are saved as compressed JPEGs up to 2400 pixels on the long edge."),
+        String(localized: "Text, photos, entry dates and available locations are imported into one timeline. Leading titles and checklist states are preserved; other formatting becomes plain text. Photos are saved as compressed JPEGs up to 2400 pixels on the long edge."),
         String(localized: "Videos, audio, PDFs, other attachments, tags, weather and other Day One metadata are not kept. Original journal divisions are not kept. Timed entries use your device’s time zone."),
         String(localized: "Keep Liney open during import. Cancelling keeps saved entries. Import the zip again to continue or recover failed photos; existing text and edits are kept. Older imports without recovery information are skipped.")
     ] }
@@ -36,21 +46,25 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
         title = String(localized: "Import from Day One")
         navigationItem.leftBarButtonItem = UIBarButtonItem(title: String(localized: "Cancel"), primaryAction: UIAction { [weak self] _ in self?.cancel() })
         navigationItem.rightBarButtonItem = nil
+        footer = nil
         if busy {
             rows = [progress.totalEntries == 0 ? String(localized: "Preparing Archive…") : String(localized: "Importing..."),
-                    "\(progress.processedEntries)/\(progress.totalEntries)", String(localized: "Keep Liney open. Cancelling keeps saved entries.")]
+                    "\(progress.processedEntries)/\(progress.totalEntries)", String(localized: "Keep Liney open. Cancelling keeps saved entries.")].map { Row(text: $0) }
         } else if let summary {
             title = summary.wasCancelled ? String(localized: "Import Cancelled") : (summary.failedEntries > 0 || summary.failedPhotos > 0 ? String(localized: "Import Needs Review") : String(localized: "Import Complete"))
-            rows = Self.summaryRows(summary)
+            rows = Self.summaryRows(summary).map { Row(text: $0) }
             navigationItem.leftBarButtonItem = nil
             navigationItem.rightBarButtonItem = UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in self?.finish() })
         } else if let plan {
-            rows = ["\(String(localized: "Entries")): \(plan.entryCount)", "\(String(localized: "Photos")): \(plan.photoCount)",
-                    "\(String(localized: "Unsupported Media")): \(plan.unsupportedMediaCount)", "\(String(localized: "Unsupported Metadata")): \(plan.ignoredMetadataCount)"] + scope
+            rows = [Row(text: String(localized: "Entries"), value: plan.entryCount.formatted()),
+                    Row(text: String(localized: "Photos"), value: plan.photoCount.formatted()),
+                    Row(text: String(localized: "Unsupported Media"), value: plan.unsupportedMediaCount.formatted()),
+                    Row(text: String(localized: "Unsupported Metadata"), value: plan.ignoredMetadataCount.formatted())]
+            footer = scope.joined(separator: "\n\n")
             navigationItem.rightBarButtonItem = UIBarButtonItem(title: String(localized: "Import"), primaryAction: UIAction { [weak self] _ in self?.startImport() })
         } else {
-            rows = [String(localized: "In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here."),
-                    String(localized: "Automatic backups may omit photos. Keep the original export until you have checked the imported entries.")] + scope + [String(localized: "Choose JSON Zip")]
+            rows = ([String(localized: "In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here."),
+                    String(localized: "Automatic backups may omit photos. Keep the original export until you have checked the imported entries.")] + scope + [String(localized: "Choose JSON Zip")]).map { Row(text: $0) }
         }
         tableView.reloadData()
     }
@@ -76,13 +90,29 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { rows.count }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "row") ?? UITableViewCell(style: .default, reuseIdentifier: "row")
-        var config = cell.defaultContentConfiguration(); config.text = rows[indexPath.row]
+        let row = rows[indexPath.row]
+        var config = row.value == nil ? cell.defaultContentConfiguration() : UIListContentConfiguration.valueCell()
+        config.text = row.text
+        config.secondaryText = row.value
         config.textProperties.numberOfLines = 0
+        config.secondaryTextProperties.numberOfLines = 0
+        config.prefersSideBySideTextAndSecondaryText = !traitCollection.preferredContentSizeCategory.isAccessibilityCategory
         let isChoose = !busy && plan == nil && summary == nil && indexPath.row == rows.count - 1
         config.textProperties.color = isChoose ? view.tintColor : .label
         cell.contentConfiguration = config; cell.selectionStyle = isChoose ? .default : .none
         cell.accessibilityTraits = isChoose ? .button : .staticText
         return cell
+    }
+    override func tableView(_ tableView: UITableView, viewForFooterInSection section: Int) -> UIView? {
+        guard let footer else { return nil }
+        let view = tableView.dequeueReusableHeaderFooterView(withIdentifier: "notes")
+            ?? UITableViewHeaderFooterView(reuseIdentifier: "notes")
+        var config = UIListContentConfiguration.groupedFooter()
+        config.text = footer
+        config.textProperties.color = .secondaryLabel
+        config.textProperties.numberOfLines = 0
+        view.contentConfiguration = config
+        return view
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         guard !busy, plan == nil, summary == nil, indexPath.row == rows.count - 1 else { return }

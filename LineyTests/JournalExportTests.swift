@@ -37,6 +37,75 @@ final class JournalExportTests: XCTestCase {
         temporaryDirectory = nil
     }
 
+    func testFastExportTransitionsFromProcessingToAnchoredShareSheet() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        let presenter = UIViewController()
+        let source = UIBarButtonItem(systemItem: .action)
+        presenter.navigationItem.rightBarButtonItem = source
+        window.rootViewController = UINavigationController(rootViewController: presenter)
+        window.makeKeyAndVisible()
+        window.layoutIfNeeded()
+        defer { window.isHidden = true }
+        let flow = ExportJournalFlow(presenter: presenter, container: container,
+                                     appLock: AppLockModel(authenticator: ExportFixtureAuthenticator()),
+                                     sourceBarButtonItem: source)
+        var finished = false
+        flow.onFinished = { finished = true }
+        flow.start()
+        for _ in 0..<100 {
+            if presenter.presentedViewController is ProcessingViewController { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let progress = try XCTUnwrap(presenter.presentedViewController as? ProcessingViewController)
+        XCTAssertTrue(progress.isModalInPresentation)
+        for _ in 0..<300 {
+            if presenter.presentedViewController is UIActivityViewController { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let activity = try XCTUnwrap(presenter.presentedViewController as? UIActivityViewController)
+        XCTAssertTrue(activity.popoverPresentationController?.barButtonItem === source)
+        XCTAssertFalse(finished)
+        await withCheckedContinuation { continuation in
+            activity.dismiss(animated: false) { continuation.resume() }
+        }
+        activity.completionWithItemsHandler?(nil, false, nil, nil)
+        for _ in 0..<100 {
+            if finished { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(finished)
+    }
+
+    func testShareSheetAnchorsToInitiatingBarButtonItem() throws {
+        let presenter = UIViewController()
+        let source = UIBarButtonItem(systemItem: .action)
+        presenter.navigationItem.rightBarButtonItem = source
+        let flow = ExportJournalFlow(
+            presenter: presenter, container: container, appLock: AppLockModel(),
+            sourceBarButtonItem: source
+        )
+
+        let activity = flow.makeShareController(for: temporaryDirectory.appendingPathComponent("synthetic.zip"))
+        let popover = try XCTUnwrap(activity.popoverPresentationController)
+
+        XCTAssertTrue(popover.barButtonItem === source)
+        XCTAssertNil(popover.sourceView)
+    }
+
+    func testShareSheetWithoutBarButtonUsesPresenterFallback() throws {
+        let presenter = UIViewController()
+        presenter.view.frame = CGRect(x: 0, y: 0, width: 600, height: 800)
+        let flow = ExportJournalFlow(presenter: presenter, container: container, appLock: AppLockModel())
+
+        let activity = flow.makeShareController(for: temporaryDirectory.appendingPathComponent("synthetic.zip"))
+        let popover = try XCTUnwrap(activity.popoverPresentationController)
+
+        XCTAssertNil(popover.barButtonItem)
+        XCTAssertTrue(popover.sourceView === presenter.view)
+        XCTAssertEqual(popover.sourceRect, CGRect(x: 300, y: 400, width: 1, height: 1))
+    }
+
     func testExportsMarkdownZipWithPhotosAndDeletesTemporaryExport() throws {
         let calendar = utcCalendar()
         let exportRootURL = temporaryDirectory.appendingPathComponent("Exports", isDirectory: true)
@@ -261,4 +330,8 @@ final class JournalExportTests: XCTestCase {
             context.fill(CGRect(origin: .zero, size: size))
         }
     }
+}
+
+private struct ExportFixtureAuthenticator: AppAuthenticating {
+    func authenticate(reason: String) async -> Bool { true }
 }

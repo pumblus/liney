@@ -91,7 +91,7 @@ final class AppLockModel {
 
         let generation = authenticationGeneration
         let success = await authenticator.authenticate(
-            reason: String(localized: "Authenticate to require Face ID for Liney.")
+            reason: String(localized: "Authenticate to enable App Lock for Liney.")
         )
         guard generation == authenticationGeneration else { return false }
         if success {

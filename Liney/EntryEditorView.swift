@@ -10,7 +10,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private let storage = PhotoStorage()
     private let scroll = UIScrollView()
     private let stack = UIStackView()
-    private let titleField = UITextField()
+    private let titleField = EntryTitleView()
     private var textViews: [BlockTextView] = []
     private var photoGroups: [PhotoGroupView] = []
     private weak var focusedText: BlockTextView?
@@ -48,11 +48,10 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
             stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
         ])
-        titleField.placeholder = String(localized: "Title")
         titleField.accessibilityLabel = String(localized: "Title")
         titleField.font = .preferredFont(forTextStyle: .title2)
         titleField.adjustsFontForContentSizeCategory = true
-        titleField.addAction(UIAction { [weak self] _ in self?.scheduleSave() }, for: .editingChanged)
+        titleField.delegate = self
         insertButton = UIBarButtonItem(image: UIImage(systemName: "photo.on.rectangle"), primaryAction: UIAction { [weak self] _ in self?.pickPhotos() })
         insertButton.accessibilityLabel = String(localized: "Insert Photos")
         doneButton = UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in self?.finish() })
@@ -62,13 +61,19 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         // Done is the explicit save boundary, including iPad detail replacement.
         navigationItem.hidesBackButton = true
         rebuild()
-        NotificationCenter.default.addObserver(self, selector: #selector(flushBeforeBackground), name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(flushBeforeSceneDeactivation(_:)), name: UIScene.willDeactivateNotification, object: nil)
     }
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         if !finished { _ = flush() }
     }
-    @objc private func flushBeforeBackground() { if !finished { view.endEditing(true); _ = flush() } }
+    @objc private func flushBeforeSceneDeactivation(_ notification: Notification) {
+        // Each iPad window has its own lifecycle and editor context.
+        guard let scene = notification.object as? UIWindowScene,
+              scene === viewIfLoaded?.window?.windowScene, !finished else { return }
+        view.endEditing(true)
+        _ = flush()
+    }
 
     private func rebuild(focusAfter: UUID? = nil) {
         stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
@@ -94,6 +99,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             previous = block
         }
         if previous == nil || previous?.kind == .photoGroup { addText(block: nil, after: previous) }
+        updateTextSpacing()
         if let focusAfter, let text = textViews.first(where: { $0.previousBlockID == focusAfter }) {
             text.becomeFirstResponder(); text.selectedRange = NSRange(location: 0, length: 0)
             scroll.layoutIfNeeded()
@@ -122,8 +128,21 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     func textViewDidChange(_ textView: UITextView) {
         textView.invalidateIntrinsicContentSize()
         guard textView.markedTextRange == nil else { return }
+        if textView === titleField { titleField.refreshPlaceholder() }
+        (textView as? BlockTextView)?.refreshChecklist()
+        updateTextSpacing()
         synchronizeText()
         scheduleSave()
+    }
+    private func updateTextSpacing() {
+        let views = stack.arrangedSubviews
+        views.forEach { stack.setCustomSpacing(UIStackView.spacingUseDefault, after: $0) }
+        // Keep the 44-point insertion target, without adding two more gaps around an empty field.
+        for (index, view) in views.enumerated() {
+            guard let text = view as? BlockTextView, text.text.isEmpty else { continue }
+            if index > 0 { stack.setCustomSpacing(0, after: views[index - 1]) }
+            stack.setCustomSpacing(0, after: text)
+        }
     }
     func textViewDidEndEditing(_ textView: UITextView) { synchronizeText(); scheduleSave() }
     private func synchronizeText() {
@@ -217,11 +236,43 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
     private func importPhotos(_ results: [PHPickerResult]) {
         guard !results.isEmpty else { return }
-        addingPhotos = true; insertButton.isEnabled = false; doneButton.isEnabled = false
-        view.isUserInteractionEnabled = false
+        importPhotos { await PhotoPickerImporter(storage: self.storage).importItems(results) }
+    }
+
+    /// The loader boundary also lets fixtures exercise slow transfers without opening Photos.
+    func importPhotos(using load: @escaping () async -> PhotoImportResult) {
+        guard !addingPhotos, !finished else { return }
+        view.endEditing(true)
+        addingPhotos = true
+        navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = false }
+        let progress = ProcessingViewController(title: String(localized: "Insert Photos"), message: String(localized: "Adding Photos…"))
+        addChild(progress)
+        progress.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(progress.view)
+        NSLayoutConstraint.activate([
+            progress.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            progress.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            progress.view.topAnchor.constraint(equalTo: view.topAnchor),
+            progress.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+        progress.didMove(toParent: self)
+        scroll.isUserInteractionEnabled = false
+        scroll.accessibilityElementsHidden = true
+        UIAccessibility.post(notification: .layoutChanged, argument: progress.view)
         Task {
-            let result = await PhotoPickerImporter(storage: storage).importItems(results)
-            defer { addingPhotos = false; insertButton.isEnabled = true; doneButton.isEnabled = true; view.isUserInteractionEnabled = true }
+            let result = await load()
+            progress.willMove(toParent: nil)
+            progress.view.removeFromSuperview()
+            progress.removeFromParent()
+            scroll.isUserInteractionEnabled = true
+            scroll.accessibilityElementsHidden = false
+            defer {
+                addingPhotos = false
+                navigationItem.rightBarButtonItems?.forEach { $0.isEnabled = true }
+                if presentedViewController == nil {
+                    UIAccessibility.post(notification: .layoutChanged, argument: insertButton)
+                }
+            }
             guard let insertion = entry.insertPhotoGroup(photos: result.photos, focusedTextBlockID: pendingBlockID, cursorOffset: pendingOffset, in: context) else {
                 if let alert = result.alert { showError(String(localized: "Some Photos Couldn’t Be Added"), message: alert.message) }
                 return
@@ -305,9 +356,44 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
 }
 
-private final class BlockTextView: UITextView {
+private final class EntryTitleView: UITextView {
+    private let placeholder = UILabel()
+    override var text: String! { didSet { refreshPlaceholder() } }
+    init() {
+        super.init(frame: .zero, textContainer: nil)
+        isScrollEnabled = false
+        backgroundColor = .clear
+        textContainerInset = .zero
+        textContainer.lineFragmentPadding = 0
+        placeholder.text = String(localized: "Title")
+        placeholder.font = .preferredFont(forTextStyle: .title2)
+        placeholder.adjustsFontForContentSizeCategory = true
+        placeholder.textColor = .placeholderText
+        placeholder.isAccessibilityElement = false
+        placeholder.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(placeholder)
+        NSLayoutConstraint.activate([
+            placeholder.leadingAnchor.constraint(equalTo: leadingAnchor),
+            placeholder.topAnchor.constraint(equalTo: topAnchor),
+            heightAnchor.constraint(greaterThanOrEqualTo: placeholder.heightAnchor)
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    func refreshPlaceholder() { placeholder.isHidden = !text.isEmpty }
+}
+
+final class BlockTextView: UITextView {
     var blockID: UUID?
     var previousBlockID: UUID?
+    private var checklistButtons: [(range: NSRange, button: UIButton)] = []
+    private var formattedText: String?
+    private var formattedCategory: UIContentSizeCategory?
+    private var minimumHeight: NSLayoutConstraint!
+    private static let checklistPattern = try! NSRegularExpression(pattern: #"(?m)^[\t ]*[☐☑] "#)
+    private static let listPattern = try! NSRegularExpression(pattern: #"(?m)^[\t ]*(?:• |[0-9]+[.)] )"#)
+    override var text: String! {
+        didSet { formattedText = nil; setNeedsLayout() }
+    }
     init() {
         super.init(frame: .zero, textContainer: nil)
         font = .preferredFont(forTextStyle: .body)
@@ -317,9 +403,123 @@ private final class BlockTextView: UITextView {
         textContainer.lineFragmentPadding = 0
         accessibilityLabel = String(localized: "Body")
         accessibilityHint = String(localized: "Write something...")
-        heightAnchor.constraint(greaterThanOrEqualToConstant: 48).isActive = true
+        minimumHeight = heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
+        minimumHeight.isActive = true
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    /// The stored text stays portable. Only its leading checklist markers receive native controls.
+    func refreshChecklist() {
+        guard markedTextRange == nil,
+              formattedText != text || formattedCategory != traitCollection.preferredContentSizeCategory else { return }
+        formattedText = text
+        formattedCategory = traitCollection.preferredContentSizeCategory
+        minimumHeight.constant = text.isEmpty ? 44 : 0
+        checklistButtons.forEach { $0.button.removeFromSuperview() }
+        checklistButtons.removeAll()
+        accessibilityCustomActions = nil
+        let bodyFont = UIFont.preferredFont(forTextStyle: .body, compatibleWith: traitCollection)
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        textStorage.beginEditing()
+        textStorage.setAttributes([.font: bodyFont, .foregroundColor: UIColor.label], range: fullRange)
+        let source = textStorage.string as NSString
+        for match in Self.listPattern.matches(in: source as String, range: fullRange) {
+            let style = NSMutableParagraphStyle()
+            style.headIndent = (source.substring(with: match.range) as NSString).size(withAttributes: [.font: bodyFont]).width
+            textStorage.addAttribute(.paragraphStyle, value: style, range: source.paragraphRange(for: match.range))
+        }
+        var actions: [UIAccessibilityCustomAction] = []
+        for match in Self.checklistPattern.matches(in: source as String, range: fullRange) {
+            let marker = NSRange(location: NSMaxRange(match.range) - 2, length: 1)
+            let paragraph = source.paragraphRange(for: marker)
+            let style = NSMutableParagraphStyle()
+            let targetSize = max(44, ceil(bodyFont.lineHeight))
+            style.minimumLineHeight = targetSize
+            let indentation = source.substring(with: NSRange(location: match.range.location, length: marker.location - match.range.location))
+            let markerWidth = (source.substring(with: marker) as NSString).size(withAttributes: [.font: bodyFont]).width
+            let spaceWidth = (" " as NSString).size(withAttributes: [.font: bodyFont]).width
+            // Reserve the whole touch target before the text, including at accessibility sizes.
+            style.headIndent = (indentation as NSString).size(withAttributes: [.font: bodyFont]).width + max(targetSize, markerWidth + spaceWidth)
+            textStorage.addAttribute(.paragraphStyle, value: style, range: paragraph)
+            textStorage.addAttributes([.foregroundColor: UIColor.clear, .kern: max(0, targetSize - markerWidth - spaceWidth)], range: marker)
+            let checked = source.substring(with: marker) == "☑"
+            let labelRange = NSRange(location: NSMaxRange(match.range), length: NSMaxRange(paragraph) - NSMaxRange(match.range))
+            let label = source.substring(with: labelRange).trimmingCharacters(in: .whitespacesAndNewlines)
+            let button = UIButton(type: .system)
+            button.setImage(UIImage(systemName: checked ? "checkmark.square.fill" : "square"), for: .normal)
+            button.setPreferredSymbolConfiguration(.init(pointSize: bodyFont.pointSize + 2), forImageIn: .normal)
+            button.accessibilityIdentifier = "checklist-toggle"
+            button.accessibilityLabel = label
+            button.accessibilityValue = checked ? String(localized: "Completed") : String(localized: "Not completed")
+            button.accessibilityTraits = checked ? [.button, .selected] : [.button]
+            button.addAction(UIAction { [weak self] _ in self?.toggleChecklist(at: marker.location) }, for: .touchUpInside)
+            addSubview(button)
+            checklistButtons.append((marker, button))
+            let actionName = String(checklistButtons.count) + ". " + (checked ? String(localized: "Mark incomplete") : String(localized: "Mark complete")) + ": " + label
+            actions.append(UIAccessibilityCustomAction(name: actionName) { [weak self] _ in
+                self?.toggleChecklist(at: marker.location) ?? false
+            })
+        }
+        textStorage.endEditing()
+        // New typing must never inherit the hidden marker or checklist-only indentation.
+        typingAttributes = [.font: bodyFont, .foregroundColor: UIColor.label]
+        accessibilityCustomActions = actions.isEmpty ? nil : actions
+        invalidateIntrinsicContentSize()
+        setNeedsLayout()
+    }
+
+    @discardableResult
+    private func toggleChecklist(at location: Int) -> Bool {
+        guard markedTextRange == nil, location < textStorage.length else { return false }
+        let range = NSRange(location: location, length: 1)
+        let old = (textStorage.string as NSString).substring(with: range)
+        guard old == "☐" || old == "☑" else { return false }
+        let replacement = old == "☐" ? "☑" : "☐"
+        guard delegate?.textView?(self, shouldChangeTextIn: range, replacementText: replacement) != false else { return false }
+        let selection = selectedRange
+        undoManager?.registerUndo(withTarget: self) { target in target.toggleChecklist(at: location) }
+        textStorage.replaceCharacters(in: range, with: replacement)
+        selectedRange = selection
+        refreshChecklist()
+        delegate?.textViewDidChange?(self)
+        return true
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        refreshChecklist()
+        for (range, button) in checklistButtons {
+            guard let start = position(from: beginningOfDocument, offset: range.location),
+                  let end = position(from: start, offset: 1),
+                  let textRange = self.textRange(from: start, to: end) else { continue }
+            let rect = firstRect(for: textRange)
+            // UIKit places glyphs on the lower baseline of a minimum-height line.
+            // Match that baseline instead of the center of the expanded line fragment.
+            let fontHeight = UIFont.preferredFont(forTextStyle: .body, compatibleWith: traitCollection).lineHeight
+            let targetSize = max(44, ceil(fontHeight))
+            let baselineOffset = max(0, targetSize - fontHeight) / 2
+            button.frame = CGRect(x: max(0, rect.minX), y: rect.midY - targetSize / 2 + baselineOffset, width: targetSize, height: targetSize)
+        }
+    }
+}
+
+/// The photo is a subview rather than a UIButton image, so highlight it explicitly.
+private final class PhotoButton: UIButton {
+    let photoView: StoredPhotoView
+
+    init(photoView: StoredPhotoView) {
+        self.photoView = photoView
+        super.init(frame: .zero)
+        isAccessibilityElement = true
+        accessibilityTraits = .button
+        addSubview(photoView)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override var isHighlighted: Bool {
+        didSet { photoView.alpha = isHighlighted ? 0.6 : 1 }
+    }
 }
 
 final class PhotoGroupView: UIStackView {
@@ -333,16 +533,33 @@ final class PhotoGroupView: UIStackView {
             let row = UIStackView(); row.spacing = 4; row.distribution = .fillEqually
             for index in start..<min(start + columns, photos.count) {
                 let photo = photos[index]
-                let button = UIButton(type: .custom)
                 let image = StoredPhotoView(); image.isAccessibilityElement = false
+                let button = PhotoButton(photoView: image)
                 image.contentMode = photos.count == 1 ? .scaleAspectFit : .scaleAspectFill
                 image.translatesAutoresizingMaskIntoConstraints = false
-                button.addSubview(image)
+                image.onAvailabilityChange = { [weak button] available in
+                    button?.accessibilityValue = available ? nil : String(localized: "Photo unavailable")
+                }
+                let aspect = button.heightAnchor.constraint(equalTo: button.widthAnchor, multiplier: photos.count == 1 ? 0.75 : 1)
+                aspect.identifier = "photo-aspect"
                 NSLayoutConstraint.activate([
                     image.leadingAnchor.constraint(equalTo: button.leadingAnchor), image.trailingAnchor.constraint(equalTo: button.trailingAnchor),
                     image.topAnchor.constraint(equalTo: button.topAnchor), image.bottomAnchor.constraint(equalTo: button.bottomAnchor),
-                    button.heightAnchor.constraint(equalTo: button.widthAnchor, multiplier: photos.count == 1 ? 0.75 : 1)
+                    aspect
                 ])
+                if photos.count == 1 {
+                    image.onImageSize = { [weak button] size in
+                        guard let button, size.width > 0 else { return }
+                        // Keep unusually tall scans/panoramas bounded; normal photos retain their ratio.
+                        let ratio = min(2, max(0.5, size.height / size.width))
+                        guard let old = button.constraints.first(where: { $0.identifier == "photo-aspect" }),
+                              abs(old.multiplier - ratio) > 0.001 else { return }
+                        old.isActive = false
+                        let updated = button.heightAnchor.constraint(equalTo: button.widthAnchor, multiplier: ratio)
+                        updated.identifier = "photo-aspect"
+                        updated.isActive = true
+                    }
+                }
                 button.accessibilityLabel = String(localized: "Open Photo \(index + 1) of \(photos.count)")
                 button.addAction(UIAction { _ in open(photo) }, for: .touchUpInside)
                 photoViews.append(image)

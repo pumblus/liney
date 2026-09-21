@@ -14,7 +14,7 @@ final class SettingsViewController: UITableViewController {
         let cell = UITableViewCell()
         var content = cell.defaultContentConfiguration()
         if indexPath.section == 0 {
-            content.text = String(localized: "Require Face ID"); content.image = UIImage(systemName: "faceid")
+            content.text = String(localized: "App Lock"); content.image = UIImage(systemName: "lock")
             let toggle = UISwitch()
             toggle.isOn = UserDefaults.standard.bool(forKey: "liney.requiresAppLock")
             toggle.accessibilityLabel = content.text
@@ -30,7 +30,7 @@ final class SettingsViewController: UITableViewController {
                         UserDefaults.standard.set(success, forKey: "liney.requiresAppLock")
                         toggle.isOn = success; toggle.isEnabled = true
                         if !success {
-                            self.showError(String(localized: "Could Not Enable App Lock"), message: String(localized: "Face ID or device passcode authentication was not completed."))
+                            self.showError(String(localized: "Could Not Enable App Lock"), message: String(localized: "Device authentication was not completed."))
                         }
                     }
                 }

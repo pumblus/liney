@@ -1,5 +1,6 @@
 import UIKit
 import XCTest
+import Testing
 @testable import Liney
 
 @MainActor
@@ -266,9 +267,39 @@ final class AppLockTests: XCTestCase {
     }
 }
 
+@MainActor
+struct AppLockCopyTests {
+    @Test(arguments: [true, false])
+    func enablingUsesDeviceNeutralAuthenticationReason(success: Bool) async {
+        let authenticator = FakeAuthenticator(results: [success])
+        let lock = AppLockModel(authenticator: authenticator)
+
+        let enabled = await lock.authenticateToEnable()
+
+        #expect(enabled == success)
+        #expect(lock.isLocked == !success)
+        #expect(!lock.isAuthenticating)
+        #expect(authenticator.reasons == [String(localized: "Authenticate to enable App Lock for Liney.")])
+    }
+
+    @Test
+    func settingsLabelsTheToggleAsAppLock() throws {
+        let controller = SettingsViewController(appLock: AppLockModel(authenticator: FakeAuthenticator(results: [])))
+        controller.loadViewIfNeeded()
+        let cell = controller.tableView(controller.tableView, cellForRowAt: IndexPath(row: 0, section: 0))
+        let content = try #require(cell.contentConfiguration as? UIListContentConfiguration)
+        let toggle = try #require(cell.accessoryView as? UISwitch)
+
+        #expect(content.text == String(localized: "App Lock"))
+        #expect(toggle.accessibilityLabel == content.text)
+        #expect(content.image == UIImage(systemName: "lock"))
+    }
+}
+
 private final class FakeAuthenticator: AppAuthenticating {
     private var results: [Bool]
     private(set) var callCount = 0
+    private(set) var reasons: [String] = []
 
     init(results: [Bool]) {
         self.results = results
@@ -276,6 +307,7 @@ private final class FakeAuthenticator: AppAuthenticating {
 
     func authenticate(reason: String) async -> Bool {
         callCount += 1
+        reasons.append(reason)
         return results.isEmpty ? false : results.removeFirst()
     }
 }

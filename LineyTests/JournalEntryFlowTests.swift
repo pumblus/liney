@@ -1,5 +1,6 @@
 import ImageIO
 import SwiftData
+import Testing
 import UIKit
 import UniformTypeIdentifiers
 import XCTest
@@ -24,6 +25,174 @@ final class JournalEntryFlowTests: XCTestCase {
     override func tearDown() {
         context = nil
         container = nil
+    }
+
+    func testNativeDesignRendering() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.tintColor = UIColor(named: "LineyAqua")
+        defer { window.isHidden = true }
+        for style in [UIUserInterfaceStyle.light, .dark] {
+            for category in [UIContentSizeCategory.large, .accessibilityExtraExtraExtraLarge] {
+                let entry = JournalEntry(title: "Native design fixture 原生界面")
+                context.insert(entry)
+                entry.setBody("☐ A checklist item that wraps naturally with larger text\n☑ 已完成的测试事项\nPlain text remains selectable.", in: context)
+                let editor = EntryEditorViewController(entry: entry, isNew: false, context: context)
+                let navigation = UINavigationController(rootViewController: editor)
+                navigation.traitOverrides.preferredContentSizeCategory = category
+                navigation.overrideUserInterfaceStyle = style
+                window.rootViewController = navigation
+                window.makeKeyAndVisible()
+                window.layoutIfNeeded()
+                // Allow native symbol layers to finish their first display pass before capture.
+                try await Task.sleep(for: .milliseconds(50))
+                let suffix = "\(style.rawValue)-\(category.rawValue)"
+                let editorImage = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                    window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                }
+                let editorAttachment = XCTAttachment(image: editorImage)
+                editorAttachment.name = "Native editor \(suffix)"
+                editorAttachment.lifetime = .keepAlways
+                add(editorAttachment)
+
+                let progress = ProcessingViewController(title: String(localized: "Insert Photos"), message: String(localized: "Adding Photos…"))
+                progress.traitOverrides.preferredContentSizeCategory = category
+                progress.overrideUserInterfaceStyle = style
+                window.rootViewController = progress
+                window.layoutIfNeeded()
+                try await Task.sleep(for: .milliseconds(50))
+                let statusImage = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
+                    window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+                }
+                let statusAttachment = XCTAttachment(image: statusImage)
+                statusAttachment.name = "Native processing \(suffix)"
+                statusAttachment.lifetime = .keepAlways
+                add(statusAttachment)
+            }
+        }
+    }
+
+    func testChecklistButtonsTogglePersistAndPreserveSurroundingText() throws {
+        let entry = JournalEntry(title: "Checklist fixture")
+        context.insert(entry)
+        entry.setBody("Introduction\n☐ Testing 中文\n☑ Finished\nClosing", in: context)
+        try context.save()
+        let editor = EntryEditorViewController(entry: entry, isNew: false, context: context)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = editor
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        editor.view.layoutIfNeeded()
+        func descendants<T: UIView>(_ view: UIView, as type: T.Type) -> [T] {
+            (view as? T).map { [$0] } ?? view.subviews.flatMap { descendants($0, as: type) }
+        }
+        let input = try XCTUnwrap(descendants(editor.view, as: BlockTextView.self).first)
+        let buttons = descendants(input, as: UIButton.self).filter { $0.accessibilityIdentifier == "checklist-toggle" }
+        XCTAssertEqual(buttons.count, 2)
+        let first = try XCTUnwrap(buttons.first)
+        first.sendActions(for: .touchUpInside)
+        XCTAssertTrue(editor.flush())
+        let saved = try XCTUnwrap(try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()).first)
+        XCTAssertEqual(saved.plainTextBody, "Introduction\n☑ Testing 中文\n☑ Finished\nClosing")
+        XCTAssertFalse(input.isFirstResponder, "Toggling must not summon the keyboard")
+        XCTAssertEqual(input.accessibilityCustomActions?.count, 2)
+        input.undoManager?.undo()
+        XCTAssertTrue(editor.flush())
+        XCTAssertEqual(entry.plainTextBody, "Introduction\n☐ Testing 中文\n☑ Finished\nClosing")
+        input.undoManager?.redo()
+        XCTAssertTrue(editor.flush())
+        XCTAssertEqual(entry.plainTextBody, "Introduction\n☑ Testing 中文\n☑ Finished\nClosing")
+        first.sendActions(for: .touchUpInside)
+        XCTAssertTrue(editor.flush())
+        XCTAssertEqual(entry.plainTextBody, "Introduction\n☐ Testing 中文\n☑ Finished\nClosing")
+    }
+
+    func testChecklistControlsFollowEditingAndMultilineTitle() throws {
+        let entry = JournalEntry(title: String(repeating: "A long title 中文 ", count: 5))
+        context.insert(entry)
+        entry.setBody("☐ Original\n☑ Finished", in: context)
+        let editor = EntryEditorViewController(entry: entry, isNew: false, context: context)
+        editor.loadViewIfNeeded()
+        editor.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        editor.view.layoutIfNeeded()
+        func inputs(in view: UIView) -> [UITextView] {
+            (view as? UITextView).map { [$0] } ?? view.subviews.flatMap { inputs(in: $0) }
+        }
+        let title = try XCTUnwrap(inputs(in: editor.view).first { !($0 is BlockTextView) })
+        XCTAssertGreaterThan(title.bounds.height, (title.font?.lineHeight ?? 0) * 2)
+        let body = try XCTUnwrap(inputs(in: editor.view).compactMap { $0 as? BlockTextView }.first)
+        body.text = "New paragraph\n☐ Changed 中文\nA normal line"
+        body.delegate?.textViewDidChange?(body)
+        body.layoutIfNeeded()
+        let buttons = body.subviews.compactMap { $0 as? UIButton }
+        XCTAssertEqual(buttons.count, 1)
+        XCTAssertEqual(buttons.first?.accessibilityLabel, "Changed 中文")
+        let selection = NSRange(location: 3, length: 0)
+        body.selectedRange = selection
+        buttons.first?.sendActions(for: .touchUpInside)
+        XCTAssertEqual(body.selectedRange, selection)
+        XCTAssertTrue(editor.flush())
+        XCTAssertEqual(entry.plainTextBody, "New paragraph\n☑ Changed 中文\nA normal line")
+        body.text = "No tasks remain"
+        body.delegate?.textViewDidChange?(body)
+        body.layoutIfNeeded()
+        XCTAssertFalse(body.subviews.contains { $0 is UIButton })
+        XCTAssertNil(body.accessibilityCustomActions)
+    }
+
+    func testSceneLaunchContractAndResizableIPadConfiguration() throws {
+        // Read the shipped plist: Bundle resolves device-qualified keys for the current idiom.
+        let data = try Data(contentsOf: Bundle.main.bundleURL.appendingPathComponent("Info.plist"))
+        let info = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        XCTAssertNotNil(info["UIApplicationSceneManifest"] as? [String: Any])
+        XCTAssertNotNil(info["UILaunchScreen"] as? [String: Any])
+        XCTAssertNotEqual(info["UIRequiresFullScreen"] as? Bool, true)
+        XCTAssertEqual(Set(try XCTUnwrap(info["UISupportedInterfaceOrientations~ipad"] as? [String])), Set([
+            "UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
+            "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"
+        ]))
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        XCTAssertTrue(scene.delegate is JournalSceneDelegate)
+        let root = try XCTUnwrap((scene.delegate as? JournalSceneDelegate)?.window?.rootViewController)
+        let navigation: UINavigationController?
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            navigation = (root as? UISplitViewController)?.viewController(for: .primary) as? UINavigationController
+        } else {
+            navigation = root as? UINavigationController
+        }
+        XCTAssertTrue(navigation?.viewControllers.first is TimelineViewController)
+    }
+
+    func testEditorSavesImmediatelyWhenItsSceneDeactivates() throws {
+        let entry = JournalEntry(title: "Scene fixture")
+        context.insert(entry)
+        entry.setBody("Before editing", in: context)
+        try context.save()
+        let editorContext = ModelContext(container)
+        let editable = try XCTUnwrap(editorContext.model(for: entry.persistentModelID) as? JournalEntry)
+        let editor = EntryEditorViewController(entry: editable, isNew: false, context: editorContext)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = editor
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        editor.loadViewIfNeeded()
+        func textView(in view: UIView) -> UITextView? {
+            (view as? BlockTextView) ?? view.subviews.lazy.compactMap { textView(in: $0) }.first
+        }
+        let input = try XCTUnwrap(textView(in: editor.view))
+        input.text = "Saved before scene inactivity 中文"
+        input.delegate?.textViewDidChange?(input)
+        XCTAssertTrue(editorContext.hasChanges)
+
+        // An unrelated lifecycle notification must not flush this editor.
+        NotificationCenter.default.post(name: UIScene.willDeactivateNotification, object: NSObject())
+        XCTAssertTrue(editorContext.hasChanges)
+        NotificationCenter.default.post(name: UIScene.willDeactivateNotification, object: scene)
+        XCTAssertFalse(editorContext.hasChanges)
+        let reloaded = try ModelContext(container).fetch(FetchDescriptor<JournalEntry>())
+        XCTAssertEqual(reloaded.first?.plainTextBody, "Saved before scene inactivity 中文")
     }
 
     func testNativeNavigationSavesEditorBeforeSwitchingEntries() async throws {
@@ -65,7 +234,7 @@ final class JournalEntryFlowTests: XCTestCase {
         func descendants<T: UIView>(_ view: UIView, type: T.Type) -> [T] {
             (view as? T).map { [$0] } ?? view.subviews.flatMap { descendants($0, type: type) }
         }
-        let input = try XCTUnwrap(descendants(editor.view, type: UITextView.self).first)
+        let input = try XCTUnwrap(descendants(editor.view, type: BlockTextView.self).first)
         input.text = "Updated through UIKit 中文"
         input.delegate?.textViewDidChange?(input)
         let dateEditor = EntryDateViewController(entry: editor.entry) { _ = editor.flush() }
@@ -86,8 +255,8 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(saved.entryDate.timeIntervalSince1970, adjusted.timeIntervalSince1970, accuracy: 1)
     }
 
-    func testUIKitOnboardingRendersAtAccessibilitySize() async throws {
-        let controller = OnboardingController(container: container, finish: {})
+    func testUIKitTimelineRendersAtAccessibilitySize() async throws {
+        let controller = TimelineViewController(container: container, appLock: AppLockModel())
         controller.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
         controller.overrideUserInterfaceStyle = .dark
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
@@ -102,7 +271,7 @@ final class JournalEntryFlowTests: XCTestCase {
             XCTAssertTrue(controller.view.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true))
         }
         let attachment = XCTAttachment(image: image)
-        attachment.name = "UIKit onboarding accessibility"; attachment.lifetime = .keepAlways
+        attachment.name = "UIKit timeline accessibility"; attachment.lifetime = .keepAlways
         add(attachment)
     }
 
@@ -194,7 +363,7 @@ final class JournalEntryFlowTests: XCTestCase {
         let editor = EntryEditorViewController(entry: entry, isNew: true, context: context)
         editor.loadViewIfNeeded()
         func textViews(_ view: UIView) -> [UITextView] {
-            (view as? UITextView).map { [$0] } ?? view.subviews.flatMap(textViews)
+            (view as? BlockTextView).map { [$0] } ?? view.subviews.flatMap(textViews)
         }
         let input = try XCTUnwrap(textViews(editor.view).first)
         input.text = "Immediate synthetic save 中文"
@@ -219,7 +388,7 @@ final class JournalEntryFlowTests: XCTestCase {
         window.rootViewController?.view.layoutIfNeeded()
 
         func textViews(in view: UIView) -> [UITextView] {
-            (view as? UITextView).map { [$0] } ?? view.subviews.flatMap { textViews(in: $0) }
+            (view as? BlockTextView).map { [$0] } ?? view.subviews.flatMap { textViews(in: $0) }
         }
         let textView = try XCTUnwrap(textViews(in: window).last,
                                     "A reopened photo-only entry must expose a body input after the photo group")
@@ -248,7 +417,7 @@ final class JournalEntryFlowTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(150))
         window.rootViewController?.view.layoutIfNeeded()
         func textViews(in view: UIView) -> [UITextView] {
-            (view as? UITextView).map { [$0] } ?? view.subviews.flatMap { textViews(in: $0) }
+            (view as? BlockTextView).map { [$0] } ?? view.subviews.flatMap { textViews(in: $0) }
         }
         let textView = try XCTUnwrap(textViews(in: window).first)
         for value in ["S", "Sy", "Synthetic"] {
@@ -778,6 +947,31 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(photoGroupColumnCount(forPhotoCount: 5), 3)
     }
 
+    func testSinglePortraitPhotoUsesItsAspectRatio() async throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let storage = PhotoStorage(baseURL: base)
+        defer { try? FileManager.default.removeItem(at: base) }
+        let item = try XCTUnwrap(storage.saveJPEGs(from: [makeJPEGData(size: CGSize(width: 200, height: 300))]).photos.first)
+        let block = EntryBlock(kind: .photoGroup)
+        block.photos = [EntryPhoto(fileName: item.fileName, displayOrder: 0, block: block)]
+        let group = PhotoGroupView(block: block, storage: storage) { _ in }
+        let wrapper = UIView(frame: CGRect(x: 0, y: 0, width: 320, height: 700))
+        group.translatesAutoresizingMaskIntoConstraints = false
+        wrapper.addSubview(group)
+        NSLayoutConstraint.activate([
+            group.leadingAnchor.constraint(equalTo: wrapper.leadingAnchor),
+            group.topAnchor.constraint(equalTo: wrapper.topAnchor),
+            group.widthAnchor.constraint(equalToConstant: 320)
+        ])
+        for _ in 0..<100 {
+            if group.photoViews.first?.image != nil { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        wrapper.layoutIfNeeded()
+        XCTAssertNotNil(group.photoViews.first?.image)
+        XCTAssertEqual(group.bounds.height, 480, accuracy: 1, "Portrait photos should not sit in a landscape letterbox")
+    }
+
     func testPhotoGroupLayoutPlanUsesSquareCells() {
         XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 1).map(\.columnSpan), [1])
         XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 2).map(\.columnSpan), [1, 1])
@@ -1129,5 +1323,178 @@ private func qualityPerfP95(_ samples: [Double]) -> String {
 private final class FixtureNavigationController: UINavigationController {
     override func pushViewController(_ viewController: UIViewController, animated: Bool) {
         super.pushViewController(viewController, animated: false)
+    }
+}
+
+@Suite(.serialized)
+@MainActor
+struct NativeDesignTests {
+    // UIKit trait/layout state is exercised serially; stores and media are fixture-local.
+    @Test(arguments: [UIContentSizeCategory.large, .accessibilityExtraExtraExtraLarge])
+    func checklistTargetsDoNotOverlapText(category: UIContentSizeCategory) throws {
+        let controller = UIViewController()
+        controller.traitOverrides.preferredContentSizeCategory = category
+        let input = BlockTextView()
+        controller.view.addSubview(input)
+        input.frame = CGRect(x: 0, y: 0, width: 320, height: 600)
+        input.text = "☐ First item with enough text to wrap onto another line\n☑ 第二项"
+        input.layoutIfNeeded()
+        let buttons = input.subviews.compactMap { $0 as? UIButton }
+        #expect(buttons.count == 2)
+        for button in buttons {
+            #expect(button.bounds.width >= 44)
+            #expect(button.bounds.height >= 44)
+            #expect(button.frame.minX >= 0)
+            #expect(input.bounds.contains(button.frame))
+            let nearLeftEdge = CGPoint(x: button.frame.minX + 1, y: button.frame.midY)
+            #expect(input.hitTest(nearLeftEdge, with: nil) === button)
+        }
+        let first = try #require(buttons.first)
+        let start = try #require(input.position(from: input.beginningOfDocument, offset: 2))
+        let end = try #require(input.position(from: start, offset: 1))
+        let range = try #require(input.textRange(from: start, to: end))
+        #expect(input.firstRect(for: range).minX >= first.frame.maxX - 0.5)
+    }
+
+    @Test
+    func photoPressAndUnavailableState() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storage = PhotoStorage(baseURL: directory)
+        let block = EntryBlock(kind: .photoGroup)
+        block.photos = [EntryPhoto(fileName: "missing.jpg", displayOrder: 0, block: block)]
+        let group = PhotoGroupView(block: block, storage: storage) { _ in }
+        let image = try #require(group.photoViews.first)
+        let button = try #require(image.superview as? UIButton)
+        #expect(button.isAccessibilityElement)
+        #expect(!image.isAccessibilityElement)
+        let label = button.accessibilityLabel
+        button.isHighlighted = true
+        #expect(image.alpha < 1)
+        button.isHighlighted = false
+        #expect(image.alpha == 1)
+        for _ in 0..<100 {
+            if button.accessibilityValue != nil { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(button.accessibilityValue == String(localized: "Photo unavailable"))
+        #expect(button.accessibilityLabel == label)
+        // Recovering a file must clear the stale failure on the accessible parent too.
+        let data = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).jpegData(withCompressionQuality: 0.8) { ctx in
+            UIColor.systemBlue.setFill()
+            ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+        let item = try #require(storage.saveJPEGs(from: [data]).photos.first)
+        image.load(item.fileName, storage: storage)
+        for _ in 0..<100 {
+            if button.accessibilityValue == nil { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(button.accessibilityValue == nil)
+        #expect(button.accessibilityLabel == label)
+    }
+
+    @Test
+    func slowPhotoTransferShowsStatusAndRestoresEditor() async throws {
+        let store = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
+                                       configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(store)
+        let entry = JournalEntry(title: "Synthetic transfer")
+        context.insert(entry)
+        try context.save()
+        let editor = EntryEditorViewController(entry: entry, isNew: false, context: context)
+        editor.loadViewIfNeeded()
+        editor.view.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
+        var continuation: CheckedContinuation<PhotoImportResult, Never>?
+        editor.importPhotos {
+            await withCheckedContinuation { continuation = $0 }
+        }
+        let processing = try #require(editor.children.first as? ProcessingViewController)
+        #expect(processing.view.accessibilityViewIsModal)
+        #expect(descendants(processing.view, as: UIActivityIndicatorView.self).first?.isAnimating == true)
+        #expect(descendants(processing.view, as: UILabel.self).contains { $0.text == String(localized: "Adding Photos…") })
+        #expect(editor.navigationItem.rightBarButtonItems?.allSatisfy { !$0.isEnabled } == true)
+        #expect(!editor.prepareForReplacement())
+        var secondLoadStarted = false
+        editor.importPhotos {
+            secondLoadStarted = true
+            return PhotoImportResult(fileNames: [], failedCount: 0)
+        }
+        for _ in 0..<100 {
+            if continuation != nil { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        let pending = try #require(continuation)
+        pending.resume(returning: PhotoImportResult(fileNames: [], failedCount: 0))
+        for _ in 0..<100 {
+            if editor.children.isEmpty { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(!secondLoadStarted)
+        #expect(editor.children.isEmpty)
+        #expect(editor.navigationItem.rightBarButtonItems?.allSatisfy(\.isEnabled) == true)
+        #expect(editor.prepareForReplacement())
+        let scroll = try #require(editor.view.subviews.first as? UIScrollView)
+        #expect(scroll.isUserInteractionEnabled)
+        #expect(!scroll.accessibilityElementsHidden)
+        #expect(entry.title == "Synthetic transfer")
+    }
+
+    @Test(arguments: [UIUserInterfaceStyle.light, .dark], [UIAccessibilityContrast.normal, .high])
+    func accentHasReadableContrast(style: UIUserInterfaceStyle, contrast: UIAccessibilityContrast) throws {
+        let traits = UITraitCollection {
+            $0.userInterfaceStyle = style
+            $0.accessibilityContrast = contrast
+        }
+        let accent = try #require(UIColor(named: "LineyAqua"))
+        let foreground = luminance(accent.resolvedColor(with: traits))
+        for background in [UIColor.systemBackground, .secondarySystemBackground, .systemGroupedBackground] {
+            let behind = luminance(background.resolvedColor(with: traits))
+            let ratio = (max(foreground, behind) + 0.05) / (min(foreground, behind) + 0.05)
+            #expect(ratio >= 4.5)
+        }
+        // Native tinted buttons blend the accent into their background, reducing contrast.
+        // Check that actual rendered surface too, rather than assuming it is white/black.
+        let controller = UIViewController()
+        controller.overrideUserInterfaceStyle = style
+        controller.traitOverrides.accessibilityContrast = contrast
+        controller.view.frame = CGRect(x: 0, y: 0, width: 320, height: 120)
+        controller.view.backgroundColor = .systemBackground
+        controller.view.tintColor = accent
+        let button = actionButton("TEST") {}
+        button.frame = CGRect(x: 10, y: 10, width: 300, height: 100)
+        controller.view.addSubview(button)
+        controller.view.layoutIfNeeded()
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let rendered = UIGraphicsImageRenderer(bounds: controller.view.bounds, format: format).image { renderer in
+            controller.view.layer.render(in: renderer.cgContext)
+        }
+        let backgroundPixel = try #require(rendered.cgImage?.cropping(to: CGRect(x: 30, y: 60, width: 1, height: 1)))
+        var bytes = [UInt8](repeating: 0, count: 4)
+        let bitmap = try #require(CGContext(data: &bytes, width: 1, height: 1, bitsPerComponent: 8,
+                                           bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
+                                           bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        bitmap.draw(backgroundPixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        let background = UIColor(red: CGFloat(bytes[0]) / 255, green: CGFloat(bytes[1]) / 255,
+                                 blue: CGFloat(bytes[2]) / 255, alpha: 1)
+        let textColor = try #require(button.titleLabel?.textColor).resolvedColor(with: traits)
+        let text = luminance(textColor)
+        let behind = luminance(background)
+        #expect((max(text, behind) + 0.05) / (min(text, behind) + 0.05) >= 4.5)
+    }
+
+    private func descendants<T: UIView>(_ view: UIView, as type: T.Type) -> [T] {
+        (view as? T).map { [$0] } ?? view.subviews.flatMap { descendants($0, as: type) }
+    }
+
+    private func luminance(_ color: UIColor) -> Double {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        func linear(_ value: CGFloat) -> Double {
+            let value = Double(value)
+            return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue)
     }
 }

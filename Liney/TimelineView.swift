@@ -32,14 +32,15 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         navigationItem.searchController = search
         let new = UIBarButtonItem(image: UIImage(systemName: "square.and.pencil"), primaryAction: UIAction { [weak self] _ in self?.createEntry() })
         new.accessibilityLabel = String(localized: "New Entry")
-        let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: UIMenu(children: [
+        let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: nil)
+        more.menu = UIMenu(children: [
             UIAction(title: String(localized: "Import Journal"), image: UIImage(systemName: "square.and.arrow.down")) { [weak self] _ in self?.importJournal() },
-            UIAction(title: String(localized: "Export Journal"), image: UIImage(systemName: "square.and.arrow.up")) { [weak self] _ in self?.exportJournal() },
+            UIAction(title: String(localized: "Export Journal"), image: UIImage(systemName: "square.and.arrow.up")) { [weak self, weak more] _ in self?.exportJournal(sourceBarButtonItem: more) },
             UIAction(title: String(localized: "Settings"), image: UIImage(systemName: "gearshape")) { [weak self] _ in
                 guard let self else { return }
                 self.navigationController?.pushViewController(SettingsViewController(appLock: self.appLock), animated: true)
             }
-        ]))
+        ])
         more.accessibilityLabel = String(localized: "More")
         navigationItem.rightBarButtonItems = [more, new]
         NotificationCenter.default.addObserver(self, selector: #selector(journalChanged(_:)), name: .journalDidChange, object: nil)
@@ -121,9 +122,10 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     private func importJournal() {
         present(UINavigationController(rootViewController: ImportJournalViewController(container: container)), animated: true)
     }
-    private func exportJournal() {
+    private func exportJournal(sourceBarButtonItem: UIBarButtonItem?) {
         guard exportFlow == nil else { return }
-        let flow = ExportJournalFlow(presenter: self, container: container, appLock: appLock)
+        let flow = ExportJournalFlow(presenter: self, container: container, appLock: appLock,
+                                     sourceBarButtonItem: sourceBarButtonItem)
         exportFlow = flow
         flow.onFinished = { [weak self] in self?.exportFlow = nil }
         flow.start()

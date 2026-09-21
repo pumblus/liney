@@ -94,8 +94,38 @@ final class MessageController: UIViewController {
     override func viewDidLoad() { super.viewDidLoad(); installStack([bodyLabel(message)]) }
 }
 
+/// Native, non-interactive status for work that must finish before its surrounding UI can resume.
+final class ProcessingViewController: UIViewController {
+    private let message: String
+
+    init(title: String, message: String) {
+        self.message = message
+        super.init(nibName: nil, bundle: nil)
+        self.title = title
+        isModalInPresentation = true
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        let heading = bodyLabel(title ?? "", style: .title2)
+        heading.accessibilityTraits.insert(.header)
+        let status = bodyLabel(message)
+        heading.textAlignment = .center
+        status.textAlignment = .center
+        let activity = UIActivityIndicatorView(style: .large)
+        activity.isAccessibilityElement = false
+        activity.startAnimating()
+        installStack([heading, activity, status], centered: true)
+        view.accessibilityViewIsModal = true
+    }
+}
+
 /// Bounded serial decoding keeps scrolling work off the main thread and limits peak image memory.
 final class StoredPhotoView: UIImageView {
+    var onImageSize: ((CGSize) -> Void)?
+    var onAvailabilityChange: ((Bool) -> Void)?
     private static let queue: OperationQueue = {
         let queue = OperationQueue()
         queue.maxConcurrentOperationCount = 2
@@ -137,7 +167,9 @@ final class StoredPhotoView: UIImageView {
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.requestID == id else { return }
                 self.image = image ?? UIImage(systemName: "photo")
+                if let image { self.onImageSize?(image.size) }
                 self.accessibilityLabel = image == nil ? String(localized: "Photo unavailable") : String(localized: "Photo")
+                self.onAvailabilityChange?(image != nil)
             }
         }
         self.operation = operation

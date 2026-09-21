@@ -416,17 +416,17 @@ struct DayOneImporter {
         }
 
         let location = DayOneLocation(rawEntry["location"] as? JSONObject)
-        let text = sourceText(in: rawEntry)
+        let content = entryContent(in: rawEntry)
         let photos = dayOnePhotos(in: rawEntry)
         let blockResult = try importedBlocks(
-            text: text,
+            text: content.body,
             photos: photos,
             unsupportedKeys: unsupportedPhotoReferenceKeys(in: rawEntry),
             archive: archive,
             archiveEntries: archiveEntries
         )
 
-        guard blockResult.blocks.contains(where: \.hasContent) || trimmedString(rawEntry["title"]) != nil else {
+        guard blockResult.blocks.contains(where: \.hasContent) || !content.title.isEmpty else {
             throw DayOneEntryBuildError(
                 skippedMedia: blockResult.skippedMedia,
                 copiedFileNames: blockResult.copiedFileNames
@@ -437,7 +437,7 @@ struct DayOneImporter {
         let allDay = allDayValue(rawEntry, creationDate: creationDate)
         let entry = DayOneEntryData(
             externalSourceID: sourceID,
-            title: stringValue(rawEntry["title"]) ?? "",
+            title: content.title,
             entryDate: allDay.entryDate,
             isAllDay: allDay.isAllDay,
             createdAt: creationDate,
@@ -546,7 +546,7 @@ struct DayOneImporter {
 
         func appendText(_ range: NSRange) {
             guard range.length > 0 else { return }
-            let value = plainText(nsText.substring(with: range))
+            let value = plainText(trimBoundaryLines(nsText.substring(with: range)))
             guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             flushPhotos()
             blocks.append(.text(value))
@@ -616,7 +616,7 @@ struct DayOneImporter {
     ) throws -> DayOneBlockImportResult {
         var blocks: [ImportedEntryBlock] = []
         if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            blocks.append(.text(plainText(text)))
+            blocks.append(.text(plainText(trimBoundaryLines(text))))
         }
 
         let result = try importPhotoGroup(
@@ -858,6 +858,31 @@ struct DayOneImporter {
         return formatter.date(from: text)
     }
 
+    /// Strip empty boundary lines, never indentation or spaces inside a paragraph/code block.
+    private func trimBoundaryLines(_ text: String) -> String {
+        var lines = text.components(separatedBy: "\n")[...]
+        while lines.first?.trimmingCharacters(in: .whitespaces).isEmpty == true { lines.removeFirst() }
+        while lines.last?.trimmingCharacters(in: .whitespaces).isEmpty == true { lines.removeLast() }
+        return lines.joined(separator: "\n")
+    }
+
+    private func entryContent(in rawEntry: JSONObject) -> (title: String, body: String) {
+        let body = sourceText(in: rawEntry).replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        let explicitTitle = trimmedString(rawEntry["title"]) ?? ""
+        guard explicitTitle.isEmpty else { return (explicitTitle, body) }
+        let trimmed = trimBoundaryLines(body)
+        let lines = trimmed.components(separatedBy: "\n")
+        guard let first = lines.first,
+              first.range(of: #"^ {0,3}#\s+\S"#, options: .regularExpression) != nil,
+              Self.momentRegex.firstMatch(in: first, range: NSRange(first.startIndex..., in: first)) == nil else {
+            return ("", body)
+        }
+        let heading = first.replacingOccurrences(of: #"\s+#+\s*$"#, with: "", options: .regularExpression)
+        return (plainText(heading).trimmingCharacters(in: .whitespaces),
+                trimBoundaryLines(lines.dropFirst().joined(separator: "\n")))
+    }
+
     private func sourceText(in rawEntry: JSONObject) -> String {
         if let text = stringValue(rawEntry["text"]), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return text
@@ -873,6 +898,10 @@ struct DayOneImporter {
         for content in contents {
             if let value = content["text"] as? String {
                 let line = (content["attributes"] as? JSONObject)?["line"] as? JSONObject
+                if let header = line?["header"] as? Int, (1...6).contains(header) {
+                    if !text.isEmpty && !text.hasSuffix("\n") { text += "\n" }
+                    text += String(repeating: "#", count: header) + " "
+                }
                 let indent = String(repeating: "  ", count: min(20, max(0, (line?["indentLevel"] as? Int ?? 1) - 1)))
                 switch line?["listStyle"] as? String {
                 case "bulleted": text += indent + "• "
@@ -881,9 +910,10 @@ struct DayOneImporter {
                 default: break
                 }
                 // Escape literal syntax so the Markdown fallback does not reinterpret rich text.
-                text += value.replacingOccurrences(of: "\\", with: "\\\\")
-                    .replacingOccurrences(of: "*", with: "\\*")
-                    .replacingOccurrences(of: "_", with: "\\_")
+                for character in value {
+                    if "\\`*_{}[]()#+-.!>|~".contains(character) { text += "\\" }
+                    text.append(character)
+                }
             }
             for object in content["embeddedObjects"] as? [JSONObject] ?? [] {
                 switch object["type"] as? String {
@@ -905,6 +935,9 @@ struct DayOneImporter {
                 return ""
             }
             if inCode { return line }
+            if line.range(of: #"^ {0,3}([-*_])(?:\s*\1){2,}\s*$"#, options: .regularExpression) != nil {
+                return "———"
+            }
             let readable = line.replacingOccurrences(of: #"^\s{0,3}#{1,6}\s+"#, with: "", options: .regularExpression)
                 .replacingOccurrences(of: #"^(\s*)[-*+] \[[xX]\] "#, with: "$1☑ ", options: .regularExpression)
                 .replacingOccurrences(of: #"^(\s*)[-*+] \[ \] "#, with: "$1☐ ", options: .regularExpression)
