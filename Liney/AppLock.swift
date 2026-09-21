@@ -42,7 +42,7 @@ final class AppLockModel {
 
     func unlockIfNeeded(requiresLock: Bool) async {
         guard requiresLock else {
-            disableLock()
+            clearLockPresentation()
             return
         }
         isSnapshotCovered = false
@@ -63,7 +63,7 @@ final class AppLockModel {
 
     func protectSnapshot(requiresLock: Bool) {
         guard requiresLock else {
-            disableLock()
+            clearLockPresentation()
             return
         }
         isLocked = true
@@ -102,6 +102,12 @@ final class AppLockModel {
 
     func disableLock() {
         authenticationGeneration += 1
+        clearLockPresentation()
+    }
+
+    private func clearLockPresentation() {
+        // Prompt lifecycle callbacks can arrive before Settings saves the enabled preference.
+        // Clearing the disabled lock's UI must not invalidate that pending authentication.
         isLocked = false
         isSnapshotCovered = false
     }

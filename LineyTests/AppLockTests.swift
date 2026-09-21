@@ -270,6 +270,44 @@ final class AppLockTests: XCTestCase {
 @MainActor
 struct AppLockCopyTests {
     @Test(arguments: [true, false])
+    func enablingSurvivesAuthenticationPromptLifecycle(returnsActiveBeforeReply: Bool) async {
+        let authenticator = SuspendedAuthenticator()
+        let lock = AppLockModel(authenticator: authenticator)
+        await lock.unlockIfNeeded(requiresLock: false)
+        let task = Task { await lock.authenticateToEnable() }
+        while authenticator.completion == nil { await Task.yield() }
+
+        // Settings persists the enabled preference only after authentication returns.
+        lock.protectSnapshot(requiresLock: false)
+        if returnsActiveBeforeReply {
+            await lock.unlockIfNeeded(requiresLock: false)
+        }
+        authenticator.completion?.resume(returning: true)
+        let enabled = await task.value
+
+        #expect(enabled)
+        #expect(!lock.isAuthenticating)
+        #expect(!lock.hidesJournalContent)
+    }
+
+    @Test(arguments: [true, false])
+    func enablingRejectsAuthenticationAfterBackgroundOrExplicitDisable(background: Bool) async {
+        let authenticator = SuspendedAuthenticator()
+        let lock = AppLockModel(authenticator: authenticator)
+        await lock.unlockIfNeeded(requiresLock: false)
+        let task = Task { await lock.authenticateToEnable() }
+        while authenticator.completion == nil { await Task.yield() }
+
+        if background { lock.didEnterBackground(requiresLock: false) }
+        else { lock.disableLock() }
+        authenticator.completion?.resume(returning: true)
+
+        let enabled = await task.value
+        #expect(!enabled)
+        #expect(!lock.isAuthenticating)
+    }
+
+    @Test(arguments: [true, false])
     func enablingUsesDeviceNeutralAuthenticationReason(success: Bool) async {
         let authenticator = FakeAuthenticator(results: [success])
         let lock = AppLockModel(authenticator: authenticator)
