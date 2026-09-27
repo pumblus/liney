@@ -11,6 +11,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private let scroll = UIScrollView()
     private let stack = UIStackView()
     private let titleField = EntryTitleView()
+    private var dateButton: UIButton!
+    private let placeLabel = bodyLabel("", style: .footnote)
     private var textViews: [BlockTextView] = []
     private var photoGroups: [PhotoGroupView] = []
     private weak var focusedText: BlockTextView?
@@ -60,7 +62,10 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         delete.accessibilityLabel = String(localized: "Delete Entry")
         navigationItem.rightBarButtonItems = [doneButton, insertButton, delete]
         navigationItem.backButtonDisplayMode = .minimal
-        rebuild()
+        dateButton = actionButton("") { [weak self] in self?.editDate() }
+        dateButton.accessibilityLabel = String(localized: "Edit Entry Date")
+        stack.addArrangedSubview(dateButton); stack.addArrangedSubview(placeLabel); stack.addArrangedSubview(titleField)
+        render()
         NotificationCenter.default.addObserver(self, selector: #selector(flushBeforeSceneDeactivation(_:)), name: UIScene.willDeactivateNotification, object: nil)
     }
     override func viewWillDisappear(_ animated: Bool) {
@@ -89,30 +94,49 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         _ = flush()
     }
 
-    private func rebuild(focusAfter: UUID? = nil) {
-        stack.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        textViews = []; photoGroups = []
+    /// Reconciles views with the entry by block identity, so unaffected text keeps its
+    /// selection, undo history and IME state, and unaffected photos keep their images.
+    private func render(focusAfter: UUID? = nil) {
         title = entry.entryDate.formatted(.dateTime.month(.wide).day().year())
         let dateText = entry.isAllDay ? entry.entryDate.formatted(date: .long, time: .omitted) + " · " + String(localized: "All-day") : entry.entryDate.formatted(date: .long, time: .shortened)
-        let date = actionButton(dateText) { [weak self] in self?.editDate() }
-        date.accessibilityLabel = String(localized: "Edit Entry Date"); date.accessibilityValue = dateText
-        stack.addArrangedSubview(date)
-        if let place = entry.locationDisplayText { stack.addArrangedSubview(bodyLabel(place, style: .footnote)) }
-        titleField.text = entry.title; stack.addArrangedSubview(titleField)
-        let blocks = entry.orderedBlocks
+        dateButton.configuration?.title = dateText
+        dateButton.accessibilityValue = dateText
+        placeLabel.text = entry.locationDisplayText
+        placeLabel.isHidden = entry.locationDisplayText == nil
+        if titleField.markedTextRange == nil, titleField.text != entry.title { titleField.text = entry.title }
+
+        var reusableText = Dictionary(textViews.map { ($0.slotKey, $0) }, uniquingKeysWith: { first, _ in first })
+        var reusablePhotos = Dictionary(photoGroups.map { ($0.blockID, $0) }, uniquingKeysWith: { first, _ in first })
+        var views: [UIView] = [dateButton, placeLabel, titleField]
+        textViews = []; photoGroups = []
+        func addText(block: EntryBlock?, after previous: EntryBlock?) {
+            let key = block.map { BlockTextView.SlotKey.block($0.id) } ?? .transient(after: previous?.id)
+            let text = reusableText.removeValue(forKey: key) ?? makeTextView()
+            text.blockID = block?.id; text.previousBlockID = previous?.id
+            if let block, text.markedTextRange == nil, text.text != block.text { text.text = block.text }
+            text.setContentHuggingPriority(.defaultLow, for: .vertical)
+            textViews.append(text); views.append(text)
+        }
         var previous: EntryBlock?
-        for block in blocks {
+        for block in entry.orderedBlocks {
             if block.kind == .text {
                 addText(block: block, after: previous)
             } else {
                 if previous == nil || previous?.kind == .photoGroup { addText(block: nil, after: previous) }
-                let photos = PhotoGroupView(block: block, storage: storage, deferLoading: true) { [weak self] photo in self?.openPhoto(photo) }
-                photoGroups.append(photos)
-                stack.addArrangedSubview(photos)
+                let fileNames = block.orderedPhotos.map(\.fileName)
+                let photos: PhotoGroupView
+                if let reused = reusablePhotos.removeValue(forKey: block.id), reused.fileNames == fileNames { photos = reused }
+                else { photos = PhotoGroupView(block: block, storage: storage, deferLoading: true) { [weak self] photo in self?.openPhoto(photo) } }
+                photoGroups.append(photos); views.append(photos)
             }
             previous = block
         }
         if previous == nil || previous?.kind == .photoGroup { addText(block: nil, after: previous) }
+        let kept = Set(views.map(ObjectIdentifier.init))
+        for view in stack.arrangedSubviews where !kept.contains(ObjectIdentifier(view)) { view.removeFromSuperview() }
+        for (index, view) in views.enumerated() where index >= stack.arrangedSubviews.count || stack.arrangedSubviews[index] !== view {
+            stack.insertArrangedSubview(view, at: index)
+        }
         // Only the final writing field absorbs spare height; earlier blocks keep their size.
         textViews.last?.setContentHuggingPriority(UILayoutPriority(249), for: .vertical)
         updateTextSpacing()
@@ -133,12 +157,10 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             image.updateVisibility(image.window != nil && visible.intersects(image.convert(image.bounds, to: scroll)))
         }
     }
-    private func addText(block: EntryBlock?, after previous: EntryBlock?) {
+    private func makeTextView() -> BlockTextView {
         let text = BlockTextView()
-        text.blockID = block?.id; text.previousBlockID = previous?.id
-        text.text = block?.text ?? ""
         text.delegate = self
-        textViews.append(text); stack.addArrangedSubview(text)
+        return text
     }
     func textViewDidBeginEditing(_ textView: UITextView) { focusedText = textView as? BlockTextView }
     func textViewDidChange(_ textView: UITextView) {
@@ -147,7 +169,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         if textView === titleField { titleField.refreshPlaceholder() }
         (textView as? BlockTextView)?.refreshChecklist()
         updateTextSpacing()
-        synchronizeText()
+        synchronize(textView)
         scheduleSave()
     }
     private func updateTextSpacing() {
@@ -155,26 +177,35 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         views.forEach { stack.setCustomSpacing(UIStackView.spacingUseDefault, after: $0) }
         // Keep the 44-point insertion target, without adding two more gaps around an empty field.
         for (index, view) in views.enumerated() {
-            guard let text = view as? BlockTextView, text.text.isEmpty else { continue }
+            guard let text = view as? BlockTextView, !text.hasText else { continue }
             if index > 0 { stack.setCustomSpacing(0, after: views[index - 1]) }
             stack.setCustomSpacing(0, after: text)
         }
     }
-    func textViewDidEndEditing(_ textView: UITextView) { synchronizeText(); scheduleSave() }
+    func textViewDidEndEditing(_ textView: UITextView) { synchronize(textView); scheduleSave() }
     private func synchronizeText() {
-        if titleField.markedTextRange == nil { entry.title = titleField.text ?? "" }
-        for text in textViews where text.markedTextRange == nil {
-            if let id = text.blockID, let block = entry.blocks.first(where: { $0.id == id }) {
-                block.text = text.text
-            } else if !text.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                let previous = entry.blocks.first { $0.id == text.previousBlockID }
-                // A transient editor before the first photo must insert at the beginning.
-                if previous == nil, let first = entry.orderedBlocks.first {
-                    let block = EntryBlock(sortIndex: first.sortIndex - 1, text: text.text, entry: entry)
-                    context.insert(block); entry.blocks.append(block); text.blockID = block.id
-                } else {
-                    text.blockID = entry.insertTextBlock(text.text, after: previous, in: context)?.id
-                }
+        synchronize(titleField)
+        textViews.forEach(synchronize)
+    }
+    /// Writes only changed values, so unchanged blocks are not dirtied or re-saved.
+    private func synchronize(_ view: UITextView) {
+        guard view.markedTextRange == nil else { return }
+        if view === titleField {
+            let title = titleField.text ?? ""
+            if entry.title != title { entry.title = title }
+            return
+        }
+        guard let text = view as? BlockTextView else { return }
+        if let id = text.blockID, let block = entry.blocks.first(where: { $0.id == id }) {
+            if block.text != text.text { block.text = text.text }
+        } else if !text.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let previous = entry.blocks.first { $0.id == text.previousBlockID }
+            // A transient editor before the first photo must insert at the beginning.
+            if previous == nil, let first = entry.orderedBlocks.first {
+                let block = EntryBlock(sortIndex: first.sortIndex - 1, text: text.text, entry: entry)
+                context.insert(block); entry.blocks.append(block); text.blockID = block.id
+            } else {
+                text.blockID = entry.insertTextBlock(text.text, after: previous, in: context)?.id
             }
         }
     }
@@ -298,7 +329,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             do {
                 try saveEntryChanges(entry, in: context)
                 NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
-                rebuild(focusAfter: insertion.photoBlock.id)
+                render(focusAfter: insertion.photoBlock.id)
                 let prompt = entry.photoInfoPromptCandidate(from: insertion.photoBlock.orderedPhotos)
                 if let alert = result.alert {
                     let message = UIAlertController(title: String(localized: "Some Photos Couldn’t Be Added"), message: alert.message, preferredStyle: .alert)
@@ -308,7 +339,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             } catch {
                 context.rollback()
                 let removed = removeFiles(result.fileNames)
-                rebuild()
+                render()
                 showError(String(localized: "Some Photos Couldn’t Be Added"), message: removed ? String(localized: "Some selected photos could not be added.") : String(localized: "Some copied photo files could not be deleted."))
             }
         }
@@ -324,12 +355,12 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
     private func usePhotoInfo(_ photo: EntryPhoto) {
         entry.applyInfo(from: photo); entry.hasShownPhotoInfoPrompt = true
-        _ = flush(); rebuild()
+        _ = flush(); render()
     }
     private func editDate() {
         guard flush() else { return }
         let controller = EntryDateViewController(entry: entry) { [weak self] in _ = self?.flush() }
-        controller.onDone = { [weak self] in self?.rebuild() }
+        controller.onDone = { [weak self] in self?.render() }
         present(UINavigationController(rootViewController: controller), animated: true)
     }
     private func openPhoto(_ photo: EntryPhoto) {
@@ -346,9 +377,9 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         do {
             try saveEntryChanges(entry, in: context)
             NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
-            rebuild()
+            render()
             return removeFiles([name]) ? .deleted : .fileCleanupFailed
-        } catch { context.rollback(); rebuild(); return .failed }
+        } catch { context.rollback(); render(); return .failed }
     }
     private func removeFiles(_ names: [String]) -> Bool {
         var success = true
@@ -402,13 +433,16 @@ private final class EntryTitleView: UITextView {
 }
 
 final class BlockTextView: UITextView {
+    enum SlotKey: Hashable { case block(UUID), transient(after: UUID?) }
     var blockID: UUID?
     var previousBlockID: UUID?
+    var slotKey: SlotKey { blockID.map(SlotKey.block) ?? .transient(after: previousBlockID) }
     private let placeholder = UILabel()
     private var checklistButtons: [(range: NSRange, button: UIButton)] = []
     private var formattedText: String?
     private var formattedCategory: UIContentSizeCategory?
     private var minimumHeight: NSLayoutConstraint!
+    private var hasFormatting = false
     private static let checklistPattern = try! NSRegularExpression(pattern: #"(?m)^[\t ]*[☐☑] "#)
     private static let listPattern = try! NSRegularExpression(pattern: #"(?m)^[\t ]*(?:• |[0-9]+[.)] )"#)
     override var text: String! {
@@ -451,21 +485,28 @@ final class BlockTextView: UITextView {
         formattedText = text
         formattedCategory = traitCollection.preferredContentSizeCategory
         minimumHeight.constant = text.isEmpty ? 44 : 0
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        let source = textStorage.string as NSString
+        let listMatches = Self.listPattern.matches(in: source as String, range: fullRange)
+        let checklistMatches = Self.checklistPattern.matches(in: source as String, range: fullRange)
+        // Plain prose keeps UIKit's own attributes: restyling it would relayout the whole
+        // document on every keystroke. Formatted text is restyled once more when markers vanish.
+        // Note: formatted text still restyles in full; restyle only edited paragraphs if long checklists lag.
+        guard hasFormatting || !listMatches.isEmpty || !checklistMatches.isEmpty else { return }
+        hasFormatting = !listMatches.isEmpty || !checklistMatches.isEmpty
         checklistButtons.forEach { $0.button.removeFromSuperview() }
         checklistButtons.removeAll()
         accessibilityCustomActions = nil
         let bodyFont = UIFont.preferredFont(forTextStyle: .body, compatibleWith: traitCollection)
-        let fullRange = NSRange(location: 0, length: textStorage.length)
         textStorage.beginEditing()
         textStorage.setAttributes([.font: bodyFont, .foregroundColor: UIColor.label], range: fullRange)
-        let source = textStorage.string as NSString
-        for match in Self.listPattern.matches(in: source as String, range: fullRange) {
+        for match in listMatches {
             let style = NSMutableParagraphStyle()
             style.headIndent = (source.substring(with: match.range) as NSString).size(withAttributes: [.font: bodyFont]).width
             textStorage.addAttribute(.paragraphStyle, value: style, range: source.paragraphRange(for: match.range))
         }
         var actions: [UIAccessibilityCustomAction] = []
-        for match in Self.checklistPattern.matches(in: source as String, range: fullRange) {
+        for match in checklistMatches {
             let marker = NSRange(location: NSMaxRange(match.range) - 2, length: 1)
             let paragraph = source.paragraphRange(for: marker)
             let style = NSMutableParagraphStyle()
@@ -560,10 +601,13 @@ private final class PhotoButton: UIButton {
 
 final class PhotoGroupView: UIStackView {
     private(set) var photoViews: [StoredPhotoView] = []
+    let blockID: UUID
+    let fileNames: [String]
     init(block: EntryBlock, storage: PhotoStorage, deferLoading: Bool = false, open: @escaping (EntryPhoto) -> Void) {
+        let photos = block.orderedPhotos
+        blockID = block.id; fileNames = photos.map(\.fileName)
         super.init(frame: .zero)
         axis = .vertical; spacing = 4
-        let photos = block.orderedPhotos
         let columns = photoGroupColumnCount(forPhotoCount: photos.count)
         for start in stride(from: 0, to: photos.count, by: max(1, columns)) {
             let row = UIStackView(); row.spacing = 4; row.distribution = .fillEqually
@@ -644,7 +688,7 @@ final class EntryDateViewController: UIViewController {
         }, for: .valueChanged)
         installStack([row, picker])
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in
-            self?.dismiss(animated: true); self?.onDone?()
+            self?.dismiss(animated: true)
         })
     }
     override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); onDone?() }

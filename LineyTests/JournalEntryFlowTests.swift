@@ -1764,6 +1764,37 @@ struct EditorUsabilityTests {
         #expect(button.bounds.height >= 44)
         #expect(button.bounds.height < 100)
     }
+
+    @Test func insertingPhotosKeepsExistingBlockViews() async throws {
+        let container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        let entry = JournalEntry(title: "Fixture title")
+        context.insert(entry)
+        entry.insertTextBlock("Fixture paragraph", in: context)
+        let editor = EntryEditorViewController(entry: entry, isNew: false, context: context)
+        let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = UINavigationController(rootViewController: editor)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        window.layoutIfNeeded()
+        let paragraph = try #require(descendants(editor.view, as: BlockTextView.self).first { $0.text == "Fixture paragraph" })
+
+        func insert(_ fileName: String) async {
+            editor.importPhotos { PhotoImportResult(photos: [PhotoGroupItem(fileName: fileName)], failedCount: 0) }
+            while editor.navigationItem.hidesBackButton { await Task.yield() }
+        }
+        await insert("first-missing.jpg")
+        let firstGroup = try #require(descendants(editor.view, as: PhotoGroupView.self).first)
+        await insert("second-missing.jpg")
+
+        let groups = descendants(editor.view, as: PhotoGroupView.self)
+        #expect(groups.count == 2)
+        #expect(groups.first === firstGroup)
+        #expect(descendants(editor.view, as: BlockTextView.self).contains { $0 === paragraph })
+        #expect(entry.photoGroupBlocks.count == 2)
+    }
 }
 
 @MainActor
