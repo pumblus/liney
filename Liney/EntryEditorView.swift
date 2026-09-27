@@ -576,7 +576,9 @@ final class PhotoGroupView: UIStackView {
                 image.onAvailabilityChange = { [weak button] available in
                     button?.accessibilityValue = available ? nil : String(localized: "Photo unavailable")
                 }
-                let aspect = button.heightAnchor.constraint(equalTo: button.widthAnchor, multiplier: photos.count == 1 ? 0.75 : 1)
+                // Size a single photo from its header before first layout; decoding only confirms it.
+                let initialRatio = photos.count == 1 ? storage.pixelSize(for: photo.fileName).map { min(2, max(0.5, $0.height / $0.width)) } ?? 0.75 : 1
+                let aspect = button.heightAnchor.constraint(equalTo: button.widthAnchor, multiplier: initialRatio)
                 aspect.identifier = "photo-aspect"
                 NSLayoutConstraint.activate([
                     image.leadingAnchor.constraint(equalTo: button.leadingAnchor), image.trailingAnchor.constraint(equalTo: button.trailingAnchor),

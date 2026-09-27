@@ -157,7 +157,13 @@ final class StoredPhotoView: UIImageView {
         else { cancel() }
     }
     func load(_ fileName: String, storage: PhotoStorage = PhotoStorage(), pixels: Int = 600) {
-        cancel()
+        operation?.cancel(); operation = nil; requestID = UUID()
+        // A cached image appears in the same frame, so reloads and reuse do not flash empty.
+        if let cached = storage.cachedThumbnail(for: fileName, maxPixelSize: pixels) {
+            display(cached)
+            return
+        }
+        image = nil
         let id = requestID
         let operation = BlockOperation()
         operation.addExecutionBlock { [weak self, weak operation] in
@@ -166,14 +172,17 @@ final class StoredPhotoView: UIImageView {
             guard operation?.isCancelled == false else { return }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.requestID == id else { return }
-                self.image = image ?? UIImage(systemName: "photo")
-                if let image { self.onImageSize?(image.size) }
-                self.accessibilityLabel = image == nil ? String(localized: "Photo unavailable") : String(localized: "Photo")
-                self.onAvailabilityChange?(image != nil)
+                self.display(image)
             }
         }
         self.operation = operation
         Self.queue.addOperation(operation)
+    }
+    private func display(_ image: UIImage?) {
+        self.image = image ?? UIImage(systemName: "photo")
+        if let image { onImageSize?(image.size) }
+        accessibilityLabel = image == nil ? String(localized: "Photo unavailable") : String(localized: "Photo")
+        onAvailabilityChange?(image != nil)
     }
     func cancel() { operation?.cancel(); operation = nil; requestID = UUID(); image = nil }
     deinit { operation?.cancel() }

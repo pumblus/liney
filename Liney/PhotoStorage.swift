@@ -146,6 +146,21 @@ struct PhotoStorage: @unchecked Sendable {
         UIImage(contentsOfFile: url(for: fileName).path)
     }
 
+    /// Main-thread safe: returns only an already decoded image and never touches the file.
+    func cachedThumbnail(for fileName: String, maxPixelSize: Int) -> UIImage? {
+        Self.thumbnailCache.image(forPath: url(for: fileName).path, maxPixelSize: max(1, maxPixelSize))
+    }
+
+    /// Reads the image header without decoding. Stored photos are already upright JPEGs.
+    func pixelSize(for fileName: String) -> CGSize? {
+        guard let source = CGImageSourceCreateWithURL(url(for: fileName) as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int,
+              width > 0, height > 0 else { return nil }
+        return CGSize(width: width, height: height)
+    }
+
     func thumbnail(for fileName: String, maxPixelSize: Int = PhotoStorage.defaultThumbnailMaxPixelSize) -> UIImage? {
         let fileURL = url(for: fileName)
         let pixelSize = max(1, maxPixelSize)
@@ -288,12 +303,12 @@ struct PhotoStorage: @unchecked Sendable {
         return (capturedAt, latitude, longitude)
     }
 
-    private static var exifDateFormatter: DateFormatter {
+    private static let exifDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
         return formatter
-    }
+    }()
 
     private static func signedCoordinate(_ value: Any?, reference: Any?, negativeReference: String) -> Double? {
         guard var coordinate = doubleValue(value) else { return nil }
