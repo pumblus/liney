@@ -331,8 +331,14 @@ final class JournalEntryFlowTests: XCTestCase {
         try await repository.reload()
         let result = try await repository.search("", calendar: calendar)
         XCTAssertEqual(result.totalCount, 1_000)
-        let expected = groupEntriesByDay(try context.fetch(FetchDescriptor<JournalEntry>()), calendar: calendar)
-        XCTAssertEqual(result.days.map { $0.entries.map(\.id) }, expected.map { $0.entries.map(\.id) })
+        XCTAssertEqual(result.days.map(\.date), result.days.map(\.date).sorted(by: >))
+        for day in result.days {
+            let timed = day.entries.prefix { !$0.isAllDay }
+            XCTAssertTrue(day.entries.dropFirst(timed.count).allSatisfy(\.isAllDay), "Timed entries precede all-day entries")
+            XCTAssertEqual(timed.map(\.entryDate), timed.map(\.entryDate).sorted(by: >))
+            let allDay = day.entries.dropFirst(timed.count)
+            XCTAssertEqual(allDay.map(\.createdAt), allDay.map(\.createdAt).sorted(by: >))
+        }
         let matching = try await repository.search(" needle 中文 ", calendar: calendar)
         XCTAssertEqual(matching.days.flatMap(\.entries).count, 1)
         let value = try XCTUnwrap(matching.days.first?.entries.first)
@@ -533,8 +539,8 @@ final class JournalEntryFlowTests: XCTestCase {
         let reopened = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
         XCTAssertEqual(reopened.title, "Morning")
         XCTAssertEqual(reopened.plainTextBody, "Coffee before the walk.")
-        XCTAssertEqual(reopened.rowTitle, "Morning")
-        XCTAssertEqual(reopened.rowSubtitle, "Coffee before the walk.")
+        XCTAssertEqual(TimelineEntry(reopened).rowTitle, "Morning")
+        XCTAssertEqual(TimelineEntry(reopened).rowSubtitle, "Coffee before the walk.")
     }
 
     func testLocalizationCatalogCoversEnglishAndSimplifiedChinese() throws {
@@ -605,7 +611,7 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(entry.entryDate, allDayDate)
     }
 
-    func testTimelineGroupingAndDelete() throws {
+    func testTimelineGroupingAndDelete() async throws {
         let calendar = Calendar(identifier: .gregorian)
         let newest = JournalEntry(
             title: "Newest",
@@ -626,21 +632,25 @@ final class JournalEntryFlowTests: XCTestCase {
         olderSameDay.setBody("Body summary", in: context)
         try context.save()
 
-        let groups = groupEntriesByDay([olderSameDay, newest, laterSameDay], calendar: calendar)
+        let repository = TimelineRepository(container: container)
+        try await repository.reload()
+        let groups = try await repository.search("", calendar: calendar).days
         XCTAssertEqual(groups.map(\.date), [
             try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 7))),
             try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6)))
         ])
         XCTAssertEqual(groups[1].entries.map(\.rowTitle), ["Later", "Body summary"])
 
+        let deletedID = laterSameDay.id
         context.delete(laterSameDay)
         try context.save()
+        try await repository.update(id: deletedID)
 
-        let remaining = try context.fetch(FetchDescriptor<JournalEntry>())
+        let remaining = try await repository.search("", calendar: calendar).days.flatMap(\.entries)
         XCTAssertEqual(remaining.map(\.rowTitle).sorted(), ["Body summary", "Newest"])
     }
 
-    func testTimelineOrdersTimedEntriesByTimeAndAllDayEntriesByCreatedAt() throws {
+    func testTimelineOrdersTimedEntriesByTimeAndAllDayEntriesByCreatedAt() async throws {
         let calendar = Calendar(identifier: .gregorian)
         let timedMorning = JournalEntry(
             title: "Morning",
@@ -665,9 +675,13 @@ final class JournalEntryFlowTests: XCTestCase {
             createdAt: try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 11)))
         )
 
-        let groups = groupEntriesByDay([allDayOlder, timedMorning, allDayNewer, timedEvening], calendar: calendar)
+        [allDayOlder, timedMorning, allDayNewer, timedEvening].forEach { context.insert($0) }
+        try context.save()
+        let repository = TimelineRepository(container: container)
+        try await repository.reload()
+        let groups = try await repository.search("", calendar: calendar).days
 
-        XCTAssertEqual(groups.flatMap { $0.entries.map(\.title) }, ["Evening", "Morning", "All Day Newer", "All Day Older"])
+        XCTAssertEqual(groups.flatMap { $0.entries.map(\.rowTitle) }, ["Evening", "Morning", "All Day Newer", "All Day Older"])
     }
 
     func testLocationDisplayTextRequiresMainLocationName() {
@@ -681,7 +695,7 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertNil(emptyLocation.locationDisplayText)
     }
 
-    func testSearchMatchesTitleAndBodyOnlyAndKeepsTimelineOrder() throws {
+    func testSearchMatchesTitleAndBodyOnlyAndKeepsTimelineOrder() async throws {
         let calendar = Calendar(identifier: .gregorian)
         let titleMatch = JournalEntry(
             title: "Train Notes",
@@ -704,13 +718,16 @@ final class JournalEntryFlowTests: XCTestCase {
         dateOnlyMatch.setBody("River walk.", in: context)
         try context.save()
 
-        let entries = [dateOnlyMatch, bodyMatch, titleMatch]
-        let groups = groupEntriesByDay(searchJournalEntries(entries, matching: "TRAIN"), calendar: calendar)
+        let repository = TimelineRepository(container: container)
+        try await repository.reload()
+        let groups = try await repository.search("TRAIN", calendar: calendar).days
 
-        XCTAssertEqual(groups.flatMap { $0.entries.map(\.title) }, ["Lunch", "Train Notes"])
-        XCTAssertTrue(groups[0].entries[0] === bodyMatch)
-        XCTAssertTrue(searchJournalEntries(entries, matching: "2026").isEmpty)
-        XCTAssertEqual(searchJournalEntries(entries, matching: "   ").count, 3)
+        XCTAssertEqual(groups.flatMap { $0.entries.map(\.rowTitle) }, ["Lunch", "Train Notes"])
+        XCTAssertEqual(groups[0].entries[0].id, bodyMatch.id)
+        let dateOnly = try await repository.search("2026", calendar: calendar)
+        XCTAssertTrue(dateOnly.days.isEmpty)
+        let blank = try await repository.search("   ", calendar: calendar)
+        XCTAssertEqual(blank.days.flatMap(\.entries).count, 3)
     }
 
     func testInsertPhotoGroupSplitsFocusedTextBlockAndPreservesPhotoOrder() throws {
@@ -787,7 +804,7 @@ final class JournalEntryFlowTests: XCTestCase {
         try context.save()
 
         XCTAssertFalse(entry.isBlank)
-        XCTAssertEqual(entry.previewPhotos.map(\.fileName), ["1.jpg", "2.jpg", "3.jpg"])
+        XCTAssertEqual(TimelineEntry(entry).previewFiles, ["1.jpg", "2.jpg", "3.jpg"])
     }
 
     func testPhotoMetadataVisibilityRequiresCaptureTimeOrPlaceText() {
@@ -1013,20 +1030,6 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(group.bounds.height, 480, accuracy: 1, "Portrait photos should not sit in a landscape letterbox")
     }
 
-    func testPhotoGroupLayoutPlanUsesSquareCells() {
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 1).map(\.columnSpan), [1])
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 2).map(\.columnSpan), [1, 1])
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 3).map(\.columnSpan), [1, 1, 1])
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 4).map(\.columnSpan), [1, 1, 1, 1])
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 5).map(\.columnSpan), [1, 1, 1, 1, 1])
-
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 1).map(\.aspectRatio), [1])
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 2).map(\.aspectRatio), [1, 1])
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 3).map(\.aspectRatio), [1, 1, 1])
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 4).map(\.aspectRatio), [1, 1, 1, 1])
-        XCTAssertEqual(photoGroupLayoutPlan(forPhotoCount: 5).map(\.aspectRatio), [1, 1, 1, 1, 1])
-    }
-
     func testThreePhotoLayoutSmokeRendersOnSimulator() async throws {
         let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let storage = PhotoStorage(baseURL: baseURL)
@@ -1243,9 +1246,9 @@ func testPhotoStorageThumbnailPerformanceOnSyntheticFixtures() throws {
     print("[PERF-photo] thumbnail_160_warm median_ms=\(qualityPerfMedian(warmThumbnailSamples)) p95_ms=\(qualityPerfP95(warmThumbnailSamples)) decoded_bytes_estimate=\(warmDecodedBytes)")
 }
 
-// MARK: Timeline/search pure-function baseline
+// MARK: Timeline repository search baseline
 
-func testTimelineSearchPerformanceOnSyntheticFixture() throws {
+func testTimelineSearchPerformanceOnSyntheticFixture() async throws {
     let calendar = Calendar(identifier: .gregorian)
     let startDate = Date(timeIntervalSinceReferenceDate: 800_000_000)
     let commonText = String(repeating: "alpha beta gamma ", count: 256)
@@ -1262,31 +1265,28 @@ func testTimelineSearchPerformanceOnSyntheticFixture() throws {
     }
     try context.save()
 
-    let entries = try context.fetch(FetchDescriptor<JournalEntry>())
-    XCTAssertEqual(entries.count, 1_000)
+    let repository = TimelineRepository(container: container)
+    let reloadStart = DispatchTime.now().uptimeNanoseconds
+    try await repository.reload()
+    let reloadMilliseconds = qualityPerfMilliseconds(since: reloadStart)
 
     var searchSamples: [Double] = []
-    var groupingSamples: [Double] = []
     var matchCount = 0
     var groupCount = 0
 
     for _ in 0..<3 {
         let searchStart = DispatchTime.now().uptimeNanoseconds
-        let matches = searchJournalEntries(entries, matching: "needle")
+        let result = try await repository.search("needle", calendar: calendar)
         searchSamples.append(qualityPerfMilliseconds(since: searchStart))
-        matchCount = matches.count
-
-        let groupingStart = DispatchTime.now().uptimeNanoseconds
-        let groups = groupEntriesByDay(matches, calendar: calendar)
-        groupingSamples.append(qualityPerfMilliseconds(since: groupingStart))
-        groupCount = groups.count
+        matchCount = result.days.reduce(0) { $0 + $1.entries.count }
+        groupCount = result.days.count
     }
 
     XCTAssertEqual(matchCount, 1_000)
     XCTAssertGreaterThan(groupCount, 0)
-    print("[PERF-search] entries=1000 body_bytes_each=4363 rounds=3 query=needle")
-    print("[PERF-search] filter median_ms=\(qualityPerfMedian(searchSamples)) p95_ms=\(qualityPerfP95(searchSamples)) matches=\(matchCount)")
-    print("[PERF-search] group_by_day median_ms=\(qualityPerfMedian(groupingSamples)) p95_ms=\(qualityPerfP95(groupingSamples)) groups=\(groupCount)")
+    print("[PERF-search] entries=1000 body_bytes_each=4363 rounds=3 query=needle path=TimelineRepository")
+    print("[PERF-search] reload_ms=\(reloadMilliseconds)")
+    print("[PERF-search] search_and_group median_ms=\(qualityPerfMedian(searchSamples)) p95_ms=\(qualityPerfP95(searchSamples)) matches=\(matchCount) groups=\(groupCount)")
 }
 
 // MARK: Synchronous long-text save baseline
@@ -1482,10 +1482,10 @@ struct TimelineDeletionTests {
         }
         let expectedSections = searching ? 1 : 2
         for _ in 0..<100 {
-            if timeline.numberOfSections(in: timeline.tableView) == expectedSections { break }
+            if timeline.tableView.numberOfSections == expectedSections { break }
             try await Task.sleep(for: .milliseconds(20))
         }
-        #expect(timeline.numberOfSections(in: timeline.tableView) == expectedSections)
+        #expect(timeline.tableView.numberOfSections == expectedSections)
         let swipe = try #require(timeline.tableView(timeline.tableView,
             trailingSwipeActionsConfigurationForRowAt: IndexPath(row: 0, section: 0)))
         #expect(!swipe.performsFirstActionWithFullSwipe)
@@ -1510,10 +1510,10 @@ struct TimelineDeletionTests {
         #expect(!FileManager.default.fileExists(atPath: storage.url(for: name).path))
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<EntryPhoto>()) == 0)
         for _ in 0..<100 {
-            if timeline.numberOfSections(in: timeline.tableView) == expectedSections - 1 { break }
+            if timeline.tableView.numberOfSections == expectedSections - 1 { break }
             try await Task.sleep(for: .milliseconds(20))
         }
-        #expect(timeline.numberOfSections(in: timeline.tableView) == expectedSections - 1)
+        #expect(timeline.tableView.numberOfSections == expectedSections - 1)
         // A stale action for an already deleted identity must not delete a replacement row.
         timeline.deleteEntry(id: selectedID)
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<JournalEntry>()) == 1)
@@ -1845,5 +1845,56 @@ struct PhotoDisplayTests {
         view.load(fileName, storage: storage, pixels: 160)
         #expect(view.image != nil)
         #expect(available == true)
+    }
+}
+
+@MainActor
+struct TimelineRefreshTests {
+    @Test func savedEntryAppearsWithoutReappearing() async throws {
+        let container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
+                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let timeline = TimelineViewController(container: container, appLock: AppLockModel())
+        let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = UINavigationController(rootViewController: timeline)
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        for _ in 0..<100 where timeline.contentUnavailableConfiguration == nil { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(timeline.tableView.numberOfSections == 0)
+
+        let context = ModelContext(container)
+        let entry = JournalEntry(title: "Fixture saved elsewhere")
+        context.insert(entry)
+        try context.save()
+        NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
+        for _ in 0..<100 where timeline.tableView.numberOfSections == 0 { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(timeline.tableView.numberOfSections == 1)
+        #expect(timeline.contentUnavailableConfiguration == nil)
+    }
+}
+
+// Fixture builders: production writes blocks through the editor and importer instead.
+extension JournalEntry {
+    func setBody(_ body: String, in context: ModelContext) {
+        let existingTextBlocks = textBlocks
+        func remove(_ block: EntryBlock) { blocks.removeAll { $0.id == block.id }; context.delete(block) }
+        if body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            existingTextBlocks.forEach(remove)
+        } else if let block = existingTextBlocks.first {
+            block.text = body
+            existingTextBlocks.dropFirst().forEach(remove)
+        } else {
+            let block = EntryBlock(sortIndex: 0, text: body, entry: self)
+            blocks.append(block)
+            context.insert(block)
+        }
+        normalizeBlocks(in: context)
+    }
+
+    @discardableResult
+    func insertPhotoGroup(fileNames: [String], focusedTextBlockID: UUID? = nil, cursorOffset: Int? = nil,
+                          in context: ModelContext) -> PhotoGroupInsertion? {
+        insertPhotoGroup(photos: fileNames.map { PhotoGroupItem(fileName: $0) },
+                         focusedTextBlockID: focusedTextBlockID, cursorOffset: cursorOffset, in: context)
     }
 }

@@ -5,7 +5,12 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     let container: ModelContainer
     let appLock: AppLockModel
     private var totalCount = 0
-    private var groups: [TimelineDay] = []
+    private var entriesByID: [UUID: TimelineEntry] = [:]
+    private lazy var dataSource = TimelineDataSource(tableView: tableView) { [unowned self] tableView, indexPath, id in
+        let cell = tableView.dequeueReusableCell(withIdentifier: "entry", for: indexPath) as! EntryCell
+        if let entry = self.entriesByID[id] { cell.configure(entry, storage: self.storage) }
+        return cell
+    }
     private let repository: TimelineRepository
     private var loadTask: Task<Void, Never>?
     private var revision = 0
@@ -25,8 +30,11 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         super.viewDidLoad()
         title = String(localized: "Journal")
         tableView.register(EntryCell.self, forCellReuseIdentifier: "entry")
+        tableView.dataSource = dataSource
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: TimelineViewController, _: UITraitCollection) in
-            controller.tableView.reloadData()
+            var snapshot = controller.dataSource.snapshot()
+            snapshot.reconfigureItems(snapshot.itemIdentifiers)
+            controller.dataSource.apply(snapshot, animatingDifferences: false)
         }
         search.searchResultsUpdater = self
         search.obscuresBackgroundDuringPresentation = false
@@ -46,8 +54,9 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         more.accessibilityLabel = String(localized: "More")
         navigationItem.rightBarButtonItems = [more, new]
         NotificationCenter.default.addObserver(self, selector: #selector(journalChanged(_:)), name: .journalDidChange, object: nil)
+        // Load once; every journal mutation posts journalDidChange, so returning here needs no refetch.
+        reloadEntries()
     }
-    override func viewWillAppear(_ animated: Bool) { super.viewWillAppear(animated); reloadEntries() }
     func reloadEntries() { refresh(reload: true) }
     @objc private func journalChanged(_ notification: Notification) {
         refresh(reload: notification.object as? UUID == nil, changedID: notification.object as? UUID)
@@ -63,7 +72,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
                 guard let self, revision == self.revision else { return }
                 let result = try await repository.search(self.search.searchBar.text ?? "")
                 guard revision == self.revision else { return }
-                self.apply(result)
+                self.apply(result, animated: changedID != nil)
             } catch is CancellationError { }
             catch { self?.showError(String(localized: "Could Not Load Journal"), message: error.localizedDescription) }
         }
@@ -75,10 +84,18 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
             self?.refresh(reload: false)
         }
     }
-    private func apply(_ result: TimelineResult) {
-        totalCount = result.totalCount; groups = result.days
-        tableView.reloadData()
-        if groups.isEmpty {
+    private func apply(_ result: TimelineResult, animated: Bool) {
+        let previous = entriesByID
+        totalCount = result.totalCount
+        entriesByID = Dictionary(result.days.flatMap(\.entries).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var snapshot = NSDiffableDataSourceSnapshot<Date, UUID>()
+        for day in result.days {
+            snapshot.appendSections([day.date])
+            snapshot.appendItems(day.entries.map(\.id), toSection: day.date)
+        }
+        snapshot.reconfigureItems(snapshot.itemIdentifiers.filter { previous[$0].map { $0 != entriesByID[$0.id] } ?? false })
+        dataSource.apply(snapshot, animatingDifferences: animated)
+        if result.days.isEmpty {
             var configuration = UIContentUnavailableConfiguration.empty()
             configuration.image = UIImage(systemName: "book.closed")
             configuration.text = totalCount == 0 ? String(localized: "No Entries") : String(localized: "No Results")
@@ -86,21 +103,11 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
             contentUnavailableConfiguration = configuration
         } else { contentUnavailableConfiguration = nil }
     }
-    override func numberOfSections(in tableView: UITableView) -> Int { groups.count }
-    override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { groups[section].entries.count }
-    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
-        groups[section].date.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
-    }
-    override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tableView.dequeueReusableCell(withIdentifier: "entry", for: indexPath) as! EntryCell
-        cell.configure(groups[indexPath.section].entries[indexPath.row], storage: storage)
-        return cell
-    }
     override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
         (cell as? EntryCell)?.cancelImages()
     }
     override func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-        let id = groups[indexPath.section].entries[indexPath.row].id
+        guard let id = dataSource.itemIdentifier(for: indexPath) else { return nil }
         let delete = UIContextualAction(style: .destructive, title: String(localized: "Delete Entry")) { [weak self] _, _, completion in
             // Close the swipe without removing the row before confirmation and persistence.
             completion(false)
@@ -143,7 +150,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         if let detail = splitViewController?.viewController(for: .secondary) as? UINavigationController,
            let editor = detail.topViewController as? EntryEditorViewController, !editor.prepareForReplacement() { return }
-        let entry = groups[indexPath.section].entries[indexPath.row]
+        guard let entry = dataSource.itemIdentifier(for: indexPath).flatMap({ entriesByID[$0] }) else { return }
         let context = ModelContext(container)
         guard let editable = context.model(for: entry.persistentModelID) as? JournalEntry else { return }
         let editor = EntryEditorViewController(entry: editable, isNew: false, context: context)
@@ -177,6 +184,14 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         flow.onFinished = { [weak self] in self?.exportFlow = nil }
         flow.start()
     }
+}
+
+private final class TimelineDataSource: UITableViewDiffableDataSource<Date, UUID> {
+    override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        sectionIdentifier(for: section)?.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
+    }
+    // Diffable data sources disable editing by default, which would hide the swipe Delete action.
+    override func tableView(_ tableView: UITableView, canEditRowAt indexPath: IndexPath) -> Bool { true }
 }
 
 private final class EntryCell: UITableViewCell {

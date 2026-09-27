@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-struct TimelineEntry: Sendable {
+struct TimelineEntry: Sendable, Equatable {
     let id: UUID
     let persistentModelID: PersistentIdentifier
     let entryDate: Date

@@ -189,10 +189,6 @@ extension JournalEntry {
         photoGroupBlocks.reduce(0) { $0 + $1.photos.count }
     }
 
-    var previewPhotos: [EntryPhoto] {
-        photoGroupBlocks.flatMap(\.orderedPhotos).prefix(3).map { $0 }
-    }
-
     var plainTextBody: String {
         textBlocks.map(\.text).joined(separator: "\n")
     }
@@ -201,26 +197,6 @@ extension JournalEntry {
         title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         plainTextBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         photoCount == 0
-    }
-
-    var rowTitle: String {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedTitle.isEmpty {
-            return trimmedTitle
-        }
-
-        let trimmedBody = plainTextBody.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedBody.isEmpty {
-            return trimmedBody
-        }
-
-        return photoCount > 0 ? String(localized: "Photo Entry") : String(localized: "Untitled Entry")
-    }
-
-    var rowSubtitle: String? {
-        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedBody = plainTextBody.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedTitle.isEmpty || trimmedBody.isEmpty ? nil : trimmedBody
     }
 
     var locationDisplayText: String? {
@@ -281,40 +257,6 @@ extension JournalEntry {
             locationLatitude = photo.locationLatitude
             locationLongitude = photo.locationLongitude
         }
-    }
-
-    func setBody(_ body: String, in context: ModelContext) {
-        let existingTextBlocks = textBlocks
-        if body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            existingTextBlocks.forEach { removeBlock($0, in: context) }
-            normalizeBlocks(in: context)
-            return
-        }
-
-        if let block = existingTextBlocks.first {
-            block.text = body
-            existingTextBlocks.dropFirst().forEach { removeBlock($0, in: context) }
-        } else {
-            let block = EntryBlock(sortIndex: 0, text: body, entry: self)
-            blocks.append(block)
-            context.insert(block)
-        }
-        normalizeBlocks(in: context)
-    }
-
-    @discardableResult
-    func insertPhotoGroup(
-        fileNames: [String],
-        focusedTextBlockID: UUID? = nil,
-        cursorOffset: Int? = nil,
-        in context: ModelContext
-    ) -> PhotoGroupInsertion? {
-        insertPhotoGroup(
-            photos: fileNames.map { PhotoGroupItem(fileName: $0) },
-            focusedTextBlockID: focusedTextBlockID,
-            cursorOffset: cursorOffset,
-            in: context
-        )
     }
 
     @discardableResult
@@ -485,59 +427,10 @@ private extension EntryPhoto {
     }
 }
 
-struct PhotoGroupCellLayout: Equatable {
-    let columnSpan: Int
-    let aspectRatio: Double
-}
-
-func photoGroupLayoutPlan(forPhotoCount count: Int) -> [PhotoGroupCellLayout] {
-    guard count > 0 else { return [] }
-
-    return Array(repeating: PhotoGroupCellLayout(columnSpan: 1, aspectRatio: 1), count: count)
-}
-
 func photoGroupColumnCount(forPhotoCount count: Int) -> Int {
     if count <= 1 { return 1 }
     if count == 4 { return 2 }
     return min(count, 3)
-}
-
-struct EntryDayGroup: Identifiable {
-    let id: Date
-    let date: Date
-    let entries: [JournalEntry]
-}
-
-func searchJournalEntries(_ entries: [JournalEntry], matching query: String) -> [JournalEntry] {
-    let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedQuery.isEmpty else { return entries }
-
-    return entries.filter { entry in
-        entry.title.localizedCaseInsensitiveContains(trimmedQuery) ||
-        entry.plainTextBody.localizedCaseInsensitiveContains(trimmedQuery)
-    }
-}
-
-func groupEntriesByDay(_ entries: [JournalEntry], calendar: Calendar = .current) -> [EntryDayGroup] {
-    // Read observable model keys once, rather than for every sorting comparison.
-    let values = entries.map { entry in
-        (entry: entry, date: entry.entryDate, created: entry.createdAt, allDay: entry.isAllDay)
-    }
-    return Dictionary(grouping: values) { value in
-        calendar.startOfDay(for: value.date)
-    }
-    .map { day, values in
-        EntryDayGroup(
-            id: day,
-            date: day,
-            entries: values.sorted {
-                if $0.allDay != $1.allDay { return !$0.allDay }
-                if $0.allDay || $0.date == $1.date { return $0.created > $1.created }
-                return $0.date > $1.date
-            }.map(\.entry)
-        )
-    }
-    .sorted { $0.date > $1.date }
 }
 
 @discardableResult
