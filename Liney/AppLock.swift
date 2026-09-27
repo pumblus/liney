@@ -2,6 +2,13 @@ import Foundation
 import LocalAuthentication
 import UIKit
 
+extension UserDefaults {
+    var requiresAppLock: Bool {
+        get { bool(forKey: "liney.requiresAppLock") }
+        set { set(newValue, forKey: "liney.requiresAppLock") }
+    }
+}
+
 protocol AppAuthenticating {
     func authenticate(reason: String) async -> Bool
 }
@@ -61,18 +68,20 @@ final class AppLockModel {
         _ = await authenticate(reason: String(localized: "Unlock Liney to view your journal."))
     }
 
+    /// Temporary interruptions (Control Center, banners, the Face ID prompt) only cover content.
     func protectSnapshot(requiresLock: Bool) {
         guard requiresLock else {
             clearLockPresentation()
             return
         }
-        isLocked = true
         isSnapshotCovered = true
     }
 
+    /// Leaving the foreground requires authentication again on return.
     func didEnterBackground(requiresLock: Bool) {
         authenticationGeneration += 1
         protectSnapshot(requiresLock: requiresLock)
+        if requiresLock { isLocked = true }
     }
 
     func authenticateForExport(requiresLock: Bool) async -> Bool {

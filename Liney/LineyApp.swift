@@ -25,7 +25,7 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var privacyShield: JournalPrivacyShield?
     private let appLock = AppLockModel()
-    private var requiresLock: Bool { UserDefaults.standard.bool(forKey: "liney.requiresAppLock") }
+    private var requiresLock: Bool { UserDefaults.standard.requiresAppLock }
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene,

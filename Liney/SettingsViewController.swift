@@ -16,18 +16,18 @@ final class SettingsViewController: UITableViewController {
         if indexPath.section == 0 {
             content.text = String(localized: "App Lock"); content.image = UIImage(systemName: "lock")
             let toggle = UISwitch()
-            toggle.isOn = UserDefaults.standard.bool(forKey: "liney.requiresAppLock")
+            toggle.isOn = UserDefaults.standard.requiresAppLock
             toggle.accessibilityLabel = content.text
             toggle.addAction(UIAction { [weak self, weak toggle] _ in
                 guard let self, let toggle else { return }
                 if !toggle.isOn {
-                    UserDefaults.standard.set(false, forKey: "liney.requiresAppLock")
+                    UserDefaults.standard.requiresAppLock = false
                     self.appLock.disableLock()
                 } else {
                     toggle.isEnabled = false
                     Task {
                         let success = await self.appLock.authenticateToEnable()
-                        UserDefaults.standard.set(success, forKey: "liney.requiresAppLock")
+                        UserDefaults.standard.requiresAppLock = success
                         toggle.isOn = success; toggle.isEnabled = true
                         if !success {
                             self.showError(String(localized: "Could Not Enable App Lock"), message: String(localized: "Device authentication was not completed."))

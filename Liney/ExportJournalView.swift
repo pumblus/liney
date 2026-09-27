@@ -31,7 +31,7 @@ final class ExportJournalFlow {
     func start() {
         guard task == nil else { return }
         task = Task { [self] in
-            guard await appLock.authenticateForExport(requiresLock: UserDefaults.standard.bool(forKey: "liney.requiresAppLock")),
+            guard await appLock.authenticateForExport(requiresLock: UserDefaults.standard.requiresAppLock),
                   let presenter else { onFinished?(); return }
             let progress = ProcessingViewController(title: String(localized: "Export Journal"), message: String(localized: "Preparing Export"))
             // Even a tiny export must not dismiss a sheet that is still being presented.

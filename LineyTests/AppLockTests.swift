@@ -98,10 +98,25 @@ final class AppLockTests: XCTestCase {
 
         await lock.unlockIfNeeded(requiresLock: true)
         lock.protectSnapshot(requiresLock: true)
+        lock.didEnterBackground(requiresLock: true)
+        XCTAssertTrue(lock.isLocked)
         await lock.unlockIfNeeded(requiresLock: true)
 
         XCTAssertFalse(lock.hidesJournalContent)
         XCTAssertEqual(authenticator.callCount, 2)
+    }
+
+    func testTemporaryInterruptionCoversWithoutRequiringAuthenticationAgain() async {
+        let authenticator = FakeAuthenticator(results: [true])
+        let lock = AppLockModel(authenticator: authenticator)
+
+        await lock.unlockIfNeeded(requiresLock: true)
+        lock.protectSnapshot(requiresLock: true)
+        XCTAssertTrue(lock.hidesJournalContent, "The app switcher snapshot stays covered while inactive")
+        await lock.unlockIfNeeded(requiresLock: true)
+
+        XCTAssertFalse(lock.hidesJournalContent)
+        XCTAssertEqual(authenticator.callCount, 1)
     }
 
     func testLockedScreenUnlockActionRetriesAuthentication() async {
