@@ -1,22 +1,22 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-  "Title (optional)": {
-    "localizations": {
-      "en": {
-        "stringUnit": {
-          "state": "translated",
-          "value": "Title (optional)"
-        }
-      },
-      "zh-Hans": {
-        "stringUnit": {
-          "state": "translated",
-          "value": "标题（选填）"
+    "Title (optional)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title (optional)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标题（选填）"
+          }
         }
       }
-    }
-  },
+    },
     "Adding Photos…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1593,22 +1593,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "这张照片将从这篇日记中移除。"
-          }
-        }
-      }
-    },
-    "Title" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Title"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "标题"
           }
         }
       }
