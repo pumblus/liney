@@ -1,6 +1,7 @@
 import Foundation
 import ImageIO
 import PhotosUI
+import SwiftData
 import UIKit
 import UniformTypeIdentifiers
 
@@ -126,6 +127,7 @@ struct PhotoStorage: @unchecked Sendable {
     static let targetLongEdge = 2400
     static let jpegQuality = 0.85
     static let defaultThumbnailMaxPixelSize = 1200
+    static let quarantineRetentionDays = 30
 
     private let fileManager: FileManager
     private let baseURL: URL
@@ -150,8 +152,91 @@ struct PhotoStorage: @unchecked Sendable {
         baseURL.appendingPathComponent("Photos", isDirectory: true)
     }
 
+    /// Holds Orphaned Photo Files in one subfolder per sweep day, named `yyyy-MM-dd`.
+    var photoQuarantineURL: URL {
+        baseURL.appendingPathComponent("PhotoQuarantine", isDirectory: true)
+    }
+
     func url(for fileName: String) -> URL {
         photoDirectoryURL.appendingPathComponent(fileName)
+    }
+
+    static func referencedFileNames(in context: ModelContext) throws -> Set<String> {
+        Set(try context.fetch(FetchDescriptor<EntryPhoto>()).map(\.fileName))
+    }
+
+    /// Moves Orphaned Photo Files into today's Photo Quarantine and deletes quarantine days older than `quarantineRetentionDays`.
+    /// Only files modified before `launchedAt` are candidates, so copies made by this process are never moved.
+    /// Does nothing when `referencedFileNames` throws or when more than half of the photo files are candidates.
+    func sweepOrphanedPhotoFiles(
+        launchedAt: Date,
+        now: Date = .now,
+        calendar: Calendar = .current,
+        referencedFileNames: () throws -> Set<String>
+    ) {
+        guard let referenced = try? referencedFileNames() else { return }
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey]
+        let files = (try? fileManager.contentsOfDirectory(at: photoDirectoryURL, includingPropertiesForKeys: Array(keys))) ?? []
+        let candidates = files.filter { file in
+            guard Self.isStoredPhotoName(file.lastPathComponent),
+                  !referenced.contains(file.lastPathComponent),
+                  let values = try? file.resourceValues(forKeys: keys),
+                  values.isRegularFile == true,
+                  let modified = values.contentModificationDate else { return false }
+            return modified < launchedAt
+        }
+        // A mass of candidates means the reference fetch is wrong, not that most photos are orphaned.
+        let isMostlyOrphaned = candidates.count * 2 > files.count
+        guard !isMostlyOrphaned else { return }
+
+        let dayFormatter = Self.quarantineDayFormatter(calendar: calendar)
+        let today = calendar.startOfDay(for: now)
+        purgeQuarantine(olderThan: Self.quarantineRetentionDays, today: today, calendar: calendar, dayFormatter: dayFormatter)
+        guard !candidates.isEmpty else { return }
+
+        let dayURL = photoQuarantineURL.appendingPathComponent(dayFormatter.string(from: today), isDirectory: true)
+        do {
+            try fileManager.createDirectory(at: dayURL, withIntermediateDirectories: true)
+            var quarantineURL = photoQuarantineURL
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            try quarantineURL.setResourceValues(values)
+        } catch { return }
+        for file in candidates {
+            do {
+                try fileManager.moveItem(at: file, to: dayURL.appendingPathComponent(file.lastPathComponent))
+                Self.thumbnailCache.remove(path: file.path)
+            } catch {
+                // A file that cannot be moved stays a candidate for the next launch.
+                continue
+            }
+        }
+    }
+
+    private func purgeQuarantine(olderThan days: Int, today: Date, calendar: Calendar, dayFormatter: DateFormatter) {
+        let dayFolders = (try? fileManager.contentsOfDirectory(at: photoQuarantineURL, includingPropertiesForKeys: nil)) ?? []
+        for folder in dayFolders {
+            guard let day = dayFormatter.date(from: folder.lastPathComponent),
+                  let age = calendar.dateComponents([.day], from: day, to: today).day,
+                  age > days else { continue }
+            try? fileManager.removeItem(at: folder)
+        }
+    }
+
+    /// Matches the `<UUID>.jpg` names `saveJPEGWithMetadata` writes, so no other file is ever swept.
+    private static func isStoredPhotoName(_ name: String) -> Bool {
+        guard name.hasSuffix(".jpg") else { return false }
+        let stem = String(name.dropLast(4))
+        return UUID(uuidString: stem)?.uuidString == stem
+    }
+
+    private static func quarantineDayFormatter(calendar: Calendar) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
     }
 
     func image(for fileName: String) -> UIImage? {

@@ -9,8 +9,16 @@ final class LineyApp: UIResponder, UIApplicationDelegate {
     }()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // Recorded before any scene creates a context, so the sweep never moves a photo copied by this launch.
+        let launchedAt = Date.now
         JournalExporter().deleteTemporaryExports()
         DayOneImporter().deleteTemporaryImports()
+        let container = container
+        Task.detached(priority: .background) {
+            PhotoStorage().sweepOrphanedPhotoFiles(launchedAt: launchedAt) {
+                try PhotoStorage.referencedFileNames(in: ModelContext(container))
+            }
+        }
         return true
     }
 

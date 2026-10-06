@@ -190,10 +190,11 @@ final class InterruptedTransferTests {
         #expect(retry.importedEntries == 1)
         #expect(try journal() == expectedJournal(1...entryCount))
 
-        let orphans = try unreferencedPhotoFiles(in: context)
-        withKnownIssue("Nothing sweeps photo copies whose deletion failed; orphan cleanup needs a separately authorized plan") {
-            #expect(orphans.isEmpty)
-        }
+        #expect(try unreferencedPhotoFiles(in: context).count == photosPerEntry)
+
+        storage.sweepOrphanedPhotoFiles(launchedAt: .now) { try PhotoStorage.referencedFileNames(in: ModelContext(container)) }
+        #expect(try unreferencedPhotoFiles(in: context).isEmpty)
+        #expect(try photoFiles().count == entryCount * photosPerEntry)
     }
 
     @Test(.bug("https://github.com/pumblus/liney/issues/3"))
