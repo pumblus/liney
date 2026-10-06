@@ -18,10 +18,13 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     private let search = UISearchController(searchResultsController: nil)
     private var exportFlow: ExportJournalFlow?
     private let storage: PhotoStorage
+    private let saveContext: (ModelContext) throws -> Void
 
-    init(container: ModelContainer, appLock: AppLockModel, storage: PhotoStorage = PhotoStorage()) {
+    /// Fixtures replace `saveContext` to simulate a full disk; editors opened here inherit it.
+    init(container: ModelContainer, appLock: AppLockModel, storage: PhotoStorage = PhotoStorage(),
+         saveContext: @escaping (ModelContext) throws -> Void = { try $0.save() }) {
         self.container = container; self.appLock = appLock
-        self.storage = storage
+        self.storage = storage; self.saveContext = saveContext
         repository = TimelineRepository(container: container)
         super.init(style: .insetGrouped)
     }
@@ -131,7 +134,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         do {
             let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id })
             guard let entry = try context.fetch(descriptor).first else { reloadEntries(); return }
-            let files = try deleteEntryAndSave(entry, in: context)
+            let files = try deleteEntryAndSave(entry, in: context) { [saveContext] in try saveContext(context) }
             NotificationCenter.default.post(name: .journalDidChange, object: id)
             var cleanupFailed = false
             for file in files {
@@ -141,7 +144,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
                 showError(String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "Some copied photo files could not be deleted."))
             }
         } catch {
-            showError(String(localized: "Could Not Save Entry"), message: String(localized: "Your changes could not be saved. Please try again."))
+            showError(String(localized: "Could Not Save Entry"), message: writeFailureMessage(for: error, otherwise: String(localized: "Your changes could not be saved. Please try again.")))
         }
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
@@ -150,7 +153,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         guard let entry = dataSource.itemIdentifier(for: indexPath).flatMap({ entriesByID[$0] }) else { return }
         let context = ModelContext(container)
         guard let editable = context.model(for: entry.persistentModelID) as? JournalEntry else { return }
-        let editor = EntryEditorViewController(entry: editable, isNew: false, context: context)
+        let editor = EntryEditorViewController(entry: editable, isNew: false, context: context, storage: storage, saveContext: saveContext)
         if let splitViewController, !splitViewController.isCollapsed {
             splitViewController.setViewController(UINavigationController(rootViewController: editor), for: .secondary)
             splitViewController.show(.secondary)
@@ -161,7 +164,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         context.autosaveEnabled = false
         let entry = JournalEntry()
         context.insert(entry)
-        let editor = EntryEditorViewController(entry: entry, isNew: true, context: context)
+        let editor = EntryEditorViewController(entry: entry, isNew: true, context: context, storage: storage, saveContext: saveContext)
         if splitViewController?.isCollapsed != false {
             navigationController?.pushViewController(editor, animated: true)
         } else {

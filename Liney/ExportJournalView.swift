@@ -6,13 +6,14 @@ final class ExportJournalFlow {
     private weak var presenter: UIViewController?
     private let container: ModelContainer
     private let appLock: AppLockModel
-    private let exporter = JournalExporter()
+    private let exporter: JournalExporter
     private let sourceBarButtonItem: UIBarButtonItem?
     private var task: Task<Void, Never>?
     var onFinished: (() -> Void)?
     init(presenter: UIViewController, container: ModelContainer, appLock: AppLockModel,
-         sourceBarButtonItem: UIBarButtonItem? = nil) {
+         sourceBarButtonItem: UIBarButtonItem? = nil, exporter: JournalExporter = JournalExporter()) {
         self.presenter = presenter; self.container = container; self.appLock = appLock
+        self.exporter = exporter
         self.sourceBarButtonItem = sourceBarButtonItem
     }
 
@@ -57,7 +58,8 @@ final class ExportJournalFlow {
                 }
             } catch {
                 progress.dismiss(animated: true) { [weak self, weak presenter] in
-                    presenter?.showError(String(localized: "Could Not Export Journal"), message: error.localizedDescription)
+                    let message = (error as? JournalExportError)?.errorDescription ?? String(localized: "The journal could not be exported. Please try again.")
+                    presenter?.showError(String(localized: "Could Not Export Journal"), message: writeFailureMessage(for: error, otherwise: message))
                     self?.onFinished?()
                 }
             }

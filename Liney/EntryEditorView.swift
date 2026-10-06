@@ -7,7 +7,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     let entry: JournalEntry
     let context: ModelContext
     let isNew: Bool
-    private let storage = PhotoStorage()
+    private let storage: PhotoStorage
+    private let saveContext: (ModelContext) throws -> Void
     private let scroll = UIScrollView()
     private let stack = UIStackView()
     private let titleField = EntryTitleView()
@@ -24,8 +25,11 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private var pendingBlockID: UUID?
     private var pendingOffset: Int?
 
-    init(entry: JournalEntry, isNew: Bool, context: ModelContext) {
+    /// Fixtures replace `saveContext` to simulate a full disk.
+    init(entry: JournalEntry, isNew: Bool, context: ModelContext, storage: PhotoStorage = PhotoStorage(),
+         saveContext: @escaping (ModelContext) throws -> Void = { try $0.save() }) {
         self.entry = entry; self.isNew = isNew; self.context = context
+        self.storage = storage; self.saveContext = saveContext
         context.autosaveEnabled = false
         super.init(nibName: nil, bundle: nil)
     }
@@ -79,11 +83,11 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         super.viewDidDisappear(animated)
         guard isMovingFromParent || navigationController == nil, !finished else { return }
         do {
-            try saveEntryChanges(entry, in: context, discardIfBlank: isNew)
+            try saveEntryChanges(entry, in: context, discardIfBlank: isNew, save: save)
             finished = true
             saveTask?.cancel()
             NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
-        } catch { saveError() }
+        } catch { saveError(error) }
     }
 
     @objc private func flushBeforeSceneDeactivation(_ notification: Notification) {
@@ -225,14 +229,16 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         guard context.hasChanges else { return true }
         entry.updatedAt = .now
         do {
-            try context.save()
+            try save()
             NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
             return true
-        } catch { saveError(); return false }
+        } catch { saveError(error); return false }
     }
-    private func saveError() {
+    private func save() throws { try saveContext(context) }
+    /// Unsaved edits stay in the context, so the user can retry once space is available.
+    private func saveError(_ error: any Error) {
         guard presentedViewController == nil else { return }
-        showError(String(localized: "Could Not Save Entry"), message: String(localized: "Your changes could not be saved. Please try again."))
+        showError(String(localized: "Could Not Save Entry"), message: writeFailureMessage(for: error, otherwise: String(localized: "Your changes could not be saved. Please try again.")))
     }
     func prepareForReplacement() -> Bool {
         guard !addingPhotos, !finished else { return !addingPhotos }
@@ -245,11 +251,11 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         view.endEditing(true)
         guard flush() else { return }
         do {
-            try saveEntryChanges(entry, in: context, discardIfBlank: isNew)
+            try saveEntryChanges(entry, in: context, discardIfBlank: isNew, save: save)
             finished = true; saveTask?.cancel()
             NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
             closeEditor()
-        } catch { saveError() }
+        } catch { saveError(error) }
     }
     private func closeEditor() {
         if navigationController?.presentingViewController != nil { dismiss(animated: true) }
@@ -327,7 +333,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                 return
             }
             do {
-                try saveEntryChanges(entry, in: context)
+                try saveEntryChanges(entry, in: context, save: save)
                 NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
                 render(focusAfter: insertion.photoBlock.id)
                 let prompt = entry.photoInfoPromptCandidate(from: insertion.photoBlock.orderedPhotos)
@@ -337,10 +343,10 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                     present(message, animated: true)
                 } else { promptPhotoInfo(prompt) }
             } catch {
-                context.rollback()
+                rollBackChanges(to: entry, in: context)
                 let removed = removeFiles(result.fileNames)
                 render()
-                showError(String(localized: "Some Photos Couldn’t Be Added"), message: removed ? String(localized: "Some selected photos could not be added.") : String(localized: "Some copied photo files could not be deleted."))
+                showError(String(localized: "Some Photos Couldn’t Be Added"), message: removed ? writeFailureMessage(for: error, otherwise: String(localized: "Some selected photos could not be added.")) : String(localized: "Some copied photo files could not be deleted."))
             }
         }
     }
@@ -375,11 +381,11 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private func deletePhoto(_ photo: EntryPhoto) -> PhotoDeletionResult {
         let name = entry.deletePhoto(photo, in: context)
         do {
-            try saveEntryChanges(entry, in: context)
+            try saveEntryChanges(entry, in: context, save: save)
             NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
             render()
             return removeFiles([name]) ? .deleted : .fileCleanupFailed
-        } catch { context.rollback(); render(); return .failed }
+        } catch { rollBackChanges(to: entry, in: context); render(); return .failed }
     }
     private func removeFiles(_ names: [String]) -> Bool {
         var success = true
@@ -392,7 +398,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             guard let self else { return }
             do {
                 let id = self.entry.id
-                let files = try deleteEntryAndSave(self.entry, in: self.context)
+                let files = try deleteEntryAndSave(self.entry, in: self.context, save: self.save)
                 self.finished = true; self.saveTask?.cancel()
                 NotificationCenter.default.post(name: .journalDidChange, object: id)
                 if self.removeFiles(files) { self.closeEditor() }
@@ -401,7 +407,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                     alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.closeEditor() })
                     self.present(alert, animated: true)
                 }
-            } catch { self.saveError() }
+            } catch { self.saveError(error) }
         }
     }
 }

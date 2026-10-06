@@ -4,6 +4,29 @@ extension Notification.Name {
     static let journalDidChange = Notification.Name("Liney.journalDidChange")
 }
 
+extension Error {
+    /// Foundation reports a full disk as `NSFileWriteOutOfSpaceError`, often wrapping `ENOSPC`;
+    /// ZIPFoundation throws `ENOSPC` directly.
+    var isOutOfSpace: Bool {
+        var error: NSError? = self as NSError
+        while let current = error {
+            if current.domain == NSCocoaErrorDomain && current.code == NSFileWriteOutOfSpaceError { return true }
+            if current.domain == NSPOSIXErrorDomain && current.code == Int(ENOSPC) { return true }
+            error = current.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return false
+    }
+}
+
+var outOfSpaceMessage: String {
+    String(localized: "There isn’t enough storage on this device. Free up space and try again.")
+}
+
+/// Alert text for a failed write. Raw error text is never shown: it can name private file paths.
+func writeFailureMessage(for error: any Error, otherwise fallback: String) -> String {
+    error.isOutOfSpace ? outOfSpaceMessage : fallback
+}
+
 func bodyLabel(_ text: String, style: UIFont.TextStyle = .body) -> UILabel {
     let label = UILabel()
     label.text = text

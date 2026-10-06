@@ -1884,6 +1884,70 @@
           }
         }
       }
+    },
+    "There isn’t enough storage on this device. Free up space and try again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There isn’t enough storage on this device. Free up space and try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台设备的存储空间不足。请释放空间后重试。"
+          }
+        }
+      }
+    },
+    "The selected zip could not be opened. Please try again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected zip could not be opened. Please try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法打开所选的 ZIP 文件，请重试。"
+          }
+        }
+      }
+    },
+    "The journal could not be exported. Please try again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The journal could not be exported. Please try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日记未能导出，请重试。"
+          }
+        }
+      }
+    },
+    "Some photos could not be saved because this device is out of storage. Free up space and import the zip again to retry." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some photos could not be saved because this device is out of storage. Free up space and import the zip again to retry."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台设备的存储空间不足，部分照片未能保存。请释放空间后再次导入 ZIP 补齐照片。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

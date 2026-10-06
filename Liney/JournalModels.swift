@@ -440,6 +440,15 @@ func discardBlankNewEntry(_ entry: JournalEntry, in context: ModelContext) -> Bo
     return true
 }
 
+/// SwiftData's rollback reverts attributes but can leave a rolled-back insert in an already
+/// loaded relationship, so the entry is fetched again to reload its blocks from the store.
+@MainActor
+func rollBackChanges(to entry: JournalEntry, in context: ModelContext) {
+    context.rollback()
+    let id = entry.id
+    _ = try? context.fetch(FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id }))
+}
+
 @MainActor
 func saveEntryChanges(
     _ entry: JournalEntry,
@@ -470,7 +479,7 @@ func deleteEntryAndSave(
         try (save ?? { try context.save() })()
         return fileNames
     } catch {
-        context.rollback()
+        rollBackChanges(to: entry, in: context)
         throw error
     }
 }

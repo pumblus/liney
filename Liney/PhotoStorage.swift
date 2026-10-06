@@ -7,10 +7,12 @@ import UniformTypeIdentifiers
 struct PhotoImportResult {
     let photos: [PhotoGroupItem]
     let failedCount: Int
+    let storageWasFull: Bool
 
-    init(photos: [PhotoGroupItem], failedCount: Int) {
+    init(photos: [PhotoGroupItem], failedCount: Int, storageWasFull: Bool = false) {
         self.photos = photos
         self.failedCount = failedCount
+        self.storageWasFull = storageWasFull
     }
 
     init(fileNames: [String], failedCount: Int) {
@@ -22,16 +24,18 @@ struct PhotoImportResult {
     }
 
     var alert: PhotoImportAlert? {
-        failedCount > 0 ? PhotoImportAlert(failedCount: failedCount) : nil
+        failedCount > 0 ? PhotoImportAlert(failedCount: failedCount, storageWasFull: storageWasFull) : nil
     }
 }
 
 struct PhotoImportAlert: Identifiable, Equatable {
     let id = UUID()
     let failedCount: Int
+    let storageWasFull: Bool
 
     var message: String {
-        failedCount == 1 ?
+        if storageWasFull { return outOfSpaceMessage }
+        return failedCount == 1 ?
         String(localized: "One selected photo could not be added.") :
         String(localized: "Some selected photos could not be added.")
     }
@@ -43,6 +47,7 @@ struct PhotoPickerImporter {
     func importItems(_ items: [PHPickerResult]) async -> PhotoImportResult {
         var photos: [PhotoGroupItem] = []
         var failedCount = 0
+        var storageWasFull = false
         for item in items {
             do {
                 let data: Data = try await withCheckedThrowingContinuation { continuation in
@@ -55,9 +60,12 @@ struct PhotoPickerImporter {
                     try storage.saveJPEGWithMetadata(from: data)
                 }.value
                 photos.append(photo)
-            } catch { failedCount += 1 }
+            } catch {
+                failedCount += 1
+                storageWasFull = storageWasFull || error.isOutOfSpace
+            }
         }
-        return PhotoImportResult(photos: photos, failedCount: failedCount)
+        return PhotoImportResult(photos: photos, failedCount: failedCount, storageWasFull: storageWasFull)
     }
 
 }
@@ -121,11 +129,15 @@ struct PhotoStorage: @unchecked Sendable {
 
     private let fileManager: FileManager
     private let baseURL: URL
+    private let writeFile: @Sendable (Data, URL) throws -> Void
 
     private static let thumbnailCache = PhotoThumbnailCache()
 
-    init(fileManager: FileManager = .default, baseURL: URL? = nil) {
+    /// Fixtures replace `writeFile` to simulate a full disk.
+    init(fileManager: FileManager = .default, baseURL: URL? = nil,
+         writeFile: @escaping @Sendable (Data, URL) throws -> Void = { try $0.write(to: $1, options: .atomic) }) {
         self.fileManager = fileManager
+        self.writeFile = writeFile
         if let baseURL {
             self.baseURL = baseURL
         } else {
@@ -207,16 +219,18 @@ struct PhotoStorage: @unchecked Sendable {
     func saveJPEGs(from imageData: [Data]) -> PhotoImportResult {
         var photos: [PhotoGroupItem] = []
         var failedCount = 0
+        var storageWasFull = false
 
         for data in imageData {
             do {
                 photos.append(try saveJPEGWithMetadata(from: data))
             } catch {
                 failedCount += 1
+                storageWasFull = storageWasFull || error.isOutOfSpace
             }
         }
 
-        return PhotoImportResult(photos: photos, failedCount: failedCount)
+        return PhotoImportResult(photos: photos, failedCount: failedCount, storageWasFull: storageWasFull)
     }
 
     func saveJPEG(from data: Data, id: UUID = UUID()) throws -> String {
@@ -246,8 +260,11 @@ struct PhotoStorage: @unchecked Sendable {
         let fileName = "\(id.uuidString).jpg"
         let destinationURL = url(for: fileName)
         Self.thumbnailCache.remove(path: destinationURL.path)
-        guard let destination = CGImageDestinationCreateWithURL(
-            destinationURL as CFURL,
+        // Encoding in memory and writing atomically means a full disk leaves no truncated file
+        // and surfaces the real write error.
+        let jpeg = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            jpeg as CFMutableData,
             UTType.jpeg.identifier as CFString,
             1,
             nil
@@ -263,6 +280,7 @@ struct PhotoStorage: @unchecked Sendable {
         guard CGImageDestinationFinalize(destination) else {
             throw PhotoStorageError.cannotWriteImage
         }
+        try writeFile(jpeg as Data, destinationURL)
 
         return PhotoGroupItem(
             fileName: fileName,

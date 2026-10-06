@@ -40,7 +40,7 @@ struct DayOneImportIssue: Identifiable, Equatable {
 
     enum Reason: String, Equatable {
         case missingIdentity, invalidDate, noContent, photosUnavailable, saveFailed
-        case recoveryUnavailable, appendedPhotos, archiveFailed
+        case recoveryUnavailable, appendedPhotos, archiveFailed, storageFull
 
         var message: String {
             switch self {
@@ -52,6 +52,7 @@ struct DayOneImportIssue: Identifiable, Equatable {
             case .recoveryUnavailable: "Photo recovery information could not be read. Existing content was kept."
             case .appendedPhotos: "The original photo position was removed. Recovered photos were added at the end of the entry."
             case .archiveFailed: "The archive could not be read completely. Export again and retry; saved entries are kept."
+            case .storageFull: "Some photos could not be saved because this device is out of storage. Free up space and import the zip again to retry."
             }
         }
     }
@@ -198,7 +199,13 @@ struct DayOneImporter {
         let destinationURL = directoryURL
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("zip")
-        try fileManager.copyItem(at: sourceURL, to: destinationURL)
+        do {
+            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+        } catch {
+            // A copy interrupted by a full disk can leave a truncated archive behind.
+            try? fileManager.removeItem(at: destinationURL)
+            throw error
+        }
         return destinationURL
     }
 
@@ -275,11 +282,11 @@ struct DayOneImporter {
             existingEntries[sourceID] = entry
             summary.importedEntries += 1
             summary.failedPhotos += result.skippedMedia
-            if result.skippedMedia > 0 { summary.issues.append(issue(.photosUnavailable)) }
+            if result.skippedMedia > 0 { summary.issues.append(issue(result.storageWasFull ? .storageFull : .photosUnavailable)) }
         } catch let error as DayOneEntryBuildError {
             summary.failedEntries += 1
             summary.failedPhotos += error.skippedMedia
-            summary.issues.append(issue(.noContent))
+            summary.issues.append(issue(error.storageWasFull ? .storageFull : .noContent))
             deleteCopiedPhotos(error.copiedFileNames)
         } catch {
             context.rollback()
@@ -305,6 +312,7 @@ struct DayOneImporter {
         var remaining: [DayOnePendingPhoto] = []
         var copied: [String] = []
         var appended = false
+        var storageWasFull = false
         do {
             for (index, record) in pending.enumerated() {
                 if Task.isCancelled {
@@ -328,6 +336,7 @@ struct DayOneImporter {
                     }
                 } catch {
                     remaining.append(record)
+                    storageWasFull = storageWasFull || error.isOutOfSpace
                     continue
                 }
                 copied.append(item.fileName)
@@ -362,7 +371,7 @@ struct DayOneImporter {
             summary.failedPhotos += remaining.count
             if !copied.isEmpty { summary.repairedEntries += 1 }
             else if !summary.wasCancelled { summary.failedEntries += 1 }
-            if !remaining.isEmpty && !summary.wasCancelled { summary.issues.append(issue(.photosUnavailable)) }
+            if !remaining.isEmpty && !summary.wasCancelled { summary.issues.append(issue(storageWasFull ? .storageFull : .photosUnavailable)) }
             if appended { summary.issues.append(issue(.appendedPhotos)) }
         } catch {
             context.rollback()
@@ -429,7 +438,8 @@ struct DayOneImporter {
         guard blockResult.blocks.contains(where: \.hasContent) || !content.title.isEmpty else {
             throw DayOneEntryBuildError(
                 skippedMedia: blockResult.skippedMedia,
-                copiedFileNames: blockResult.copiedFileNames
+                copiedFileNames: blockResult.copiedFileNames,
+                storageWasFull: blockResult.storageWasFull
             )
         }
 
@@ -451,7 +461,8 @@ struct DayOneImporter {
         return DayOneBuiltEntry(
             entry: entry,
             skippedMedia: blockResult.skippedMedia,
-            copiedFileNames: blockResult.copiedFileNames
+            copiedFileNames: blockResult.copiedFileNames,
+            storageWasFull: blockResult.storageWasFull
         )
     }
 
@@ -534,6 +545,7 @@ struct DayOneImporter {
         var pendingPhotos: [ImportedPhoto] = []
         var skippedMedia = 0
         var copiedFileNames: [String] = []
+        var storageWasFull = false
         var previousLocation = 0
         let nsText = text as NSString
         let photosByKey = indexedPhotosByKey(photos)
@@ -581,6 +593,7 @@ struct DayOneImporter {
             } catch {
                 pendingPhotos.append(ImportedPhoto(key: photos[photoIndex].recoveryKey, item: nil))
                 skippedMedia += 1
+                storageWasFull = storageWasFull || error.isOutOfSpace
             }
         }
 
@@ -604,7 +617,8 @@ struct DayOneImporter {
         return DayOneBlockImportResult(
             blocks: blocks,
             skippedMedia: skippedMedia,
-            copiedFileNames: copiedFileNames
+            copiedFileNames: copiedFileNames,
+            storageWasFull: storageWasFull || remainingResult.storageWasFull
         )
     }
 
@@ -631,7 +645,8 @@ struct DayOneImporter {
         return DayOneBlockImportResult(
             blocks: blocks,
             skippedMedia: result.skippedMedia,
-            copiedFileNames: result.copiedFileNames
+            copiedFileNames: result.copiedFileNames,
+            storageWasFull: result.storageWasFull
         )
     }
 
@@ -639,10 +654,11 @@ struct DayOneImporter {
         _ photos: [DayOnePhoto],
         archive: Archive,
         archiveEntries: [String: Entry]
-    ) throws -> (photos: [ImportedPhoto], skippedMedia: Int, copiedFileNames: [String]) {
+    ) throws -> (photos: [ImportedPhoto], skippedMedia: Int, copiedFileNames: [String], storageWasFull: Bool) {
         var importedPhotos: [ImportedPhoto] = []
         var skippedMedia = 0
         var copiedFileNames: [String] = []
+        var storageWasFull = false
 
         for photo in photos {
             do {
@@ -652,10 +668,11 @@ struct DayOneImporter {
             } catch {
                 importedPhotos.append(ImportedPhoto(key: photo.recoveryKey, item: nil))
                 skippedMedia += 1
+                storageWasFull = storageWasFull || error.isOutOfSpace
             }
         }
 
-        return (importedPhotos, skippedMedia, copiedFileNames)
+        return (importedPhotos, skippedMedia, copiedFileNames, storageWasFull)
     }
 
     private func importPhoto(
@@ -1130,12 +1147,14 @@ struct DayOneImporter {
         let blocks: [ImportedEntryBlock]
         let skippedMedia: Int
         let copiedFileNames: [String]
+        let storageWasFull: Bool
     }
 
     private struct DayOneBuiltEntry {
         let entry: DayOneEntryData
         let skippedMedia: Int
         let copiedFileNames: [String]
+        let storageWasFull: Bool
     }
 
     private struct DayOneArchiveContents {
@@ -1159,10 +1178,12 @@ struct DayOneImporter {
     private struct DayOneEntryBuildError: Error {
         let skippedMedia: Int
         let copiedFileNames: [String]
+        let storageWasFull: Bool
 
-        init(skippedMedia: Int, copiedFileNames: [String] = []) {
+        init(skippedMedia: Int, copiedFileNames: [String] = [], storageWasFull: Bool = false) {
             self.skippedMedia = skippedMedia
             self.copiedFileNames = copiedFileNames
+            self.storageWasFull = storageWasFull
         }
     }
 }

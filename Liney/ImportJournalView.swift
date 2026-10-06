@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 
 final class ImportJournalViewController: UITableViewController, UIDocumentPickerDelegate {
     private let context: ModelContext
-    private let importer = DayOneImporter()
+    private let importer: DayOneImporter
     private var plan: DayOneImportPlan?
     private var summary: DayOneImportSummary?
     private var task: Task<Void, Never>?
@@ -18,8 +18,10 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
     private var footer: String?
     private let onFinished: (() -> Void)?
 
-    init(container: ModelContainer, plan: DayOneImportPlan? = nil, summary: DayOneImportSummary? = nil, onFinished: (() -> Void)? = nil) {
+    init(container: ModelContainer, importer: DayOneImporter = DayOneImporter(), plan: DayOneImportPlan? = nil,
+         summary: DayOneImportSummary? = nil, onFinished: (() -> Void)? = nil) {
         context = ModelContext(container); context.autosaveEnabled = false
+        self.importer = importer
         self.onFinished = onFinished
         self.plan = plan; self.summary = summary
         super.init(style: .insetGrouped)
@@ -126,7 +128,10 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
         task = Task {
             do { plan = try await importer.prepareImportInBackground(from: url) }
             catch is CancellationError { }
-            catch { showError(String(localized: "Could Not Import Journal"), message: error.localizedDescription) }
+            catch {
+                let message = (error as? DayOneImportError)?.errorDescription ?? String(localized: "The selected zip could not be opened. Please try again.")
+                showError(String(localized: "Could Not Import Journal"), message: writeFailureMessage(for: error, otherwise: message))
+            }
             busy = false; task = nil; render()
         }
     }

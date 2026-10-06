@@ -85,14 +85,23 @@ struct JournalExporter: @unchecked Sendable {
     private let photoStorage: PhotoStorage
     private let exportRootURL: URL
     private var calendar: Calendar
+    private let writeEntry: @Sendable (Archive, String, Data) throws -> Void
 
+    /// Fixtures replace `writeEntry` to simulate a full disk part-way through an archive.
     init(
         fileManager: FileManager = .default,
         photoStorage: PhotoStorage = PhotoStorage(),
         exportRootURL: URL? = nil,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        writeEntry: @escaping @Sendable (Archive, String, Data) throws -> Void = { archive, path, data in
+            try archive.addEntry(with: path, type: .file, uncompressedSize: Int64(data.count)) { position, size in
+                let start = Int(position)
+                return data.subdata(in: start..<(start + size))
+            }
+        }
     ) {
         self.fileManager = fileManager
+        self.writeEntry = writeEntry
         self.photoStorage = photoStorage
         self.exportRootURL = exportRootURL ?? fileManager.temporaryDirectory
             .appendingPathComponent("LineyExports", isDirectory: true)
@@ -192,14 +201,7 @@ struct JournalExporter: @unchecked Sendable {
     }
 
     private func add(_ data: Data, path: String, to archive: Archive) throws {
-        try archive.addEntry(
-            with: path,
-            type: .file,
-            uncompressedSize: Int64(data.count)
-        ) { position, size in
-            let start = Int(position)
-            return data.subdata(in: start..<(start + size))
-        }
+        try writeEntry(archive, path, data)
     }
 
     private func sortedEntries(_ entries: [JournalExportEntry]) -> [JournalExportEntry] {
