@@ -6,6 +6,6 @@
 - **Issues:** track remaining work as GitHub issues per `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md`.
 - **Terms:** name domain concepts with [GLOSSARY.md](GLOSSARY.md); ADRs follow `docs/agents/domain.md`.
 - **Workflow:** new work enters at `/grill-with-docs`, small changes at `/implement`, others' issues at `/triage`, stubborn bugs at `/diagnosing-bugs`, upkeep at `/improve-codebase-architecture`; `/ask-matt` when none fits.
-- **Private data** (journal text, photo contents, precise locations): logs and public GitHub text (issues, specs, comments) describe it by kind and count, never content.
+- **Private data** (journal text, photo contents, precise locations, and anything else personal) stays out of logs and public GitHub text (issues, specs, comments).
 - **Risky changes** (destructive file/git operations, schema migrations, imports, exports, privacy/security changes) need an explicit task and a rollback path. Reuse existing authorization; ask only for missing decisions or permission.
 - **Real journals:** run on fixtures; open a real journal only with separate authorization.
