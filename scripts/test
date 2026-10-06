@@ -52,7 +52,7 @@ for device in "${devices[@]}"; do
   echo "$device: exit $code, log $log"
   grep -E "Executed [0-9]+ tests?, with" "$log" | tail -1
   grep -E "Test run with [0-9]+ tests?" "$log" | tail -1
-  grep -E "error:|✘| failed \(" "$log" | grep -v "^Testing failed:" | sort -u | head -20
+  grep -E ": error: |error: -\[|✘" "$log" | sort -u | head -20
   [[ $code -eq 0 ]] || status=$code
 done
 exit $status
