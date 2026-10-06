@@ -1,6 +1,5 @@
 import Foundation
 import ImageIO
-import PhotosUI
 import SwiftData
 import UIKit
 import UniformTypeIdentifiers
@@ -20,50 +19,13 @@ struct PhotoImportResult {
         photos.map(\.fileName)
     }
 
-    var alert: PhotoImportAlert? {
-        failedCount > 0 ? PhotoImportAlert(failedCount: failedCount, storageWasFull: storageWasFull) : nil
-    }
-}
-
-struct PhotoImportAlert: Equatable {
-    let failedCount: Int
-    let storageWasFull: Bool
-
-    var message: String {
+    var failureMessage: String? {
+        guard failedCount > 0 else { return nil }
         if storageWasFull { return outOfSpaceMessage }
         return failedCount == 1 ?
         String(localized: "One selected photo could not be added.") :
         String(localized: "Some selected photos could not be added.")
     }
-}
-
-struct PhotoPickerImporter {
-    let storage: PhotoStorage
-
-    func importItems(_ items: [PHPickerResult]) async -> PhotoImportResult {
-        var photos: [PhotoGroupItem] = []
-        var failedCount = 0
-        var storageWasFull = false
-        for item in items {
-            do {
-                let data: Data = try await withCheckedThrowingContinuation { continuation in
-                    item.itemProvider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, error in
-                        if let data { continuation.resume(returning: data) }
-                        else { continuation.resume(throwing: error ?? PhotoStorageError.unreadableImage) }
-                    }
-                }
-                let photo = try await Task.detached(priority: .userInitiated) {
-                    try storage.saveJPEG(from: data)
-                }.value
-                photos.append(photo)
-            } catch {
-                failedCount += 1
-                storageWasFull = storageWasFull || error.isOutOfSpace
-            }
-        }
-        return PhotoImportResult(photos: photos, failedCount: failedCount, storageWasFull: storageWasFull)
-    }
-
 }
 
 enum PhotoStorageError: Error {
@@ -291,14 +253,19 @@ struct PhotoStorage: @unchecked Sendable {
         Self.thumbnailCache.remove(path: fileURL.path)
     }
 
-    func saveJPEGs(from imageData: [Data]) -> PhotoImportResult {
+    /// Saves one photo at a time so peak memory stays bounded; a loader or save that throws counts as one failure.
+    func savePhotos(_ loaders: [() async throws -> Data]) async -> PhotoImportResult {
         var photos: [PhotoGroupItem] = []
         var failedCount = 0
         var storageWasFull = false
 
-        for data in imageData {
+        for load in loaders {
             do {
-                photos.append(try saveJPEG(from: data))
+                let data = try await load()
+                // Detached so a call from the main actor does not encode on the main thread.
+                photos.append(try await Task.detached(priority: .userInitiated) {
+                    try saveJPEG(from: data)
+                }.value)
             } catch {
                 failedCount += 1
                 storageWasFull = storageWasFull || error.isOutOfSpace

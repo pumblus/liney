@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftData
 import UIKit
+import UniformTypeIdentifiers
 
 /// Owns one editing context; failed photo mutations cannot roll back another screen's work.
 final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHPickerViewControllerDelegate, UIScrollViewDelegate {
@@ -289,7 +290,16 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
     private func importPhotos(_ results: [PHPickerResult]) {
         guard !results.isEmpty else { return }
-        importPhotos { await PhotoPickerImporter(storage: self.storage).importItems(results) }
+        let loaders: [() async throws -> Data] = results.map { result in { try await Self.imageData(from: result.itemProvider) } }
+        importPhotos { await self.storage.savePhotos(loaders) }
+    }
+    private static func imageData(from provider: NSItemProvider) async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, error in
+                if let data { continuation.resume(returning: data) }
+                else { continuation.resume(throwing: error ?? PhotoStorageError.unreadableImage) }
+            }
+        }
     }
 
     /// The loader boundary also lets fixtures exercise slow transfers without opening Photos.
@@ -329,7 +339,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                 }
             }
             guard let photoBlock = entry.insertPhotoGroup(photos: result.photos, focusedTextBlockID: pendingBlockID, cursorOffset: pendingOffset, in: context) else {
-                if let alert = result.alert { showError(String(localized: "Some Photos Couldn’t Be Added"), message: alert.message) }
+                if let failureMessage = result.failureMessage { showError(String(localized: "Some Photos Couldn’t Be Added"), message: failureMessage) }
                 return
             }
             do {
@@ -337,8 +347,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                 NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
                 render(focusAfter: photoBlock.id)
                 let prompt = entry.photoInfoPromptCandidate(from: photoBlock.orderedPhotos)
-                if let alert = result.alert {
-                    let message = UIAlertController(title: String(localized: "Some Photos Couldn’t Be Added"), message: alert.message, preferredStyle: .alert)
+                if let failureMessage = result.failureMessage {
+                    let message = UIAlertController(title: String(localized: "Some Photos Couldn’t Be Added"), message: failureMessage, preferredStyle: .alert)
                     message.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.promptPhotoInfo(prompt) })
                     present(message, animated: true)
                 } else { promptPhotoInfo(prompt) }

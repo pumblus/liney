@@ -117,7 +117,7 @@ final class JournalExportTests: XCTestCase {
         let exportedAt = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 7, hour: 10)))
         let entryID = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
         let entryDate = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 7, day: 6, hour: 20, minute: 15)))
-        let photo = try XCTUnwrap(photoStorage.saveJPEGs(from: [makeJPEGData()]).photos.first)
+        let photo = try photoStorage.saveJPEG(from: makeJPEGData())
         let entry = JournalEntry(
             id: entryID,
             title: "Morning Walk",

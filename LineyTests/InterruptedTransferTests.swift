@@ -392,7 +392,7 @@ final class InterruptedTransferTests {
         let entry = JournalEntry(title: "Synthetic saved title")
         context.insert(entry)
         _ = entry.insertTextBlock("Synthetic saved body", in: context)
-        let photo = try #require(storage.saveJPEGs(from: [jpegData()]).photos.first)
+        let photo = try storage.saveJPEG(from: jpegData())
         _ = entry.insertPhotoGroup(photos: [photo], in: context)
         try context.save()
         return (entry.id, try #require(try seedSnapshot(entry.id)))

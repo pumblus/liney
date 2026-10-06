@@ -129,7 +129,7 @@ final class StorageFullTests {
         defer { window.isHidden = true }
         let photos = [jpegData(), jpegData()]
 
-        editor.importPhotos { photoStorage.saveJPEGs(from: photos) }
+        editor.importPhotos { await photoStorage.savePhotos(photos.map { data in { data } }) }
 
         let alert = try await waitForAlert(from: editor)
         #expect(alert.title == String(localized: "Some Photos Couldn’t Be Added"))
@@ -259,7 +259,7 @@ final class StorageFullTests {
         let entry = JournalEntry(title: "Synthetic saved title")
         context.insert(entry)
         _ = entry.insertTextBlock("Synthetic saved body", in: context)
-        let photo = try #require(storage.saveJPEGs(from: [jpegData()]).photos.first)
+        let photo = try storage.saveJPEG(from: jpegData())
         _ = entry.insertPhotoGroup(photos: [photo], in: context)
         try context.save()
         return entry.id

@@ -64,7 +64,7 @@ struct NativeDesignTests {
             UIColor.systemBlue.setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
         }
-        let item = try #require(storage.saveJPEGs(from: [data]).photos.first)
+        let item = try storage.saveJPEG(from: data)
         image.load(item.fileName, storage: storage)
         for _ in 0..<100 {
             if button.accessibilityValue == nil { break }

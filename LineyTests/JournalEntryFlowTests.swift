@@ -947,12 +947,12 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertTrue(entry.orderedBlocks.isEmpty)
     }
 
-    func testPhotoStorageCreatesJPEGAndReportsPartialFailure() throws {
+    func testPhotoStorageCreatesJPEGAndReportsPartialFailure() async throws {
         let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let storage = PhotoStorage(baseURL: baseURL)
         let validImageData = makeJPEGData()
 
-        let result = storage.saveJPEGs(from: [validImageData, Data("not an image".utf8)])
+        let result = await storage.savePhotos([{ validImageData }, { Data("not an image".utf8) }])
 
         XCTAssertEqual(result.fileNames.count, 1)
         XCTAssertEqual(result.failedCount, 1)
@@ -965,7 +965,20 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: copiedURL.path))
     }
 
-    func testPhotoStoragePreservesCaptureTimeAndGPSMetadata() throws {
+    func testPhotoStorageCountsLoaderThatThrowsAsFailure() async throws {
+        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let storage = PhotoStorage(baseURL: baseURL)
+        defer { try? FileManager.default.removeItem(at: baseURL) }
+        let validImageData = makeJPEGData()
+
+        let result = await storage.savePhotos([{ throw PhotoStorageError.unreadableImage }, { validImageData }])
+
+        XCTAssertEqual(result.fileNames.count, 1)
+        XCTAssertEqual(result.failedCount, 1)
+        XCTAssertFalse(result.storageWasFull)
+    }
+
+    func testPhotoStoragePreservesCaptureTimeAndGPSMetadata() async throws {
         let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let storage = PhotoStorage(baseURL: baseURL)
         let imageData = makeLocatedJPEGData(
@@ -974,18 +987,12 @@ final class JournalEntryFlowTests: XCTestCase {
             longitude: 2.3522
         )
 
-        let result = storage.saveJPEGs(from: [imageData])
+        let result = await storage.savePhotos([{ imageData }])
         let photo = try XCTUnwrap(result.photos.first)
 
         XCTAssertEqual(photo.capturedAt, exifDate("2026:07:06 20:15:00"))
         XCTAssertEqual(try XCTUnwrap(photo.locationLatitude), 48.8566, accuracy: 0.0001)
         XCTAssertEqual(try XCTUnwrap(photo.locationLongitude), 2.3522, accuracy: 0.0001)
-    }
-
-    func testPhotoImportResultCreatesPartialFailureAlert() {
-        XCTAssertNil(PhotoImportResult(fileNames: ["ok.jpg"], failedCount: 0).alert)
-        XCTAssertEqual(PhotoImportResult(fileNames: ["ok.jpg"], failedCount: 1).alert?.failedCount, 1)
-        XCTAssertEqual(PhotoImportResult(fileNames: ["ok.jpg"], failedCount: 2).alert?.failedCount, 2)
     }
 
     func testPhotoGroupLayoutThresholds() {
@@ -1001,7 +1008,7 @@ final class JournalEntryFlowTests: XCTestCase {
         let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let storage = PhotoStorage(baseURL: base)
         defer { try? FileManager.default.removeItem(at: base) }
-        let item = try XCTUnwrap(storage.saveJPEGs(from: [makeJPEGData(size: CGSize(width: 200, height: 300))]).photos.first)
+        let item = try storage.saveJPEG(from: makeJPEGData(size: CGSize(width: 200, height: 300)))
         let block = EntryBlock(kind: .photoGroup)
         block.photos = [EntryPhoto(fileName: item.fileName, displayOrder: 0, block: block)]
         let group = PhotoGroupView(block: block, storage: storage) { _ in }
@@ -1025,10 +1032,10 @@ final class JournalEntryFlowTests: XCTestCase {
     func testThreePhotoLayoutSmokeRendersOnSimulator() async throws {
         let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let storage = PhotoStorage(baseURL: baseURL)
-        let result = storage.saveJPEGs(from: [
-            makeJPEGData(size: CGSize(width: 96, height: 48), color: .systemRed),
-            makeJPEGData(size: CGSize(width: 48, height: 96), color: .systemGreen),
-            makeJPEGData(size: CGSize(width: 96, height: 96), color: .systemBlue)
+        let result = await storage.savePhotos([
+            { makeJPEGData(size: CGSize(width: 96, height: 48), color: .systemRed) },
+            { makeJPEGData(size: CGSize(width: 48, height: 96), color: .systemGreen) },
+            { makeJPEGData(size: CGSize(width: 96, height: 96), color: .systemBlue) }
         ])
         XCTAssertEqual(result.failedCount, 0)
 
@@ -1065,13 +1072,13 @@ final class JournalEntryFlowTests: XCTestCase {
         add(attachment)
     }
 
-    func testPreviewThumbnailsStayInsideFixedBoxes() throws {
+    func testPreviewThumbnailsStayInsideFixedBoxes() async throws {
         let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let storage = PhotoStorage(baseURL: baseURL)
-        let result = storage.saveJPEGs(from: [
-            makeJPEGData(size: CGSize(width: 96, height: 48), color: .systemRed),
-            makeJPEGData(size: CGSize(width: 48, height: 96), color: .systemGreen),
-            makeJPEGData(size: CGSize(width: 96, height: 96), color: .systemBlue)
+        let result = await storage.savePhotos([
+            { makeJPEGData(size: CGSize(width: 96, height: 48), color: .systemRed) },
+            { makeJPEGData(size: CGSize(width: 48, height: 96), color: .systemGreen) },
+            { makeJPEGData(size: CGSize(width: 96, height: 96), color: .systemBlue) }
         ])
         XCTAssertEqual(result.failedCount, 0)
         let photos = result.photos.enumerated().map { index, photo in
