@@ -43,6 +43,16 @@ Foreground import of a Day One JSON zip into the single journal.
 **Markdown Export**:
 A portable zip of Markdown entries and referenced JPEG photos.
 
+### Photo storage
+
+**Orphaned Photo File**:
+A copied photo file in the app's photo storage that no Photo refers to.
+_Avoid_: Stray photo, leftover photo
+
+**Photo Quarantine**:
+The holding place where Orphaned Photo Files wait before they are permanently deleted.
+_Avoid_: Trash, recycle bin
+
 ### Privacy
 
 **App Lock**:
