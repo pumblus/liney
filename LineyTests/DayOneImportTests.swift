@@ -694,7 +694,7 @@ final class DayOneImportTests: XCTestCase {
     }
 
     func testOfficialShapeFixtureImportsEveryPhotoAndSupportsRichTextFallback() async throws {
-        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "day-one-official-shape", withExtension: "json", subdirectory: "Fixtures"))
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "day-one-official-shape", withExtension: "json"))
         let root = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         let entries = try XCTUnwrap(root["entries"] as? [[String: Any]])
         var media: [String: Data] = [:]
