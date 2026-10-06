@@ -53,6 +53,7 @@ for device in "${devices[@]}"; do
   grep -E "Executed [0-9]+ tests?, with" "$log" | tail -1
   grep -E "Test run with [0-9]+ tests?" "$log" | tail -1
   grep -E ": error: |error: -\[|✘" "$log" | sort -u | head -20
-  [[ $code -eq 0 ]] || status=$code
+  # A failure on one device is enough to report; skip the remaining runs.
+  [[ $code -eq 0 ]] || { status=$code; break; }
 done
 exit $status
