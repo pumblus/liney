@@ -85,11 +85,18 @@ struct DayOneImporter {
     private let fileManager: FileManager
     private let photoStorage: PhotoStorage
     private let saveContext: @MainActor (ModelContext) throws -> Void
+    private let importRootURL: URL
 
-    init(fileManager: FileManager = .default, photoStorage: PhotoStorage = PhotoStorage(),
-         saveContext: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }) {
+    init(
+        fileManager: FileManager = .default,
+        photoStorage: PhotoStorage = PhotoStorage(),
+        importRootURL: URL? = nil,
+        saveContext: @escaping @MainActor (ModelContext) throws -> Void = { try $0.save() }
+    ) {
         self.fileManager = fileManager
         self.photoStorage = photoStorage
+        self.importRootURL = importRootURL ?? fileManager.temporaryDirectory
+            .appendingPathComponent("LineyImports", isDirectory: true)
         self.saveContext = saveContext
     }
 
@@ -121,6 +128,11 @@ struct DayOneImporter {
 
     func deleteTemporaryArchive(_ plan: DayOneImportPlan) {
         try? fileManager.removeItem(at: plan.archiveURL)
+    }
+
+    /// Imports are not resumed after a restart, so every staged archive left at launch is stale.
+    func deleteTemporaryImports() {
+        try? fileManager.removeItem(at: importRootURL)
     }
 
     @MainActor
@@ -193,11 +205,9 @@ struct DayOneImporter {
             }
         }
 
-        let directoryURL = fileManager.temporaryDirectory
-            .appendingPathComponent("LineyImports", isDirectory: true)
-        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: importRootURL, withIntermediateDirectories: true)
 
-        let destinationURL = directoryURL
+        let destinationURL = importRootURL
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("zip")
         do {

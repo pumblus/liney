@@ -10,6 +10,7 @@ final class LineyApp: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         JournalExporter().deleteTemporaryExports()
+        DayOneImporter().deleteTemporaryImports()
         return true
     }
 

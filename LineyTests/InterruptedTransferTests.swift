@@ -23,8 +23,8 @@ private final class CallCounter: @unchecked Sendable {
     }
 }
 
-/// A file system where nothing can be deleted, as when a file is locked or permissions changed.
-private final class UndeletableFileManager: FileManager, @unchecked Sendable {
+/// A file system whose temporary directory can be a fixture folder.
+private class TemporaryRootFileManager: FileManager, @unchecked Sendable {
     private let root: URL?
 
     init(temporaryRoot root: URL? = nil) {
@@ -33,7 +33,10 @@ private final class UndeletableFileManager: FileManager, @unchecked Sendable {
     }
 
     override var temporaryDirectory: URL { root ?? super.temporaryDirectory }
+}
 
+/// A file system where nothing can be deleted, as when a file is locked or permissions changed.
+private final class UndeletableFileManager: TemporaryRootFileManager, @unchecked Sendable {
     override func removeItem(at url: URL) throws {
         throw CocoaError(.fileWriteNoPermission)
     }
@@ -205,10 +208,20 @@ final class InterruptedTransferTests {
         #expect(summary.importedEntries == entryCount)
         #expect(try journal() == expectedJournal(1...entryCount))
         let staged = stagingRoot.appendingPathComponent("LineyImports", isDirectory: true)
-        let leftovers = try FileManager.default.contentsOfDirectory(atPath: staged.path)
-        withKnownIssue("Nothing sweeps LineyImports; a staged copy whose deletion failed stays until the system purges tmp") {
-            #expect(leftovers.isEmpty)
-        }
+        // The staged copy stays until the next launch sweeps it.
+        #expect(try FileManager.default.contentsOfDirectory(atPath: staged.path).count == 1)
+        let exports = stagingRoot.appendingPathComponent("LineyExports", isDirectory: true)
+        try FileManager.default.createDirectory(at: exports, withIntermediateDirectories: true)
+
+        let launch = DayOneImporter(fileManager: TemporaryRootFileManager(temporaryRoot: stagingRoot), photoStorage: storage)
+        launch.deleteTemporaryImports()
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
+        #expect(FileManager.default.fileExists(atPath: exports.path))
+        #expect(FileManager.default.fileExists(atPath: archiveURL.path))
+
+        // A launch with nothing staged is a no-op.
+        launch.deleteTemporaryImports()
+        #expect(!FileManager.default.fileExists(atPath: staged.path))
     }
     // MARK: - Export
 
