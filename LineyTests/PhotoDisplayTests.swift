@@ -15,7 +15,7 @@ struct PhotoDisplayTests {
         let data = try #require(UIGraphicsImageRenderer(size: size, format: format).image { context in
             UIColor.systemBlue.setFill(); context.fill(CGRect(origin: .zero, size: size))
         }.jpegData(compressionQuality: 0.9))
-        return (storage, try storage.saveJPEG(from: data), base)
+        return (storage, try storage.saveJPEG(from: data).fileName, base)
     }
 
     @Test func singlePhotoUsesHeaderAspectBeforeDecoding() throws {

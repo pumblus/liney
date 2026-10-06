@@ -39,7 +39,7 @@ struct TimelineRefreshTests {
         let data = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 24)).jpegData(withCompressionQuality: 0.8) { renderer in
             UIColor.systemBlue.setFill(); renderer.fill(CGRect(x: 0, y: 0, width: 32, height: 24))
         }
-        let names = try (0..<3).map { _ in try storage.saveJPEG(from: data) }
+        let names = try (0..<3).map { _ in try storage.saveJPEG(from: data).fileName }
         for index in 0..<40 {
             let entry = JournalEntry(title: "Photo fixture \(index)", entryDate: .now.addingTimeInterval(Double(-index * 60)))
             context.insert(entry)

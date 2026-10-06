@@ -1,8 +1,7 @@
 import Foundation
 import ZIPFoundation
 
-struct JournalExport: Identifiable {
-    let id = UUID()
+struct JournalExport {
     let url: URL
     let directoryURL: URL
 }
@@ -17,29 +16,9 @@ struct JournalExportEntry: Sendable {
     let locationLatitude: Double?
     let locationLongitude: Double?
     let blocks: [JournalExportBlock]
+}
 
-    init(
-        id: UUID,
-        title: String,
-        entryDate: Date,
-        isAllDay: Bool,
-        createdAt: Date,
-        locationText: String?,
-        locationLatitude: Double?,
-        locationLongitude: Double?,
-        blocks: [JournalExportBlock]
-    ) {
-        self.id = id
-        self.title = title
-        self.entryDate = entryDate
-        self.isAllDay = isAllDay
-        self.createdAt = createdAt
-        self.locationText = locationText
-        self.locationLatitude = locationLatitude
-        self.locationLongitude = locationLongitude
-        self.blocks = blocks
-    }
-
+extension JournalExportEntry {
     init(entry: JournalEntry) {
         self.init(
             id: entry.id,
@@ -106,10 +85,6 @@ struct JournalExporter: @unchecked Sendable {
         self.exportRootURL = exportRootURL ?? fileManager.temporaryDirectory
             .appendingPathComponent("LineyExports", isDirectory: true)
         self.calendar = calendar
-    }
-
-    func export(entries: [JournalEntry], exportedAt: Date = .now) throws -> JournalExport {
-        try export(entries: entries.map(JournalExportEntry.init), exportedAt: exportedAt)
     }
 
     func export(entries: [JournalExportEntry], exportedAt: Date = .now) throws -> JournalExport {

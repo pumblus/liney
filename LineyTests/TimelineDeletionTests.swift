@@ -72,7 +72,7 @@ struct TimelineDeletionTests {
             UIColor.systemBlue.setFill()
             renderer.fill(CGRect(x: 0, y: 0, width: 24, height: 32))
         }
-        let name = try storage.saveJPEG(from: data)
+        let name = try storage.saveJPEG(from: data).fileName
         let selected = JournalEntry(title: "Selected fixture", entryDate: .now)
         let other = JournalEntry(title: "Other fixture", entryDate: .distantPast)
         let selectedID = selected.id

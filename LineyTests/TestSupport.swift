@@ -77,8 +77,14 @@ extension JournalEntry {
 
     @discardableResult
     func insertPhotoGroup(fileNames: [String], focusedTextBlockID: UUID? = nil, cursorOffset: Int? = nil,
-                          in context: ModelContext) -> PhotoGroupInsertion? {
+                          in context: ModelContext) -> EntryBlock? {
         insertPhotoGroup(photos: fileNames.map { PhotoGroupItem(fileName: $0) },
                          focusedTextBlockID: focusedTextBlockID, cursorOffset: cursorOffset, in: context)
+    }
+}
+
+extension PhotoImportResult {
+    init(fileNames: [String], failedCount: Int) {
+        self.init(photos: fileNames.map { PhotoGroupItem(fileName: $0) }, failedCount: failedCount)
     }
 }

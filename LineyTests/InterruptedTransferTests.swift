@@ -224,7 +224,7 @@ final class InterruptedTransferTests {
         try await seedJournal()
         let exporter = JournalExporter(photoStorage: storage, exportRootURL: exportRoot)
 
-        let export = try exporter.export(entries: try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()))
+        let export = try exporter.export(entries: try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()).map(JournalExportEntry.init))
         defer { exporter.deleteExport(export) }
 
         let paths = try Archive(url: export.url, accessMode: .read, pathEncoding: nil).map(\.path)
@@ -244,7 +244,7 @@ final class InterruptedTransferTests {
         }
 
         #expect(throws: SyntheticFailure.self) {
-            try exporter.export(entries: try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()))
+            try exporter.export(entries: try ModelContext(container).fetch(FetchDescriptor<JournalEntry>()).map(JournalExportEntry.init))
         }
 
         #expect(try FileManager.default.contentsOfDirectory(atPath: exportRoot.path).isEmpty)

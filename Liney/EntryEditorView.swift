@@ -328,15 +328,15 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                     UIAccessibility.post(notification: .layoutChanged, argument: insertButton)
                 }
             }
-            guard let insertion = entry.insertPhotoGroup(photos: result.photos, focusedTextBlockID: pendingBlockID, cursorOffset: pendingOffset, in: context) else {
+            guard let photoBlock = entry.insertPhotoGroup(photos: result.photos, focusedTextBlockID: pendingBlockID, cursorOffset: pendingOffset, in: context) else {
                 if let alert = result.alert { showError(String(localized: "Some Photos Couldn’t Be Added"), message: alert.message) }
                 return
             }
             do {
                 try saveEntryChanges(entry, in: context, save: save)
                 NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
-                render(focusAfter: insertion.photoBlock.id)
-                let prompt = entry.photoInfoPromptCandidate(from: insertion.photoBlock.orderedPhotos)
+                render(focusAfter: photoBlock.id)
+                let prompt = entry.photoInfoPromptCandidate(from: photoBlock.orderedPhotos)
                 if let alert = result.alert {
                     let message = UIAlertController(title: String(localized: "Some Photos Couldn’t Be Added"), message: alert.message, preferredStyle: .alert)
                     message.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.promptPhotoInfo(prompt) })

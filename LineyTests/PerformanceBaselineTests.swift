@@ -16,7 +16,7 @@ func testPhotoStorageThumbnailPerformanceOnSyntheticFixtures() throws {
 
     let storage = PhotoStorage(baseURL: rootURL)
     let sourceData = qualityPerfJPEGData(size: CGSize(width: 2_400, height: 1_800))
-    let seedFileName = try storage.saveJPEG(from: sourceData)
+    let seedFileName = try storage.saveJPEG(from: sourceData).fileName
     let seedURL = storage.url(for: seedFileName)
     let seedData = try Data(contentsOf: seedURL)
 
@@ -44,7 +44,7 @@ func testPhotoStorageThumbnailPerformanceOnSyntheticFixtures() throws {
         var baselineBytes = 0
         let baselineStart = DispatchTime.now().uptimeNanoseconds
         for fileName in fileNames {
-            if let image = storage.image(for: fileName) {
+            if let image = storage.thumbnail(for: fileName, maxPixelSize: PhotoStorage.targetLongEdge) {
                 baselineBytes += qualityPerfMaterialize(image)
             }
         }
@@ -73,7 +73,7 @@ func testPhotoStorageThumbnailPerformanceOnSyntheticFixtures() throws {
     }
 
     print("[PERF-photo] condition=iOS simulator; image=2400x1800; paths=50; rounds=3")
-    print("[PERF-photo] baseline_image_for median_ms=\(qualityPerfMedian(baselineSamples)) p95_ms=\(qualityPerfP95(baselineSamples)) decoded_bytes_estimate=\(baselineDecodedBytes)")
+    print("[PERF-photo] thumbnail_\(PhotoStorage.targetLongEdge)_cold median_ms=\(qualityPerfMedian(baselineSamples)) p95_ms=\(qualityPerfP95(baselineSamples)) decoded_bytes_estimate=\(baselineDecodedBytes)")
     print("[PERF-photo] thumbnail_160_cold median_ms=\(qualityPerfMedian(coldThumbnailSamples)) p95_ms=\(qualityPerfP95(coldThumbnailSamples)) decoded_bytes_estimate=\(coldDecodedBytes)")
     print("[PERF-photo] thumbnail_160_warm median_ms=\(qualityPerfMedian(warmThumbnailSamples)) p95_ms=\(qualityPerfP95(warmThumbnailSamples)) decoded_bytes_estimate=\(warmDecodedBytes)")
 }

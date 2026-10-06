@@ -47,7 +47,7 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         })
         showRoot(container: app.container)
         window.makeKeyAndVisible()
-        updateLock()
+        privacyShield?.update()
     }
 
     private func showRoot(container: ModelContainer) {
@@ -64,8 +64,6 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
             window?.rootViewController = split
         } else { window?.rootViewController = navigation }
     }
-
-    private func updateLock() { privacyShield?.update() }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
         Task { await appLock.unlockIfNeeded(requiresLock: requiresLock) }

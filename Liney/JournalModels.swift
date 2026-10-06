@@ -132,11 +132,6 @@ struct PhotoGroupItem {
     }
 }
 
-struct PhotoGroupInsertion {
-    let photoBlock: EntryBlock
-    let followingTextBlock: EntryBlock?
-}
-
 extension EntryPhoto {
     var placeDisplayText: String? {
         let trimmedPlace = placeName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -265,7 +260,7 @@ extension JournalEntry {
         focusedTextBlockID: UUID? = nil,
         cursorOffset: Int? = nil,
         in context: ModelContext
-    ) -> PhotoGroupInsertion? {
+    ) -> EntryBlock? {
         guard !photoItems.isEmpty else { return nil }
 
         let photoBlock = EntryBlock(kind: .photoGroup, entry: self)
@@ -326,7 +321,7 @@ extension JournalEntry {
             ordered.insert(followingTextBlock, at: insertionIndex + 1)
         }
         reindex(ordered)
-        return PhotoGroupInsertion(photoBlock: photoBlock, followingTextBlock: followingTextBlock)
+        return photoBlock
     }
 
     @discardableResult
@@ -433,13 +428,6 @@ func photoGroupColumnCount(forPhotoCount count: Int) -> Int {
     return min(count, 3)
 }
 
-@discardableResult
-func discardBlankNewEntry(_ entry: JournalEntry, in context: ModelContext) -> Bool {
-    guard entry.isBlank else { return false }
-    context.delete(entry)
-    return true
-}
-
 /// SwiftData's rollback reverts attributes but can leave a rolled-back insert in an already
 /// loaded relationship, so the entry is fetched again to reload its blocks from the store.
 @MainActor
@@ -458,7 +446,8 @@ func saveEntryChanges(
 ) throws {
     entry.normalizeBlocks(in: context)
     entry.updatedAt = .now
-    let discarded = discardIfBlank && discardBlankNewEntry(entry, in: context)
+    let discarded = discardIfBlank && entry.isBlank
+    if discarded { context.delete(entry) }
     do {
         try (save ?? { try context.save() })()
     } catch {

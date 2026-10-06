@@ -138,7 +138,7 @@ final class JournalExportTests: XCTestCase {
         context.insert(entryPhoto)
         try context.save()
 
-        let export = try exporter.export(entries: [entry], exportedAt: exportedAt)
+        let export = try exporter.export(entries: [JournalExportEntry(entry: entry)], exportedAt: exportedAt)
 
         XCTAssertEqual(export.url.lastPathComponent, "liney-export-2026-07-07.zip")
         XCTAssertTrue(FileManager.default.fileExists(atPath: export.url.path))

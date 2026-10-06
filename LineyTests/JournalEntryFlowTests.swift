@@ -31,7 +31,7 @@ final class JournalEntryFlowTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let storage = PhotoStorage(baseURL: root)
-        let name = try storage.saveJPEG(from: makeJPEGData())
+        let name = try storage.saveJPEG(from: makeJPEGData()).fileName
         for file in [name, "missing-fixture.jpg"] {
             let photo = EntryPhoto(fileName: file, displayOrder: 0)
             let detail = PhotoDetailViewController(photo: photo, storage: storage)
@@ -356,8 +356,8 @@ final class JournalEntryFlowTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let storage = PhotoStorage(baseURL: directory)
-        let red = try storage.saveJPEG(from: makeJPEGData(color: .red))
-        let green = try storage.saveJPEG(from: makeJPEGData(color: .green))
+        let red = try storage.saveJPEG(from: makeJPEGData(color: .red)).fileName
+        let green = try storage.saveJPEG(from: makeJPEGData(color: .green)).fileName
         let imageView = StoredPhotoView()
         imageView.load(red, storage: storage, pixels: 32)
         imageView.load(green, storage: storage, pixels: 32)
@@ -378,7 +378,7 @@ final class JournalEntryFlowTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let storage = PhotoStorage(baseURL: directory)
-        let file = try storage.saveJPEG(from: makeJPEGData())
+        let file = try storage.saveJPEG(from: makeJPEGData()).fileName
         let image = StoredPhotoView()
         image.deferLoading(file, storage: storage, pixels: 32)
         XCTAssertNil(image.image)
@@ -506,7 +506,7 @@ final class JournalEntryFlowTests: XCTestCase {
         let storage = PhotoStorage(baseURL: root.appendingPathComponent("one"))
         let other = PhotoStorage(baseURL: root.appendingPathComponent("two"))
         let id = UUID()
-        let name = try storage.saveJPEG(from: makeJPEGData(size: CGSize(width: 800, height: 500)), id: id)
+        let name = try storage.saveJPEG(from: makeJPEGData(size: CGSize(width: 800, height: 500)), id: id).fileName
         _ = try other.saveJPEG(from: makeJPEGData(size: CGSize(width: 500, height: 800)), id: id)
         let image = try XCTUnwrap(storage.thumbnail(for: name, maxPixelSize: 160)?.cgImage)
         let portrait = try XCTUnwrap(other.thumbnail(for: name, maxPixelSize: 160)?.cgImage)
@@ -575,8 +575,7 @@ final class JournalEntryFlowTests: XCTestCase {
         let entry = JournalEntry(title: "   ")
         context.insert(entry)
 
-        XCTAssertTrue(discardBlankNewEntry(entry, in: context))
-        try context.save()
+        try saveEntryChanges(entry, in: context, discardIfBlank: true)
 
         XCTAssertEqual(try context.fetch(FetchDescriptor<JournalEntry>()).count, 0)
     }
@@ -730,7 +729,7 @@ final class JournalEntryFlowTests: XCTestCase {
         entry.setBody("Hello world", in: context)
         let textBlock = try XCTUnwrap(entry.textBlocks.first)
 
-        let insertion = try XCTUnwrap(entry.insertPhotoGroup(
+        let photoBlock = try XCTUnwrap(entry.insertPhotoGroup(
             fileNames: ["first.jpg", "second.jpg"],
             focusedTextBlockID: textBlock.id,
             cursorOffset: 5,
@@ -743,7 +742,7 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(blocks[0].text, "Hello")
         XCTAssertEqual(blocks[1].orderedPhotos.map(\.fileName), ["first.jpg", "second.jpg"])
         XCTAssertEqual(blocks[2].text, " world")
-        XCTAssertEqual(insertion.followingTextBlock?.id, blocks[2].id)
+        XCTAssertEqual(photoBlock.id, blocks[1].id)
 
         let reopened = try XCTUnwrap(try context.fetch(FetchDescriptor<JournalEntry>()).first)
         XCTAssertEqual(reopened.orderedBlocks.map(\.kind), [.text, .photoGroup, .text])
@@ -756,13 +755,12 @@ final class JournalEntryFlowTests: XCTestCase {
         focusedEntry.setBody("End", in: context)
         let textBlock = try XCTUnwrap(focusedEntry.textBlocks.first)
 
-        let focusedInsertion = try XCTUnwrap(focusedEntry.insertPhotoGroup(
+        _ = try XCTUnwrap(focusedEntry.insertPhotoGroup(
             fileNames: ["end.jpg"],
             focusedTextBlockID: textBlock.id,
             cursorOffset: 3,
             in: context
         ))
-        XCTAssertNil(focusedInsertion.followingTextBlock)
         XCTAssertEqual(focusedEntry.orderedBlocks.map(\.kind), [.text, .photoGroup])
 
         let noFocusEntry = JournalEntry()

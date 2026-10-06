@@ -2,8 +2,7 @@ import Foundation
 import SwiftData
 import ZIPFoundation
 
-struct DayOneImportPlan: Identifiable, Equatable {
-    let id = UUID()
+struct DayOneImportPlan: Equatable {
     let archiveURL: URL
     let entryCount: Int
     let photoCount: Int
@@ -31,8 +30,7 @@ struct DayOneImportSummary: Equatable {
     var issues: [DayOneImportIssue] = []
 }
 
-struct DayOneImportIssue: Identifiable, Equatable {
-    let id = UUID()
+struct DayOneImportIssue: Equatable {
     let sourceID: String?
     let entryNumber: Int
     let entryDate: Date?
@@ -697,7 +695,7 @@ struct DayOneImporter {
 
         let data = try extractChecked(entry, from: archive)
 
-        let saved = try photoStorage.saveJPEGWithMetadata(from: data)
+        let saved = try photoStorage.saveJPEG(from: data)
         return PhotoGroupItem(
             fileName: saved.fileName,
             capturedAt: saved.capturedAt ?? photo.capturedAt,

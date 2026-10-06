@@ -16,10 +16,6 @@ struct PhotoImportResult {
         self.storageWasFull = storageWasFull
     }
 
-    init(fileNames: [String], failedCount: Int) {
-        self.init(photos: fileNames.map { PhotoGroupItem(fileName: $0) }, failedCount: failedCount)
-    }
-
     var fileNames: [String] {
         photos.map(\.fileName)
     }
@@ -29,8 +25,7 @@ struct PhotoImportResult {
     }
 }
 
-struct PhotoImportAlert: Identifiable, Equatable {
-    let id = UUID()
+struct PhotoImportAlert: Equatable {
     let failedCount: Int
     let storageWasFull: Bool
 
@@ -58,7 +53,7 @@ struct PhotoPickerImporter {
                     }
                 }
                 let photo = try await Task.detached(priority: .userInitiated) {
-                    try storage.saveJPEGWithMetadata(from: data)
+                    try storage.saveJPEG(from: data)
                 }.value
                 photos.append(photo)
             } catch {
@@ -126,7 +121,6 @@ private final class PhotoThumbnailCache: @unchecked Sendable {
 struct PhotoStorage: @unchecked Sendable {
     static let targetLongEdge = 2400
     static let jpegQuality = 0.85
-    static let defaultThumbnailMaxPixelSize = 1200
     static let quarantineRetentionDays = 30
 
     private let fileManager: FileManager
@@ -223,7 +217,7 @@ struct PhotoStorage: @unchecked Sendable {
         }
     }
 
-    /// Matches the `<UUID>.jpg` names `saveJPEGWithMetadata` writes, so no other file is ever swept.
+    /// Matches the `<UUID>.jpg` names `saveJPEG` writes, so no other file is ever swept.
     private static func isStoredPhotoName(_ name: String) -> Bool {
         guard name.hasSuffix(".jpg") else { return false }
         let stem = String(name.dropLast(4))
@@ -237,10 +231,6 @@ struct PhotoStorage: @unchecked Sendable {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
-    }
-
-    func image(for fileName: String) -> UIImage? {
-        UIImage(contentsOfFile: url(for: fileName).path)
     }
 
     /// Main-thread safe: returns only an already decoded image and never touches the file.
@@ -258,7 +248,7 @@ struct PhotoStorage: @unchecked Sendable {
         return CGSize(width: width, height: height)
     }
 
-    func thumbnail(for fileName: String, maxPixelSize: Int = PhotoStorage.defaultThumbnailMaxPixelSize) -> UIImage? {
+    func thumbnail(for fileName: String, maxPixelSize: Int) -> UIImage? {
         let fileURL = url(for: fileName)
         let pixelSize = max(1, maxPixelSize)
 
@@ -308,7 +298,7 @@ struct PhotoStorage: @unchecked Sendable {
 
         for data in imageData {
             do {
-                photos.append(try saveJPEGWithMetadata(from: data))
+                photos.append(try saveJPEG(from: data))
             } catch {
                 failedCount += 1
                 storageWasFull = storageWasFull || error.isOutOfSpace
@@ -318,11 +308,7 @@ struct PhotoStorage: @unchecked Sendable {
         return PhotoImportResult(photos: photos, failedCount: failedCount, storageWasFull: storageWasFull)
     }
 
-    func saveJPEG(from data: Data, id: UUID = UUID()) throws -> String {
-        try saveJPEGWithMetadata(from: data, id: id).fileName
-    }
-
-    func saveJPEGWithMetadata(from data: Data, id: UUID = UUID()) throws -> PhotoGroupItem {
+    func saveJPEG(from data: Data, id: UUID = UUID()) throws -> PhotoGroupItem {
         try fileManager.createDirectory(at: photoDirectoryURL, withIntermediateDirectories: true)
 
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
