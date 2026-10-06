@@ -28,9 +28,8 @@ final class JournalEntryFlowTests: XCTestCase {
     }
 
     func testPhotoDetailLoadsWithoutConstraintException() async throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let (storage, root) = makeTemporaryPhotoStorage()
         defer { try? FileManager.default.removeItem(at: root) }
-        let storage = PhotoStorage(baseURL: root)
         let name = try storage.saveJPEG(from: makeJPEGData()).fileName
         for file in [name, "missing-fixture.jpg"] {
             let photo = EntryPhoto(fileName: file, displayOrder: 0)
@@ -353,9 +352,8 @@ final class JournalEntryFlowTests: XCTestCase {
     }
 
     func testReusedPhotoViewIgnoresCancelledImageRequests() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let (storage, directory) = makeTemporaryPhotoStorage()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let storage = PhotoStorage(baseURL: directory)
         let red = try storage.saveJPEG(from: makeJPEGData(color: .red)).fileName
         let green = try storage.saveJPEG(from: makeJPEGData(color: .green)).fileName
         let imageView = StoredPhotoView()
@@ -375,9 +373,8 @@ final class JournalEntryFlowTests: XCTestCase {
     }
 
     func testOffscreenPhotoViewsReleaseDecodedImages() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let (storage, directory) = makeTemporaryPhotoStorage()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let storage = PhotoStorage(baseURL: directory)
         let file = try storage.saveJPEG(from: makeJPEGData()).fileName
         let image = StoredPhotoView()
         image.deferLoading(file, storage: storage, pixels: 32)
@@ -948,8 +945,8 @@ final class JournalEntryFlowTests: XCTestCase {
     }
 
     func testPhotoStorageCreatesJPEGAndReportsPartialFailure() async throws {
-        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let storage = PhotoStorage(baseURL: baseURL)
+        let (storage, baseURL) = makeTemporaryPhotoStorage()
+        defer { try? FileManager.default.removeItem(at: baseURL) }
         let validImageData = makeJPEGData()
 
         let result = await storage.savePhotos([{ validImageData }, { Data("not an image".utf8) }])
@@ -966,8 +963,7 @@ final class JournalEntryFlowTests: XCTestCase {
     }
 
     func testPhotoStorageCountsLoaderThatThrowsAsFailure() async throws {
-        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let storage = PhotoStorage(baseURL: baseURL)
+        let (storage, baseURL) = makeTemporaryPhotoStorage()
         defer { try? FileManager.default.removeItem(at: baseURL) }
         let validImageData = makeJPEGData()
 
@@ -979,8 +975,8 @@ final class JournalEntryFlowTests: XCTestCase {
     }
 
     func testPhotoStoragePreservesCaptureTimeAndGPSMetadata() async throws {
-        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let storage = PhotoStorage(baseURL: baseURL)
+        let (storage, baseURL) = makeTemporaryPhotoStorage()
+        defer { try? FileManager.default.removeItem(at: baseURL) }
         let imageData = makeLocatedJPEGData(
             capturedAtText: "2026:07:06 20:15:00",
             latitude: 48.8566,
@@ -1005,8 +1001,7 @@ final class JournalEntryFlowTests: XCTestCase {
     }
 
     func testSinglePortraitPhotoUsesItsAspectRatio() async throws {
-        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let storage = PhotoStorage(baseURL: base)
+        let (storage, base) = makeTemporaryPhotoStorage()
         defer { try? FileManager.default.removeItem(at: base) }
         let item = try storage.saveJPEG(from: makeJPEGData(size: CGSize(width: 200, height: 300)))
         let block = EntryBlock(kind: .photoGroup)
@@ -1030,8 +1025,8 @@ final class JournalEntryFlowTests: XCTestCase {
     }
 
     func testThreePhotoLayoutSmokeRendersOnSimulator() async throws {
-        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let storage = PhotoStorage(baseURL: baseURL)
+        let (storage, baseURL) = makeTemporaryPhotoStorage()
+        defer { try? FileManager.default.removeItem(at: baseURL) }
         let result = await storage.savePhotos([
             { makeJPEGData(size: CGSize(width: 96, height: 48), color: .systemRed) },
             { makeJPEGData(size: CGSize(width: 48, height: 96), color: .systemGreen) },
@@ -1073,8 +1068,8 @@ final class JournalEntryFlowTests: XCTestCase {
     }
 
     func testPreviewThumbnailsStayInsideFixedBoxes() async throws {
-        let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let storage = PhotoStorage(baseURL: baseURL)
+        let (storage, baseURL) = makeTemporaryPhotoStorage()
+        defer { try? FileManager.default.removeItem(at: baseURL) }
         let result = await storage.savePhotos([
             { makeJPEGData(size: CGSize(width: 96, height: 48), color: .systemRed) },
             { makeJPEGData(size: CGSize(width: 48, height: 96), color: .systemGreen) },

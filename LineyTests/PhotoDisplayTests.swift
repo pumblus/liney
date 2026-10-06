@@ -9,8 +9,7 @@ import XCTest
 @MainActor
 struct PhotoDisplayTests {
     private func storedPhoto(size: CGSize) throws -> (PhotoStorage, String, URL) {
-        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let storage = PhotoStorage(baseURL: base)
+        let (storage, base) = makeTemporaryPhotoStorage()
         let format = UIGraphicsImageRendererFormat(); format.scale = 1
         let data = try #require(UIGraphicsImageRenderer(size: size, format: format).image { context in
             UIColor.systemBlue.setFill(); context.fill(CGRect(origin: .zero, size: size))
@@ -39,7 +38,7 @@ struct PhotoDisplayTests {
     }
 
     @Test func missingHeaderHasNoPixelSize() {
-        let storage = PhotoStorage(baseURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+        let storage = makeTemporaryPhotoStorage().storage
         #expect(storage.pixelSize(for: "missing.jpg") == nil)
     }
 

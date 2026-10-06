@@ -33,9 +33,8 @@ struct TimelineRefreshTests {
     @Test func thumbnailsStayLoadedWhenRowsRedisplay() async throws {
         let container = try makeInMemoryContainer()
         let context = ModelContext(container)
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let (storage, root) = makeTemporaryPhotoStorage()
         defer { try? FileManager.default.removeItem(at: root) }
-        let storage = PhotoStorage(baseURL: root)
         let data = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 24)).jpegData(withCompressionQuality: 0.8) { renderer in
             UIColor.systemBlue.setFill(); renderer.fill(CGRect(x: 0, y: 0, width: 32, height: 24))
         }

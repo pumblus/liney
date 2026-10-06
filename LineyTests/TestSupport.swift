@@ -30,6 +30,12 @@ func makeJPEGData(size: CGSize = CGSize(width: 32, height: 24), color: UIColor =
     }
 }
 
+/// A `PhotoStorage` rooted in a fresh temporary directory; the caller removes `directory`.
+func makeTemporaryPhotoStorage() -> (storage: PhotoStorage, directory: URL) {
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    return (PhotoStorage(baseURL: directory), directory)
+}
+
 /// Every view of type `T` in `view`'s hierarchy, `view` included, in depth-first order.
 func descendants<T: UIView>(_ view: UIView, as type: T.Type) -> [T] {
     ((view as? T).map { [$0] } ?? []) + view.subviews.flatMap { descendants($0, as: type) }

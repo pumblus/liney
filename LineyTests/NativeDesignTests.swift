@@ -38,9 +38,8 @@ struct NativeDesignTests {
 
     @Test
     func photoPressAndUnavailableState() async throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let (storage, directory) = makeTemporaryPhotoStorage()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let storage = PhotoStorage(baseURL: directory)
         let block = EntryBlock(kind: .photoGroup)
         block.photos = [EntryPhoto(fileName: "missing.jpg", displayOrder: 0, block: block)]
         let group = PhotoGroupView(block: block, storage: storage) { _ in }
