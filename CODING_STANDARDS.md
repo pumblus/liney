@@ -1,28 +1,25 @@
 # Coding Standards
 
+## Native first
+
+**Native** means Apple frameworks and system components. Prefer native APIs, deletion, and the smallest solution within scope.
+
+- Third-party dependencies, custom UI frameworks, and design systems need user approval; ZIPFoundation is the one approved dependency.
+- `/apple-design` and `/emil-design-eng` write for the web: apply their principles with native UIKit/SwiftUI APIs (for example `UISpringTimingParameters`, `UIVisualEffectView`, Dynamic Type).
+
 ## Swift
 
-- Load `/write-swift` whenever you write, review, or migrate Swift, including inside `/implement`, `/tdd`, and `/code-review`.
-- Prefer native APIs, deletion, and the smallest solution within scope.
+Load `/write-swift` for all Swift work, including inside `/implement`, `/tdd`, and `/code-review`.
 
-## UI design
+## Verification
 
-- `/apple-design` examples target the web: apply its principles with native UIKit/SwiftUI APIs (for example `UISpringTimingParameters`, `UIVisualEffectView`, Dynamic Type).
-- Use `/emil-design-eng` for animation decisions (whether to animate, duration, easing, feedback), translated to native APIs the same way.
+**Fixtures** are in-memory stores, temporary files, and fake authentication.
 
-## Dependencies
-
-- Build UI from system components. Custom UI frameworks, design systems, and third-party dependencies need user approval; ZIPFoundation is the one approved dependency.
-
-## Tests
-
-- Run the affected fixtures with in-memory stores, temporary files, and fake authentication.
-
-## Logs
-
-- Store temporary build/runtime logs in `.build/agent-logs/`, with private data (journal text, photo contents, precise locations) kept out.
+- Run the affected fixtures for every code change.
+- Finish every applicable check and report each unmet criterion with its blocker.
+- Write temporary build and runtime logs to `.build/agent-logs/`.
 
 ## Commits
 
-- Use atomic commits named `<type>[optional scope]: <description>` with `feat`, `fix`, `refactor`, `docs`, or `chore`.
+- Commit atomically as `<type>[optional scope]: <description>`, with type `feat`, `fix`, `refactor`, `docs`, or `chore`.
 - Split changes over about 20 files by purpose unless they form one regeneration output.
