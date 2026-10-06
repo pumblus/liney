@@ -103,9 +103,6 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
             contentUnavailableConfiguration = configuration
         } else { contentUnavailableConfiguration = nil }
     }
-    override func tableView(_ tableView: UITableView, didEndDisplaying cell: UITableViewCell, forRowAt indexPath: IndexPath) {
-        (cell as? EntryCell)?.cancelImages()
-    }
     override func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         guard let id = dataSource.itemIdentifier(for: indexPath) else { return nil }
         let delete = UIContextualAction(style: .destructive, title: String(localized: "Delete Entry")) { [weak self] _, _, completion in
@@ -238,6 +235,5 @@ private final class EntryCell: UITableViewCell {
         photos.accessibilityLabel = String(localized: "Entry Photos")
         photos.accessibilityValue = String(entry.photoCount)
     }
-    func cancelImages() { thumbnails.forEach { $0.cancel() } }
-    override func prepareForReuse() { super.prepareForReuse(); cancelImages() }
+    override func prepareForReuse() { super.prepareForReuse(); thumbnails.forEach { $0.cancel() } }
 }
