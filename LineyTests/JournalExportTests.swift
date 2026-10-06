@@ -48,7 +48,7 @@ final class JournalExportTests: XCTestCase {
         window.layoutIfNeeded()
         defer { window.isHidden = true }
         let flow = ExportJournalFlow(presenter: presenter, container: container,
-                                     appLock: AppLockModel(authenticator: ExportFixtureAuthenticator()),
+                                     appLock: AppLockModel(authenticator: ApprovingAuthenticator()),
                                      sourceBarButtonItem: source)
         var finished = false
         flow.onFinished = { finished = true }
@@ -323,15 +323,4 @@ final class JournalExportTests: XCTestCase {
                 "durations_ms=[\(durations)] median_ms=\(String(format: "%.2f", median))"
         )
     }
-
-    private func makeJPEGData(size: CGSize = CGSize(width: 32, height: 24), color: UIColor = .systemBlue) -> Data {
-        UIGraphicsImageRenderer(size: size).jpegData(withCompressionQuality: 1) { context in
-            color.setFill()
-            context.fill(CGRect(origin: .zero, size: size))
-        }
-    }
-}
-
-private struct ExportFixtureAuthenticator: AppAuthenticating {
-    func authenticate(reason: String) async -> Bool { true }
 }

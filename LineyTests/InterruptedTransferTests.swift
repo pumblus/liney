@@ -8,8 +8,6 @@ private let entryCount = 150
 private let photosPerEntry = 3
 private let baseDate = Date(timeIntervalSince1970: 1_767_225_600) // 2026-01-01T00:00:00Z
 
-private struct SyntheticFailure: Error { }
-
 /// Counts calls, including the import's background photo copies, so a fixture can fail the nth one.
 private final class CallCounter: @unchecked Sendable {
     private let lock = NSLock()
@@ -42,10 +40,6 @@ private final class UndeletableFileManager: TemporaryRootFileManager, @unchecked
     }
 }
 
-private struct ApprovingAuthenticator: AppAuthenticating {
-    func authenticate(reason: String) async -> Bool { true }
-}
-
 /// Interrupted Day One import and Markdown export on a media-heavy synthetic journal (#3).
 @Suite(.serialized)
 @MainActor
@@ -55,8 +49,7 @@ final class InterruptedTransferTests {
     private let storage: PhotoStorage
 
     init() throws {
-        container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
-                                       configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        container = try makeInMemoryContainer()
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         storage = PhotoStorage(baseURL: directory)
@@ -438,22 +431,5 @@ final class InterruptedTransferTests {
         controller.loadViewIfNeeded()
         window.layoutIfNeeded()
         return window
-    }
-
-    private func waitForAlert(from controller: UIViewController) async throws -> UIAlertController {
-        for _ in 0..<500 {
-            if let alert = presentedAlert(from: controller) { return alert }
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        return try #require(presentedAlert(from: controller))
-    }
-
-    private func presentedAlert(from controller: UIViewController) -> UIAlertController? {
-        var presented = controller.navigationController?.presentedViewController ?? controller.presentedViewController
-        while let current = presented {
-            if let alert = current as? UIAlertController { return alert }
-            presented = current.presentedViewController
-        }
-        return nil
     }
 }

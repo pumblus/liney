@@ -29,6 +29,7 @@
 		F000000000000000000000A2 /* StorageFullTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000A1 /* StorageFullTests.swift */; };
 		F000000000000000000000A4 /* InterruptedTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000A3 /* InterruptedTransferTests.swift */; };
 		F000000000000000000000A6 /* PhotoQuarantineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000A5 /* PhotoQuarantineTests.swift */; };
+		F000000000000000000000A8 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000A7 /* TestSupport.swift */; };
 		F00000000000000000000040 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000003F /* InfoPlist.strings */; };
 		F00000000000000000000043 /* Liney.icon in Resources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000044 /* Liney.icon */; };
 		F00000000000000000000045 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000046 /* Fixtures */; };
@@ -67,6 +68,7 @@
 		F000000000000000000000A1 /* StorageFullTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageFullTests.swift; sourceTree = "<group>"; };
 		F000000000000000000000A3 /* InterruptedTransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterruptedTransferTests.swift; sourceTree = "<group>"; };
 		F000000000000000000000A5 /* PhotoQuarantineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoQuarantineTests.swift; sourceTree = "<group>"; };
+		F000000000000000000000A7 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
 		F00000000000000000000039 /* JournalExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalExport.swift; sourceTree = "<group>"; };
 		F0000000000000000000003B /* ExportJournalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportJournalView.swift; sourceTree = "<group>"; };
 		F0000000000000000000003D /* AppLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockTests.swift; sourceTree = "<group>"; };
@@ -153,6 +155,7 @@
 				F000000000000000000000A1 /* StorageFullTests.swift */,
 				F000000000000000000000A3 /* InterruptedTransferTests.swift */,
 				F000000000000000000000A5 /* PhotoQuarantineTests.swift */,
+				F000000000000000000000A7 /* TestSupport.swift */,
 			);
 			path = LineyTests;
 			sourceTree = "<group>";
@@ -297,6 +300,7 @@
 				F000000000000000000000A2 /* StorageFullTests.swift in Sources */,
 				F000000000000000000000A4 /* InterruptedTransferTests.swift in Sources */,
 				F000000000000000000000A6 /* PhotoQuarantineTests.swift in Sources */,
+				F000000000000000000000A8 /* TestSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

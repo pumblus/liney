@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Fast repository checks; run by the pre-push hook.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+status=0
+
+# Shared test fixtures live in LineyTests/TestSupport.swift, not in per-suite copies.
+shared='makeJPEGData|makeInMemoryContainer|descendants|waitForAlert|presentedAlert'
+shared_types='SyntheticFailure|ApprovingAuthenticator|DenyingAuthenticator'
+copies=$(grep -nE "func ($shared)[<(]|struct ($shared_types)\b" LineyTests/*.swift | grep -v '^LineyTests/TestSupport.swift:')
+if [[ -n "$copies" ]]; then
+  echo "lint: reuse the helper in LineyTests/TestSupport.swift instead of a copy:"
+  echo "$copies"
+  status=1
+fi
+
+exit $status

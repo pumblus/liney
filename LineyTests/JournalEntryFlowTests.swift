@@ -125,9 +125,6 @@ final class JournalEntryFlowTests: XCTestCase {
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
         editor.view.layoutIfNeeded()
-        func descendants<T: UIView>(_ view: UIView, as type: T.Type) -> [T] {
-            (view as? T).map { [$0] } ?? view.subviews.flatMap { descendants($0, as: type) }
-        }
         let input = try XCTUnwrap(descendants(editor.view, as: BlockTextView.self).first)
         let buttons = descendants(input, as: UIButton.self).filter { $0.accessibilityIdentifier == "checklist-toggle" }
         XCTAssertEqual(buttons.count, 2)
@@ -272,15 +269,12 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(editor.entry.id, first.id)
         XCTAssertFalse(editor.context === context)
         editor.loadViewIfNeeded()
-        func descendants<T: UIView>(_ view: UIView, type: T.Type) -> [T] {
-            (view as? T).map { [$0] } ?? view.subviews.flatMap { descendants($0, type: type) }
-        }
-        let input = try XCTUnwrap(descendants(editor.view, type: BlockTextView.self).first)
+        let input = try XCTUnwrap(descendants(editor.view, as: BlockTextView.self).first)
         input.text = "Updated through UIKit 中文"
         input.delegate?.textViewDidChange?(input)
         let dateEditor = EntryDateViewController(entry: editor.entry) { _ = editor.flush() }
         dateEditor.loadViewIfNeeded()
-        let picker = try XCTUnwrap(descendants(dateEditor.view, type: UIDatePicker.self).first)
+        let picker = try XCTUnwrap(descendants(dateEditor.view, as: UIDatePicker.self).first)
         let adjusted = first.entryDate.addingTimeInterval(60)
         picker.date = adjusted
         picker.sendActions(for: .valueChanged)
@@ -976,7 +970,7 @@ final class JournalEntryFlowTests: XCTestCase {
     func testPhotoStoragePreservesCaptureTimeAndGPSMetadata() throws {
         let baseURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let storage = PhotoStorage(baseURL: baseURL)
-        let imageData = makeJPEGData(
+        let imageData = makeLocatedJPEGData(
             capturedAtText: "2026:07:06 20:15:00",
             latitude: 48.8566,
             longitude: 2.3522
@@ -1110,13 +1104,6 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertTrue(isWhite(try rgbaPixel(in: image, x: 108, y: 0)))
     }
 
-    private func makeJPEGData(size: CGSize = CGSize(width: 32, height: 24), color: UIColor = .systemBlue) -> Data {
-        UIGraphicsImageRenderer(size: size).jpegData(withCompressionQuality: 1) { context in
-            color.setFill()
-            context.fill(CGRect(origin: .zero, size: size))
-        }
-    }
-
     private func rgbaPixel(in image: UIImage, x: Int, y: Int) throws -> [UInt8] {
         let cgImage = try XCTUnwrap(image.cgImage)
         var pixel = [UInt8](repeating: 0, count: 4)
@@ -1143,7 +1130,7 @@ final class JournalEntryFlowTests: XCTestCase {
         pixel[0] > 245 && pixel[1] > 245 && pixel[2] > 245
     }
 
-    private func makeJPEGData(capturedAtText: String, latitude: Double, longitude: Double) -> Data {
+    private func makeLocatedJPEGData(capturedAtText: String, latitude: Double, longitude: Double) -> Data {
         let image = UIGraphicsImageRenderer(size: CGSize(width: 32, height: 24)).image { context in
             UIColor.systemBlue.setFill()
             context.fill(CGRect(x: 0, y: 0, width: 32, height: 24))
@@ -1360,44 +1347,20 @@ private func qualityPerfP95(_ samples: [Double]) -> String {
 
 }
 
-private struct NoAuthentication: AppAuthenticating {
-    func authenticate(reason: String) async -> Bool { false }
-}
-
 @Suite(.serialized)
 @MainActor
 struct TimelineDeletionTests {
-    private func waitForAlert(from controller: UIViewController) async throws -> UIAlertController {
-        // UISearchController can finish a presentation transition before showing the alert.
-        for _ in 0..<100 {
-            if let alert = presentedAlert(from: controller) { return alert }
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        return try #require(presentedAlert(from: controller))
-    }
-
-    private func presentedAlert(from controller: UIViewController) -> UIAlertController? {
-        var root = controller
-        while let parent = root.parent { root = parent }
-        var presented = root.presentedViewController
-        while let current = presented {
-            if let alert = current as? UIAlertController { return alert }
-            presented = current.presentedViewController
-        }
-        return nil
-    }
 
     @Test(arguments: [false, true])
     func openIPadEntryUsesEditorConfirmation(searching: Bool) async throws {
         guard UIDevice.current.userInterfaceIdiom == .pad else { return }
-        let container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try makeInMemoryContainer()
         let context = ModelContext(container)
         let entry = JournalEntry(title: "Open fixture")
         context.insert(entry)
         try context.save()
         let timeline = TimelineViewController(container: container,
-            appLock: AppLockModel(authenticator: NoAuthentication()))
+            appLock: AppLockModel(authenticator: DenyingAuthenticator()))
         let editor = EntryEditorViewController(entry: entry, isNew: false, context: context)
         let split = UISplitViewController(style: .doubleColumn)
         split.preferredDisplayMode = .oneBesideSecondary
@@ -1441,8 +1404,7 @@ struct TimelineDeletionTests {
 
     @Test(arguments: [false, true])
     func swipeRequiresConfirmationAndDeletesOnlySelectedEntry(searching: Bool) async throws {
-        let container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try makeInMemoryContainer()
         let context = ModelContext(container)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -1461,7 +1423,7 @@ struct TimelineDeletionTests {
         try context.save()
 
         let timeline = TimelineViewController(container: container,
-            appLock: AppLockModel(authenticator: NoAuthentication()), storage: storage)
+            appLock: AppLockModel(authenticator: DenyingAuthenticator()), storage: storage)
         let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let window = UIWindow(windowScene: scene)
         window.rootViewController = UINavigationController(rootViewController: timeline)
@@ -1597,8 +1559,7 @@ struct NativeDesignTests {
 
     @Test
     func slowPhotoTransferShowsStatusAndRestoresEditor() async throws {
-        let store = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
-                                       configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let store = try makeInMemoryContainer()
         let context = ModelContext(store)
         let entry = JournalEntry(title: "Synthetic transfer")
         context.insert(entry)
@@ -1685,10 +1646,6 @@ struct NativeDesignTests {
         #expect((max(text, behind) + 0.05) / (min(text, behind) + 0.05) >= 4.5)
     }
 
-    private func descendants<T: UIView>(_ view: UIView, as type: T.Type) -> [T] {
-        (view as? T).map { [$0] } ?? view.subviews.flatMap { descendants($0, as: type) }
-    }
-
     private func luminance(_ color: UIColor) -> Double {
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
@@ -1702,13 +1659,9 @@ struct NativeDesignTests {
 
 @MainActor
 struct EditorUsabilityTests {
-    private func descendants<T: UIView>(_ view: UIView, as type: T.Type) -> [T] {
-        (view as? T).map { [$0] } ?? view.subviews.flatMap { descendants($0, as: type) }
-    }
 
     @Test func emptyBodyFillsWritingAreaAndNavigationRemainsNative() throws {
-        let container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try makeInMemoryContainer()
         let context = ModelContext(container)
         let entry = JournalEntry(title: "Fixture title")
         context.insert(entry)
@@ -1766,8 +1719,7 @@ struct EditorUsabilityTests {
     }
 
     @Test func insertingPhotosKeepsExistingBlockViews() async throws {
-        let container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try makeInMemoryContainer()
         let context = ModelContext(container)
         let entry = JournalEntry(title: "Fixture title")
         context.insert(entry)
@@ -1852,8 +1804,7 @@ struct PhotoDisplayTests {
 @MainActor
 struct TimelineRefreshTests {
     @Test func savedEntryAppearsWithoutReappearing() async throws {
-        let container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try makeInMemoryContainer()
         let timeline = TimelineViewController(container: container, appLock: AppLockModel())
         let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let window = UIWindow(windowScene: scene)
@@ -1874,8 +1825,7 @@ struct TimelineRefreshTests {
     }
 
     @Test func thumbnailsStayLoadedWhenRowsRedisplay() async throws {
-        let container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try makeInMemoryContainer()
         let context = ModelContext(container)
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -1892,7 +1842,7 @@ struct TimelineRefreshTests {
         try context.save()
 
         let timeline = TimelineViewController(container: container,
-            appLock: AppLockModel(authenticator: NoAuthentication()), storage: storage)
+            appLock: AppLockModel(authenticator: DenyingAuthenticator()), storage: storage)
         let navigation = UINavigationController(rootViewController: timeline)
         let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let window = UIWindow(windowScene: scene)

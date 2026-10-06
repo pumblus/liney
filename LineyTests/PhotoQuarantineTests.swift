@@ -3,8 +3,6 @@ import Testing
 import UIKit
 @testable import Liney
 
-private struct SyntheticFailure: Error { }
-
 /// A file system that refuses to move the named files, as when a file is locked or permissions changed.
 private final class UnmovableFileManager: FileManager, @unchecked Sendable {
     private let unmovable: Set<String>
@@ -55,8 +53,7 @@ final class PhotoQuarantineTests {
 
     @Test
     func `photos saved from another context are never moved`() throws {
-        let container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
-                                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let container = try makeInMemoryContainer()
         let editor = ModelContext(container)
         let entry = JournalEntry(title: "Synthetic title")
         editor.insert(entry)

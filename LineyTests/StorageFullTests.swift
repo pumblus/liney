@@ -41,10 +41,6 @@ private final class FixtureFileManager: FileManager, @unchecked Sendable {
     }
 }
 
-private struct ApprovingAuthenticator: AppAuthenticating {
-    func authenticate(reason: String) async -> Bool { true }
-}
-
 /// Synthetic entries and files as they are on disk, so a failed write can be shown to change nothing.
 private struct JournalSnapshot: Equatable {
     let entries: [String]
@@ -59,8 +55,7 @@ final class StorageFullTests {
     private let storage: PhotoStorage
 
     init() throws {
-        container = try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self,
-                                       configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        container = try makeInMemoryContainer()
         directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         storage = PhotoStorage(baseURL: directory)
@@ -317,30 +312,9 @@ final class StorageFullTests {
         return window
     }
 
-    private func waitForAlert(from controller: UIViewController) async throws -> UIAlertController {
-        for _ in 0..<150 {
-            if let alert = presentedAlert(from: controller) { return alert }
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        return try #require(presentedAlert(from: controller))
-    }
-
-    private func presentedAlert(from controller: UIViewController) -> UIAlertController? {
-        var presented = controller.navigationController?.presentedViewController ?? controller.presentedViewController
-        while let current = presented {
-            if let alert = current as? UIAlertController { return alert }
-            presented = current.presentedViewController
-        }
-        return nil
-    }
-
     private func dismiss(_ alert: UIAlertController) async {
         await withCheckedContinuation { continuation in
             alert.dismiss(animated: false) { continuation.resume() }
         }
-    }
-
-    private func descendants<T: UIView>(_ view: UIView, as type: T.Type) -> [T] {
-        ((view as? T).map { [$0] } ?? []) + view.subviews.flatMap { descendants($0, as: type) }
     }
 }
