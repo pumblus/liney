@@ -30,6 +30,12 @@
 		F000000000000000000000A4 /* InterruptedTransferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000A3 /* InterruptedTransferTests.swift */; };
 		F000000000000000000000A6 /* PhotoQuarantineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000A5 /* PhotoQuarantineTests.swift */; };
 		F000000000000000000000A8 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000A7 /* TestSupport.swift */; };
+		F000000000000000000000B1 /* PerformanceBaselineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000B0 /* PerformanceBaselineTests.swift */; };
+		F000000000000000000000B3 /* TimelineDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000B2 /* TimelineDeletionTests.swift */; };
+		F000000000000000000000B5 /* NativeDesignTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000B4 /* NativeDesignTests.swift */; };
+		F000000000000000000000B7 /* EditorUsabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000B6 /* EditorUsabilityTests.swift */; };
+		F000000000000000000000B9 /* PhotoDisplayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000B8 /* PhotoDisplayTests.swift */; };
+		F000000000000000000000BB /* TimelineRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F000000000000000000000BA /* TimelineRefreshTests.swift */; };
 		F00000000000000000000040 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = F0000000000000000000003F /* InfoPlist.strings */; };
 		F00000000000000000000043 /* Liney.icon in Resources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000044 /* Liney.icon */; };
 		F00000000000000000000045 /* Fixtures in Resources */ = {isa = PBXBuildFile; fileRef = F00000000000000000000046 /* Fixtures */; };
@@ -69,6 +75,12 @@
 		F000000000000000000000A3 /* InterruptedTransferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterruptedTransferTests.swift; sourceTree = "<group>"; };
 		F000000000000000000000A5 /* PhotoQuarantineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoQuarantineTests.swift; sourceTree = "<group>"; };
 		F000000000000000000000A7 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
+		F000000000000000000000B0 /* PerformanceBaselineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceBaselineTests.swift; sourceTree = "<group>"; };
+		F000000000000000000000B2 /* TimelineDeletionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineDeletionTests.swift; sourceTree = "<group>"; };
+		F000000000000000000000B4 /* NativeDesignTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeDesignTests.swift; sourceTree = "<group>"; };
+		F000000000000000000000B6 /* EditorUsabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorUsabilityTests.swift; sourceTree = "<group>"; };
+		F000000000000000000000B8 /* PhotoDisplayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoDisplayTests.swift; sourceTree = "<group>"; };
+		F000000000000000000000BA /* TimelineRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineRefreshTests.swift; sourceTree = "<group>"; };
 		F00000000000000000000039 /* JournalExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalExport.swift; sourceTree = "<group>"; };
 		F0000000000000000000003B /* ExportJournalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportJournalView.swift; sourceTree = "<group>"; };
 		F0000000000000000000003D /* AppLockTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLockTests.swift; sourceTree = "<group>"; };
@@ -156,6 +168,12 @@
 				F000000000000000000000A3 /* InterruptedTransferTests.swift */,
 				F000000000000000000000A5 /* PhotoQuarantineTests.swift */,
 				F000000000000000000000A7 /* TestSupport.swift */,
+				F000000000000000000000B0 /* PerformanceBaselineTests.swift */,
+				F000000000000000000000B2 /* TimelineDeletionTests.swift */,
+				F000000000000000000000B4 /* NativeDesignTests.swift */,
+				F000000000000000000000B6 /* EditorUsabilityTests.swift */,
+				F000000000000000000000B8 /* PhotoDisplayTests.swift */,
+				F000000000000000000000BA /* TimelineRefreshTests.swift */,
 			);
 			path = LineyTests;
 			sourceTree = "<group>";
@@ -301,6 +319,12 @@
 				F000000000000000000000A4 /* InterruptedTransferTests.swift in Sources */,
 				F000000000000000000000A6 /* PhotoQuarantineTests.swift in Sources */,
 				F000000000000000000000A8 /* TestSupport.swift in Sources */,
+				F000000000000000000000B1 /* PerformanceBaselineTests.swift in Sources */,
+				F000000000000000000000B3 /* TimelineDeletionTests.swift in Sources */,
+				F000000000000000000000B5 /* NativeDesignTests.swift in Sources */,
+				F000000000000000000000B7 /* EditorUsabilityTests.swift in Sources */,
+				F000000000000000000000B9 /* PhotoDisplayTests.swift in Sources */,
+				F000000000000000000000BB /* TimelineRefreshTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

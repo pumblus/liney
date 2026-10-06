@@ -56,3 +56,29 @@ func presentedAlert(from controller: UIViewController) -> UIAlertController? {
     }
     return nil
 }
+
+// Fixture builders: production writes blocks through the editor and importer instead.
+extension JournalEntry {
+    func setBody(_ body: String, in context: ModelContext) {
+        let existingTextBlocks = textBlocks
+        func remove(_ block: EntryBlock) { blocks.removeAll { $0.id == block.id }; context.delete(block) }
+        if body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            existingTextBlocks.forEach(remove)
+        } else if let block = existingTextBlocks.first {
+            block.text = body
+            existingTextBlocks.dropFirst().forEach(remove)
+        } else {
+            let block = EntryBlock(sortIndex: 0, text: body, entry: self)
+            blocks.append(block)
+            context.insert(block)
+        }
+        normalizeBlocks(in: context)
+    }
+
+    @discardableResult
+    func insertPhotoGroup(fileNames: [String], focusedTextBlockID: UUID? = nil, cursorOffset: Int? = nil,
+                          in context: ModelContext) -> PhotoGroupInsertion? {
+        insertPhotoGroup(photos: fileNames.map { PhotoGroupItem(fileName: $0) },
+                         focusedTextBlockID: focusedTextBlockID, cursorOffset: cursorOffset, in: context)
+    }
+}
