@@ -40,7 +40,7 @@ struct DayOneImportIssue: Identifiable, Equatable {
 
     enum Reason: String, Equatable {
         case missingIdentity, invalidDate, noContent, photosUnavailable, saveFailed
-        case recoveryUnavailable, appendedPhotos, archiveFailed, storageFull
+        case recoveryUnavailable, appendedPhotos, archiveFailed, storageFull, cleanupFailed
 
         var message: String {
             switch self {
@@ -53,6 +53,7 @@ struct DayOneImportIssue: Identifiable, Equatable {
             case .appendedPhotos: "The original photo position was removed. Recovered photos were added at the end of the entry."
             case .archiveFailed: "The archive could not be read completely. Export again and retry; saved entries are kept."
             case .storageFull: "Some photos could not be saved because this device is out of storage. Free up space and import the zip again to retry."
+            case .cleanupFailed: "Some copied photo files could not be deleted."
             }
         }
     }
@@ -287,12 +288,12 @@ struct DayOneImporter {
             summary.failedEntries += 1
             summary.failedPhotos += error.skippedMedia
             summary.issues.append(issue(error.storageWasFull ? .storageFull : .noContent))
-            deleteCopiedPhotos(error.copiedFileNames)
+            deleteCopiedPhotos(error.copiedFileNames, summary: &summary, issue: issue)
         } catch {
             context.rollback()
             summary.failedEntries += 1
             summary.issues.append(issue(.saveFailed))
-            deleteCopiedPhotos(copiedFileNames)
+            deleteCopiedPhotos(copiedFileNames, summary: &summary, issue: issue)
         }
     }
 
@@ -375,9 +376,9 @@ struct DayOneImporter {
             if appended { summary.issues.append(issue(.appendedPhotos)) }
         } catch {
             context.rollback()
-            deleteCopiedPhotos(copied)
             summary.failedEntries += 1
             summary.issues.append(issue(.saveFailed))
+            deleteCopiedPhotos(copied, summary: &summary, issue: issue)
         }
     }
 
@@ -761,11 +762,18 @@ struct DayOneImporter {
         }
     }
 
+    /// Copies left behind by a failed delete are reported, not swept (#3).
     @MainActor
-    private func deleteCopiedPhotos(_ fileNames: [String]) {
+    private func deleteCopiedPhotos(
+        _ fileNames: [String],
+        summary: inout DayOneImportSummary,
+        issue: (DayOneImportIssue.Reason) -> DayOneImportIssue
+    ) {
+        var deletedAll = true
         for fileName in fileNames {
-            try? photoStorage.delete(fileName: fileName)
+            do { try photoStorage.delete(fileName: fileName) } catch { deletedAll = false }
         }
+        if !deletedAll { summary.issues.append(issue(.cleanupFailed)) }
     }
 
     private func dayOnePhotos(in rawEntry: JSONObject) -> [DayOnePhoto] {
