@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# Run LineyTests on the QA simulators, logging to .build/agent-logs/.
+#
+#   scripts/test                      all suites, iPhone
+#   scripts/test StorageFullTests ... named suites (or Suite/testName), iPhone
+#   scripts/test --all                all suites, iPhone then iPad
+#
+# Simulators are found by name ("Liney OS27 iPhone QA", "Liney OS27 iPad QA");
+# override with LINEY_IPHONE_SIM / LINEY_IPAD_SIM set to a simulator UDID.
+set -uo pipefail
+cd "$(dirname "$0")/.."
+
+devices=(iphone)
+only=()
+for arg in "$@"; do
+  case "$arg" in
+    --all) devices=(iphone ipad) ;;
+    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*) echo "unknown option: $arg" >&2; exit 2 ;;
+    *) only+=("-only-testing:LineyTests/$arg") ;;
+  esac
+done
+if [[ ${#only[@]} -gt 0 && ${#devices[@]} -gt 1 ]]; then
+  echo "--all runs every suite; drop the suite names" >&2; exit 2
+fi
+
+udid() {
+  local override=$1 name=$2
+  if [[ -n "${!override:-}" ]]; then echo "${!override}"; return; fi
+  xcrun simctl list devices available | grep -F "$name (" | head -1 | grep -oE '[0-9A-F-]{36}'
+}
+
+mkdir -p .build/agent-logs
+stamp=$(date +%Y%m%d-%H%M%S)
+status=0
+for device in "${devices[@]}"; do
+  case "$device" in
+    iphone) id=$(udid LINEY_IPHONE_SIM "Liney OS27 iPhone QA") ;;
+    ipad) id=$(udid LINEY_IPAD_SIM "Liney OS27 iPad QA") ;;
+  esac
+  if [[ -z "$id" ]]; then
+    echo "$device: no QA simulator; create one or set its LINEY_*_SIM override" >&2
+    status=1; continue
+  fi
+  log=.build/agent-logs/test-$device-$stamp.log
+  # Runs share one derived-data path, so they must stay serial.
+  xcodebuild test -project Liney.xcodeproj -scheme Liney \
+    -destination "platform=iOS Simulator,id=$id" -derivedDataPath .build/os27 \
+    -parallel-testing-enabled NO -collect-test-diagnostics never CODE_SIGNING_ALLOWED=NO \
+    ${only[@]+"${only[@]}"} >"$log" 2>&1
+  code=$?
+  echo "$device: exit $code, log $log"
+  grep -E "Executed [0-9]+ tests?, with" "$log" | tail -1
+  grep -E "Test run with [0-9]+ tests?" "$log" | tail -1
+  grep -E "error:|✘| failed \(" "$log" | grep -v "^Testing failed:" | sort -u | head -20
+  [[ $code -eq 0 ]] || status=$code
+done
+exit $status
