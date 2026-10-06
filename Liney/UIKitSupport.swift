@@ -92,9 +92,9 @@ extension UIViewController {
         }
     }
 
-    func showError(_ title: String, message: String) {
+    func showError(_ title: String, message: String, onDismiss: (() -> Void)? = nil) {
         let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default))
+        alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in onDismiss?() })
         present(alert, animated: true)
     }
 

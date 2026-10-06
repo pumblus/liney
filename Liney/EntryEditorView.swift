@@ -348,9 +348,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                 render(focusAfter: photoBlock.id)
                 let prompt = entry.photoInfoPromptCandidate(from: photoBlock.orderedPhotos)
                 if let failureMessage = result.failureMessage {
-                    let message = UIAlertController(title: String(localized: "Some Photos Couldn’t Be Added"), message: failureMessage, preferredStyle: .alert)
-                    message.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.promptPhotoInfo(prompt) })
-                    present(message, animated: true)
+                    showError(String(localized: "Some Photos Couldn’t Be Added"), message: failureMessage) { self.promptPhotoInfo(prompt) }
                 } else { promptPhotoInfo(prompt) }
             } catch {
                 rollBackChanges(to: entry, in: context)
