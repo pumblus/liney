@@ -9,7 +9,7 @@
 
 ## Swift
 
-Load `/write-swift` for all Swift work, including inside `/implement`, `/tdd`, and `/code-review`.
+Load `/write-swift` for Swift work inside `/implement` and `/tdd`. A `/code-review` standards reviewer applies its `## Quick Reference` table and reads a numbered section only for a hunk that section governs.
 
 ## Verification
 
