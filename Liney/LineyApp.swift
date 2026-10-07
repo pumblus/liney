@@ -4,8 +4,7 @@ import UIKit
 @main
 final class LineyApp: UIResponder, UIApplicationDelegate {
     lazy var container: ModelContainer = {
-        do { return try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self) }
-        catch { fatalError("Unable to open the journal store.") }
+        PrototypeSeed.container() // PROTOTYPE: in-memory sample data only
     }()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
@@ -44,6 +43,17 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         privacyShield = JournalPrivacyShield(window: window, appLock: appLock)
         showRoot(container: app.container)
         window.makeKeyAndVisible()
+        // PROTOTYPE: floating variant switcher and state overlay; variant changes rebuild the root.
+        let overlay = PrototypeOverlay(); overlay.frame = window.bounds
+        overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]; overlay.layer.zPosition = 1000
+        window.addSubview(overlay)
+        PrototypeAutoOpen.run(in: window)
+        NotificationCenter.default.addObserver(forName: .prototypeVariantDidChange, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.showRoot(container: app.container)
+                if let window = self?.window { window.bringSubviewToFront(overlay) }
+            }
+        }
         privacyShield?.update()
     }
 
@@ -51,9 +61,10 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         let timeline = TimelineViewController(container: container, appLock: appLock)
         let navigation = UINavigationController(rootViewController: timeline)
         navigation.navigationBar.prefersLargeTitles = true
-        if UIDevice.current.userInterfaceIdiom == .pad {
+        if true { // PROTOTYPE: size-class-driven split view on every device (Q1)
             let split = UISplitViewController(style: .doubleColumn)
             split.preferredDisplayMode = .oneBesideSecondary
+            split.delegate = PrototypeSplitDelegate.shared // PROTOTYPE
             split.setViewController(navigation, for: .primary)
             split.setViewController(UINavigationController(rootViewController: MessageController(
                 title: String(localized: "No Entry Selected"),

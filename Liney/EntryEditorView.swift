@@ -25,6 +25,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private var doneButton: UIBarButtonItem!
     private var pendingBlockID: UUID?
     private var pendingOffset: Int?
+    private var protoClamped: Set<ObjectIdentifier> = [] // PROTOTYPE
 
     /// Fixtures replace `saveContext` to simulate a full disk.
     init(entry: JournalEntry, isNew: Bool, context: ModelContext, storage: PhotoStorage = PhotoStorage(),
@@ -49,13 +50,33 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scroll.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16),
             stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 16),
             stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
-            stack.heightAnchor.constraint(greaterThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor, constant: -40),
-            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
+            stack.heightAnchor.constraint(greaterThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor, constant: -40)
         ])
+        // PROTOTYPE width variants (Q2).
+        if PrototypeWidth.current == .c {
+            NSLayoutConstraint.activate([
+                stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16),
+                stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16),
+                stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
+            ])
+        } else {
+            let full = stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
+            full.priority = .defaultHigh
+            NSLayoutConstraint.activate([
+                scroll.contentLayoutGuide.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
+                stack.centerXAnchor.constraint(equalTo: scroll.contentLayoutGuide.centerXAnchor),
+                stack.widthAnchor.constraint(lessThanOrEqualTo: scroll.frameLayoutGuide.widthAnchor, constant: -32),
+                full
+            ])
+            if PrototypeWidth.current == .a {
+                stack.widthAnchor.constraint(lessThanOrEqualTo: view.readableContentGuide.widthAnchor).isActive = true
+            } else {
+                // B: stack spans the width; text-like rows are clamped to the readable width in clampTextRows().
+                stack.alignment = .center
+            }
+        }
         titleField.accessibilityLabel = String(localized: "Title (optional)")
         titleField.font = .preferredFont(forTextStyle: .title2)
         titleField.adjustsFontForContentSizeCategory = true
@@ -101,6 +122,27 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
 
     /// Reconciles views with the entry by block identity, so unaffected text keeps its
     /// selection, undo history and IME state, and unaffected photos keep their images.
+    /// PROTOTYPE (variant B): photo groups span the stack; everything else stays readable width.
+    private func clampTextRows() {
+        if PrototypeWidth.current == .a {
+            for group in photoGroups where group.fileNames.count == 1 && !protoClamped.contains(ObjectIdentifier(group)) {
+                protoClamped.insert(ObjectIdentifier(group))
+                group.heightAnchor.constraint(lessThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor, multiplier: 0.7).isActive = true
+            }
+        }
+        guard PrototypeWidth.current == .b else { return }
+        for row in stack.arrangedSubviews where !protoClamped.contains(ObjectIdentifier(row)) {
+            protoClamped.insert(ObjectIdentifier(row))
+            row.translatesAutoresizingMaskIntoConstraints = false
+            if row is PhotoGroupView {
+                let c = row.widthAnchor.constraint(equalTo: stack.widthAnchor); c.identifier = "proto-width"; c.isActive = true
+            } else {
+                let c = row.widthAnchor.constraint(lessThanOrEqualTo: view.readableContentGuide.widthAnchor); c.identifier = "proto-width"
+                let fill = row.widthAnchor.constraint(equalTo: stack.widthAnchor); fill.priority = UILayoutPriority(700); fill.identifier = "proto-width"
+                NSLayoutConstraint.activate([c, fill])
+            }
+        }
+    }
     private func render(focusAfter: UUID? = nil) {
         title = entry.entryDate.formatted(.dateTime.month(.wide).day().year())
         let dateText = entry.isAllDay ? entry.entryDate.formatted(date: .long, time: .omitted) + " · " + String(localized: "All-day") : entry.entryDate.formatted(date: .long, time: .shortened)
@@ -145,6 +187,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         // Only the final writing field absorbs spare height; earlier blocks keep their size.
         textViews.last?.setContentHuggingPriority(UILayoutPriority(249), for: .vertical)
         updateTextSpacing()
+        clampTextRows() // PROTOTYPE
         if let focusAfter, let text = textViews.first(where: { $0.previousBlockID == focusAfter }) {
             text.becomeFirstResponder(); text.selectedRange = NSRange(location: 0, length: 0)
             scroll.layoutIfNeeded()
@@ -377,12 +420,22 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         controller.onDone = { [weak self] in self?.render() }
         present(UINavigationController(rootViewController: controller), animated: true)
     }
-    private func openPhoto(_ photo: EntryPhoto) {
+    func openPhoto(_ photo: EntryPhoto) { // PROTOTYPE: internal for auto-open
         guard flush() else { return }
         let controller = PhotoDetailViewController(photo: photo, storage: storage)
         controller.useInfo = { [weak self] in self?.usePhotoInfo(photo) }
         controller.deletePhoto = { [weak self] in self?.deletePhoto(photo) ?? .failed }
-        let navigation = UINavigationController(rootViewController: controller)
+        var navigation = UINavigationController(rootViewController: controller)
+        // PROTOTYPE: photo detail as a split arrangement; actions are visible buttons, Delete just dismisses.
+        if #available(iOS 27.1, *), PrototypeDetail.current == .split {
+            var actions: [UIAction] = []
+            if photo.hasUsableEntryInfo { actions.append(UIAction(title: String(localized: "Use as Entry Info")) { [weak self] _ in self?.usePhotoInfo(photo) }) }
+            actions.append(UIAction(title: String(localized: "Delete Photo"), attributes: .destructive) { [weak self] _ in self?.presentedViewController?.dismiss(animated: true) })
+            let split = PrototypePhotoDetailSplit(photo: photo, storage: storage, actions: actions)
+            split.title = String(localized: "Photo Detail")
+            split.navigationItem.rightBarButtonItem = UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak split] _ in split?.dismiss(animated: true) })
+            navigation = UINavigationController(rootViewController: split)
+        }
         navigation.modalPresentationStyle = .fullScreen
         present(navigation, animated: true)
     }
@@ -638,6 +691,7 @@ final class PhotoGroupView: UIStackView {
                 let initialRatio = photos.count == 1 ? storage.pixelSize(for: photo.fileName).map { min(2, max(0.5, $0.height / $0.width)) } ?? 0.75 : 1
                 let aspect = button.heightAnchor.constraint(equalTo: button.widthAnchor, multiplier: initialRatio)
                 aspect.identifier = "photo-aspect"
+                if PrototypeWidth.current == .a { aspect.priority = UILayoutPriority(999) } // PROTOTYPE
                 NSLayoutConstraint.activate([
                     image.leadingAnchor.constraint(equalTo: button.leadingAnchor), image.trailingAnchor.constraint(equalTo: button.trailingAnchor),
                     image.topAnchor.constraint(equalTo: button.topAnchor), image.bottomAnchor.constraint(equalTo: button.bottomAnchor),
@@ -653,6 +707,7 @@ final class PhotoGroupView: UIStackView {
                         old.isActive = false
                         let updated = button.heightAnchor.constraint(equalTo: button.widthAnchor, multiplier: ratio)
                         updated.identifier = "photo-aspect"
+                        if PrototypeWidth.current == .a { updated.priority = UILayoutPriority(999) } // PROTOTYPE
                         updated.isActive = true
                     }
                 }
