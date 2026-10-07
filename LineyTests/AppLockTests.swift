@@ -7,10 +7,10 @@ import Testing
 final class AppLockTests: XCTestCase {
     func testAuthenticationFinishingWhileInactiveKeepsSnapshotCovered() async {
         let authenticator = SuspendedAuthenticator()
-        let lock = AppLockModel(authenticator: authenticator)
-        let unlockTask = Task { await lock.unlockIfNeeded(requiresLock: true) }
+        let lock = makeLock(authenticator)
+        let unlockTask = Task { await lock.unlock() }
         while authenticator.completion == nil { await Task.yield() }
-        lock.protectSnapshot(requiresLock: true)
+        lock.protectSnapshot()
         authenticator.completion?.resume(returning: true)
         await unlockTask.value
         XCTAssertTrue(lock.hidesJournalContent)
@@ -18,16 +18,16 @@ final class AppLockTests: XCTestCase {
 
     func testBackgroundInvalidatesPendingAuthenticationAndForegroundRetries() async {
         let authenticator = SuspendedAuthenticator()
-        let lock = AppLockModel(authenticator: authenticator)
-        let first = Task { await lock.unlockIfNeeded(requiresLock: true) }
+        let lock = makeLock(authenticator)
+        let first = Task { await lock.unlock() }
         while authenticator.completion == nil { await Task.yield() }
-        lock.didEnterBackground(requiresLock: true)
+        lock.didEnterBackground()
         authenticator.completion?.resume(returning: true)
         await first.value
         XCTAssertTrue(lock.isLocked)
         XCTAssertTrue(lock.isSnapshotCovered)
         authenticator.completion = nil
-        let retry = Task { await lock.unlockIfNeeded(requiresLock: true) }
+        let retry = Task { await lock.unlock() }
         while authenticator.completion == nil { await Task.yield() }
         authenticator.completion?.resume(returning: true)
         await retry.value
@@ -36,33 +36,36 @@ final class AppLockTests: XCTestCase {
 
     func testInactiveAuthenticationSuccessDoesNotPromptAgainOnActive() async {
         let authenticator = SuspendedAuthenticator()
-        let lock = AppLockModel(authenticator: authenticator)
-        let task = Task { await lock.unlockIfNeeded(requiresLock: true) }
+        let lock = makeLock(authenticator)
+        let task = Task { await lock.unlock() }
         while authenticator.completion == nil { await Task.yield() }
-        lock.protectSnapshot(requiresLock: true)
+        lock.protectSnapshot()
         authenticator.completion?.resume(returning: true)
         await task.value
-        await lock.unlockIfNeeded(requiresLock: true)
+        await lock.unlock()
         XCTAssertFalse(lock.hidesJournalContent)
     }
 
     func testDisablingLockIgnoresPendingAuthenticationFailure() async {
         let authenticator = SuspendedAuthenticator()
-        let lock = AppLockModel(authenticator: authenticator)
-        let task = Task { await lock.unlockIfNeeded(requiresLock: true) }
+        let lock = makeLock(authenticator)
+        let task = Task { await lock.unlock() }
         while authenticator.completion == nil { await Task.yield() }
-        lock.disableLock()
+        let disabled = await lock.setEnabled(false)
         authenticator.completion?.resume(returning: false)
         await task.value
+        XCTAssertTrue(disabled)
+        XCTAssertFalse(lock.isEnabled)
+        XCTAssertFalse(lock.isLocked)
         XCTAssertFalse(lock.hidesJournalContent)
     }
 
     func testBackgroundInvalidatesPendingExportAuthorization() async {
         let authenticator = SuspendedAuthenticator()
-        let lock = AppLockModel(authenticator: authenticator)
-        let task = Task { await lock.authenticateForExport(requiresLock: true) }
+        let lock = makeLock(authenticator)
+        let task = Task { await lock.authenticateForExport() }
         while authenticator.completion == nil { await Task.yield() }
-        lock.didEnterBackground(requiresLock: true)
+        lock.didEnterBackground()
         authenticator.completion?.resume(returning: true)
         let authorized = await task.value
         XCTAssertFalse(authorized)
@@ -71,11 +74,11 @@ final class AppLockTests: XCTestCase {
 
     func testSuccessfulLaunchAuthenticationShowsContent() async {
         let authenticator = FakeAuthenticator(results: [true])
-        let lock = AppLockModel(authenticator: authenticator)
+        let lock = makeLock(authenticator)
 
         XCTAssertTrue(lock.hidesJournalContent)
 
-        await lock.unlockIfNeeded(requiresLock: true)
+        await lock.unlock()
 
         XCTAssertFalse(lock.hidesJournalContent)
         XCTAssertEqual(authenticator.callCount, 1)
@@ -83,9 +86,9 @@ final class AppLockTests: XCTestCase {
 
     func testCancelledAuthenticationKeepsJournalLocked() async {
         let authenticator = FakeAuthenticator(results: [false])
-        let lock = AppLockModel(authenticator: authenticator)
+        let lock = makeLock(authenticator)
 
-        await lock.unlockIfNeeded(requiresLock: true)
+        await lock.unlock()
 
         XCTAssertTrue(lock.isLocked)
         XCTAssertTrue(lock.hidesJournalContent)
@@ -94,13 +97,13 @@ final class AppLockTests: XCTestCase {
 
     func testForegroundReturnRequiresAuthenticationAgain() async {
         let authenticator = FakeAuthenticator(results: [true, true])
-        let lock = AppLockModel(authenticator: authenticator)
+        let lock = makeLock(authenticator)
 
-        await lock.unlockIfNeeded(requiresLock: true)
-        lock.protectSnapshot(requiresLock: true)
-        lock.didEnterBackground(requiresLock: true)
+        await lock.unlock()
+        lock.protectSnapshot()
+        lock.didEnterBackground()
         XCTAssertTrue(lock.isLocked)
-        await lock.unlockIfNeeded(requiresLock: true)
+        await lock.unlock()
 
         XCTAssertFalse(lock.hidesJournalContent)
         XCTAssertEqual(authenticator.callCount, 2)
@@ -108,12 +111,12 @@ final class AppLockTests: XCTestCase {
 
     func testTemporaryInterruptionCoversWithoutRequiringAuthenticationAgain() async {
         let authenticator = FakeAuthenticator(results: [true])
-        let lock = AppLockModel(authenticator: authenticator)
+        let lock = makeLock(authenticator)
 
-        await lock.unlockIfNeeded(requiresLock: true)
-        lock.protectSnapshot(requiresLock: true)
+        await lock.unlock()
+        lock.protectSnapshot()
         XCTAssertTrue(lock.hidesJournalContent, "The app switcher snapshot stays covered while inactive")
-        await lock.unlockIfNeeded(requiresLock: true)
+        await lock.unlock()
 
         XCTAssertFalse(lock.hidesJournalContent)
         XCTAssertEqual(authenticator.callCount, 1)
@@ -121,31 +124,31 @@ final class AppLockTests: XCTestCase {
 
     func testLockedScreenUnlockActionRetriesAuthentication() async {
         let authenticator = FakeAuthenticator(results: [false, true])
-        let lock = AppLockModel(authenticator: authenticator)
+        let lock = makeLock(authenticator)
 
-        await lock.unlockIfNeeded(requiresLock: true)
-        await lock.unlock(requiresLock: true)
+        await lock.unlock()
+        await lock.unlock()
 
         XCTAssertFalse(lock.hidesJournalContent)
         XCTAssertEqual(authenticator.callCount, 2)
     }
 
     func testSnapshotCoverOnlyAppliesWhenLockIsEnabled() {
-        let lock = AppLockModel(authenticator: FakeAuthenticator(results: []))
+        let disabled = makeLock(FakeAuthenticator(results: []), enabled: false)
+        disabled.protectSnapshot()
+        XCTAssertFalse(disabled.hidesJournalContent)
 
-        lock.protectSnapshot(requiresLock: false)
-        XCTAssertFalse(lock.hidesJournalContent)
-
-        lock.protectSnapshot(requiresLock: true)
+        let lock = makeLock(FakeAuthenticator(results: []))
+        lock.protectSnapshot()
         XCTAssertTrue(lock.isSnapshotCovered)
         XCTAssertTrue(lock.hidesJournalContent)
     }
 
     func testExportReauthLocksAfterCancelledAuthentication() async {
         let authenticator = FakeAuthenticator(results: [false])
-        let lock = AppLockModel(authenticator: authenticator)
+        let lock = makeLock(authenticator)
 
-        let authorized = await lock.authenticateForExport(requiresLock: true)
+        let authorized = await lock.authenticateForExport()
 
         XCTAssertFalse(authorized)
         XCTAssertTrue(lock.isLocked)
@@ -155,22 +158,23 @@ final class AppLockTests: XCTestCase {
 
     func testExportWithoutAppLockDoesNotAuthenticate() async {
         let authenticator = FakeAuthenticator(results: [])
-        let lock = AppLockModel(authenticator: authenticator)
+        let lock = makeLock(authenticator, enabled: false)
 
-        let authorized = await lock.authenticateForExport(requiresLock: false)
+        let authorized = await lock.authenticateForExport()
 
         XCTAssertTrue(authorized)
         XCTAssertFalse(lock.hidesJournalContent)
+        XCTAssertTrue(lock.isLocked, "Export without App Lock leaves lock state untouched")
         XCTAssertEqual(authenticator.callCount, 0)
     }
 
     func testGateMountsContentBehindInitialLockCover() async {
-        let lock = AppLockModel(authenticator: FakeAuthenticator(results: []))
+        let lock = makeLock(FakeAuthenticator(results: []))
         let probe = MountProbe()
         let window = UIWindow(frame: UIScreen.main.bounds)
         window.rootViewController = MountProbeViewController(probe: probe)
         window.makeKeyAndVisible()
-        let shield = JournalPrivacyShield(window: window, appLock: lock, requiresLock: { true })
+        let shield = JournalPrivacyShield(window: window, appLock: lock)
         shield.update()
         defer { shield.cover.isHidden = true; window.isHidden = true }
         await flushUIKitUpdates()
@@ -186,14 +190,14 @@ final class AppLockTests: XCTestCase {
 
     func testGateKeepsUnlockedContentMountedBehindLockCover() async {
         let authenticator = FakeAuthenticator(results: [true])
-        let lock = AppLockModel(authenticator: authenticator)
-        await lock.unlockIfNeeded(requiresLock: true)
+        let lock = makeLock(authenticator)
+        await lock.unlock()
 
         let probe = MountProbe()
         let window = UIWindow(frame: UIScreen.main.bounds)
         window.rootViewController = MountProbeViewController(probe: probe)
         window.makeKeyAndVisible()
-        let shield = JournalPrivacyShield(window: window, appLock: lock, requiresLock: { true })
+        let shield = JournalPrivacyShield(window: window, appLock: lock)
         shield.update()
         defer { shield.cover.isHidden = true; window.isHidden = true }
         await flushUIKitUpdates()
@@ -201,7 +205,7 @@ final class AppLockTests: XCTestCase {
         XCTAssertEqual(probe.appearances, 1)
         XCTAssertEqual(probe.disappearances, 0)
 
-        lock.protectSnapshot(requiresLock: true)
+        lock.protectSnapshot()
         await flushUIKitUpdates()
 
         XCTAssertTrue(lock.hidesJournalContent)
@@ -215,7 +219,7 @@ final class AppLockTests: XCTestCase {
 
     func testSettingsRenderInDarkModeAndLargestDynamicType() async throws {
         let window = UIWindow(frame: UIScreen.main.bounds)
-        let controller = SettingsViewController(appLock: AppLockModel(authenticator: FakeAuthenticator(results: [])))
+        let controller = SettingsViewController(appLock: makeLock(FakeAuthenticator(results: [])))
         controller.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
         controller.overrideUserInterfaceStyle = .dark
         window.rootViewController = controller
@@ -244,8 +248,8 @@ final class AppLockTests: XCTestCase {
         root.present(sheet, animated: false)
         await flushUIKitUpdates()
         input.becomeFirstResponder()
-        let lock = AppLockModel(authenticator: FakeAuthenticator(results: [true]))
-        let shield = JournalPrivacyShield(window: window, appLock: lock, requiresLock: { true })
+        let lock = makeLock(FakeAuthenticator(results: [true]))
+        let shield = JournalPrivacyShield(window: window, appLock: lock)
         defer { shield.cover.isHidden = true }
         shield.update()
         XCTAssertTrue(shield.cover.isKeyWindow)
@@ -253,7 +257,7 @@ final class AppLockTests: XCTestCase {
         XCTAssertTrue(root.presentedViewController === sheet)
         XCTAssertTrue(window.accessibilityElementsHidden)
         XCTAssertFalse(window.isUserInteractionEnabled)
-        await lock.unlockIfNeeded(requiresLock: true)
+        await lock.unlock()
         XCTAssertTrue(shield.cover.isHidden)
         XCTAssertTrue(window.isKeyWindow)
         XCTAssertFalse(window.accessibilityElementsHidden)
@@ -268,12 +272,18 @@ final class AppLockTests: XCTestCase {
         window.rootViewController = UIViewController()
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
-        let lock = AppLockModel(authenticator: FakeAuthenticator(results: []))
-        let shield = JournalPrivacyShield(window: window, appLock: lock, requiresLock: { false })
+        let lock = makeLock(FakeAuthenticator(results: []), enabled: false)
+        let shield = JournalPrivacyShield(window: window, appLock: lock)
         shield.update()
         XCTAssertTrue(shield.cover.isHidden)
         XCTAssertTrue(window.isUserInteractionEnabled)
         XCTAssertFalse(window.accessibilityElementsHidden)
+    }
+
+    private func makeLock(_ authenticator: some AppAuthenticating, enabled: Bool = true) -> AppLockModel {
+        let suite = PreferenceSuite()
+        addTeardownBlock { suite.remove() }
+        return suite.makeLock(authenticator, enabled: enabled)
     }
 
     private func flushUIKitUpdates() async {
@@ -283,24 +293,79 @@ final class AppLockTests: XCTestCase {
 }
 
 @MainActor
-struct AppLockCopyTests {
+final class AppLockCopyTests {
+    private let suite = PreferenceSuite()
+    deinit { suite.remove() }
+
+    @Test
+    func disablingNeedsNoAuthenticationAndClearsTheLock() async {
+        let authenticator = FakeAuthenticator(results: [])
+        let lock = suite.makeLock(authenticator, enabled: true)
+        #expect(lock.hidesJournalContent)
+
+        let disabled = await lock.setEnabled(false)
+
+        #expect(disabled)
+        #expect(!lock.isEnabled)
+        #expect(!lock.isLocked)
+        #expect(!lock.isSnapshotCovered)
+        #expect(authenticator.callCount == 0)
+    }
+
+    @Test
+    func preferenceKeepsTheStoredKey() async {
+        suite.defaults.set(true, forKey: "liney.requiresAppLock")
+        let lock = AppLockModel(authenticator: FakeAuthenticator(results: [true]), defaults: suite.defaults)
+        #expect(lock.isEnabled, "Users who already enabled App Lock stay locked after updating")
+
+        _ = await lock.setEnabled(false)
+        #expect(suite.defaults.object(forKey: "liney.requiresAppLock") as? Bool == false)
+
+        #expect(await lock.setEnabled(true))
+        #expect(suite.defaults.object(forKey: "liney.requiresAppLock") as? Bool == true)
+    }
+
+    @Test
+    func backgroundRelocksAnUnlockedJournal() async {
+        let lock = suite.makeLock(FakeAuthenticator(results: [true]), enabled: true)
+        await lock.unlock()
+        #expect(!lock.hidesJournalContent)
+
+        lock.didEnterBackground()
+
+        #expect(lock.isLocked)
+        #expect(lock.isSnapshotCovered)
+        #expect(lock.hidesJournalContent)
+    }
+
+    @Test
+    func exportAuthenticationUnlocksTheJournal() async {
+        let authenticator = FakeAuthenticator(results: [true])
+        let lock = suite.makeLock(authenticator, enabled: true)
+
+        #expect(await lock.authenticateForExport())
+        #expect(!lock.isLocked)
+        #expect(authenticator.reasons == [String(localized: "Authenticate to export your journal.")])
+    }
+
     @Test(arguments: [true, false])
     func enablingSurvivesAuthenticationPromptLifecycle(returnsActiveBeforeReply: Bool) async {
         let authenticator = SuspendedAuthenticator()
-        let lock = AppLockModel(authenticator: authenticator)
-        await lock.unlockIfNeeded(requiresLock: false)
-        let task = Task { await lock.authenticateToEnable() }
+        let lock = makeLock(authenticator)
+        await lock.unlock()
+        let task = Task { await lock.setEnabled(true) }
         while authenticator.completion == nil { await Task.yield() }
 
-        // Settings persists the enabled preference only after authentication returns.
-        lock.protectSnapshot(requiresLock: false)
+        // The preference is written only after authentication returns.
+        lock.protectSnapshot()
         if returnsActiveBeforeReply {
-            await lock.unlockIfNeeded(requiresLock: false)
+            await lock.unlock()
         }
         authenticator.completion?.resume(returning: true)
         let enabled = await task.value
 
         #expect(enabled)
+        #expect(lock.isEnabled)
         #expect(!lock.isAuthenticating)
         #expect(!lock.hidesJournalContent)
     }
@@ -308,28 +373,30 @@ struct AppLockCopyTests {
     @Test(arguments: [true, false])
     func enablingRejectsAuthenticationAfterBackgroundOrExplicitDisable(background: Bool) async {
         let authenticator = SuspendedAuthenticator()
-        let lock = AppLockModel(authenticator: authenticator)
-        await lock.unlockIfNeeded(requiresLock: false)
-        let task = Task { await lock.authenticateToEnable() }
+        let lock = makeLock(authenticator)
+        await lock.unlock()
+        let task = Task { await lock.setEnabled(true) }
         while authenticator.completion == nil { await Task.yield() }
 
-        if background { lock.didEnterBackground(requiresLock: false) }
-        else { lock.disableLock() }
+        if background { lock.didEnterBackground() }
+        else { _ = await lock.setEnabled(false) }
         authenticator.completion?.resume(returning: true)
 
         let enabled = await task.value
         #expect(!enabled)
+        #expect(!lock.isEnabled)
         #expect(!lock.isAuthenticating)
     }
 
     @Test(arguments: [true, false])
     func enablingUsesDeviceNeutralAuthenticationReason(success: Bool) async {
         let authenticator = FakeAuthenticator(results: [success])
-        let lock = AppLockModel(authenticator: authenticator)
+        let lock = makeLock(authenticator)
 
-        let enabled = await lock.authenticateToEnable()
+        let enabled = await lock.setEnabled(true)
 
         #expect(enabled == success)
+        #expect(lock.isEnabled == success)
         #expect(lock.isLocked == !success)
         #expect(!lock.isAuthenticating)
         #expect(authenticator.reasons == [String(localized: "Authenticate to enable App Lock for Liney.")])
@@ -337,7 +404,7 @@ struct AppLockCopyTests {
 
     @Test
     func settingsLabelsTheToggleAsAppLock() throws {
-        let controller = SettingsViewController(appLock: AppLockModel(authenticator: FakeAuthenticator(results: [])))
+        let controller = SettingsViewController(appLock: makeLock(FakeAuthenticator(results: [])))
         controller.loadViewIfNeeded()
         let cell = controller.tableView(controller.tableView, cellForRowAt: IndexPath(row: 0, section: 0))
         let content = try #require(cell.contentConfiguration as? UIListContentConfiguration)
@@ -347,6 +414,27 @@ struct AppLockCopyTests {
         #expect(toggle.accessibilityLabel == content.text)
         #expect(content.image == UIImage(systemName: "lock"))
     }
+
+    /// Starts with App Lock disabled, as Settings sees it before the user turns it on.
+    private func makeLock(_ authenticator: some AppAuthenticating) -> AppLockModel {
+        suite.makeLock(authenticator, enabled: false)
+    }
+}
+
+/// An isolated preference store, so App Lock tests never read or write the app's standard defaults.
+private struct PreferenceSuite {
+    let name = "AppLockTests.\(UUID().uuidString)"
+    let defaults: UserDefaults
+
+    init() { defaults = UserDefaults(suiteName: name)! }
+
+    @MainActor
+    func makeLock(_ authenticator: some AppAuthenticating, enabled: Bool) -> AppLockModel {
+        defaults.set(enabled, forKey: "liney.requiresAppLock")
+        return AppLockModel(authenticator: authenticator, defaults: defaults)
+    }
+
+    func remove() { defaults.removePersistentDomain(forName: name) }
 }
 
 private final class FakeAuthenticator: AppAuthenticating {

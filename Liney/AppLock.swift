@@ -2,7 +2,7 @@ import Foundation
 import LocalAuthentication
 import UIKit
 
-extension UserDefaults {
+private extension UserDefaults {
     var requiresAppLock: Bool {
         get { bool(forKey: "liney.requiresAppLock") }
         set { set(newValue, forKey: "liney.requiresAppLock") }
@@ -38,39 +38,51 @@ final class AppLockModel {
 
     private var authenticationGeneration = 0
     private let authenticator: AppAuthenticating
+    // Read on every use so each scene's model sees the current preference.
+    private let defaults: UserDefaults
 
-    init(authenticator: AppAuthenticating = LocalAuthenticator()) {
+    init(authenticator: AppAuthenticating = LocalAuthenticator(), defaults: UserDefaults = .standard) {
         self.authenticator = authenticator
+        self.defaults = defaults
     }
+
+    var isEnabled: Bool { defaults.requiresAppLock }
 
     var hidesJournalContent: Bool {
-        isLocked || isSnapshotCovered
+        isEnabled && (isLocked || isSnapshotCovered)
     }
 
-    func unlockIfNeeded(requiresLock: Bool) async {
-        guard requiresLock else {
+    /// Enabling requires authentication; the preference is written only when it succeeds.
+    func setEnabled(_ enabled: Bool) async -> Bool {
+        guard enabled else {
+            defaults.requiresAppLock = false
+            authenticationGeneration += 1
+            clearLockPresentation()
+            return true
+        }
+        guard let success = await authenticate(reason: String(localized: "Authenticate to enable App Lock for Liney.")),
+              success
+        else { return false }
+        defaults.requiresAppLock = true
+        isLocked = false
+        return true
+    }
+
+    func unlock() async {
+        guard isEnabled else {
             clearLockPresentation()
             return
         }
         isSnapshotCovered = false
-        guard isLocked, !isAuthenticating else { return }
-        _ = await authenticate(reason: String(localized: "Unlock Liney to view your journal."))
-    }
-
-    func unlock(requiresLock: Bool) async {
-        guard requiresLock else {
-            disableLock()
-            return
-        }
-        isLocked = true
-        isSnapshotCovered = false
-        guard !isAuthenticating else { return }
-        _ = await authenticate(reason: String(localized: "Unlock Liney to view your journal."))
+        guard isLocked,
+              let success = await authenticate(reason: String(localized: "Unlock Liney to view your journal."))
+        else { return }
+        isLocked = !success
     }
 
     /// Temporary interruptions (Control Center, banners, the Face ID prompt) only cover content.
-    func protectSnapshot(requiresLock: Bool) {
-        guard requiresLock else {
+    func protectSnapshot() {
+        guard isEnabled else {
             clearLockPresentation()
             return
         }
@@ -78,61 +90,39 @@ final class AppLockModel {
     }
 
     /// Leaving the foreground requires authentication again on return.
-    func didEnterBackground(requiresLock: Bool) {
+    func didEnterBackground() {
         authenticationGeneration += 1
-        protectSnapshot(requiresLock: requiresLock)
-        if requiresLock { isLocked = true }
+        protectSnapshot()
+        if isEnabled { isLocked = true }
     }
 
-    func authenticateForExport(requiresLock: Bool) async -> Bool {
-        guard requiresLock else {
-            disableLock()
-            return true
-        }
-        guard !isAuthenticating else { return false }
-        return await authenticate(reason: String(localized: "Authenticate to export your journal."))
-    }
-
-    func authenticateToEnable() async -> Bool {
-        guard !isAuthenticating else { return false }
-        isAuthenticating = true
-        defer { isAuthenticating = false }
-
-        let generation = authenticationGeneration
-        let success = await authenticator.authenticate(
-            reason: String(localized: "Authenticate to enable App Lock for Liney.")
-        )
-        guard generation == authenticationGeneration else { return false }
-        if success {
-            isLocked = false
-        }
+    func authenticateForExport() async -> Bool {
+        guard isEnabled else { return true }
+        guard let success = await authenticate(reason: String(localized: "Authenticate to export your journal."))
+        else { return false }
+        isLocked = !success
         return success
     }
 
-    func disableLock() {
-        authenticationGeneration += 1
-        clearLockPresentation()
-    }
-
     private func clearLockPresentation() {
-        // Prompt lifecycle callbacks can arrive before Settings saves the enabled preference.
+        // Prompt lifecycle callbacks arrive while enabling is still authenticating.
         // Clearing the disabled lock's UI must not invalidate that pending authentication.
         isLocked = false
         isSnapshotCovered = false
     }
 
-    private func authenticate(reason: String) async -> Bool {
+    /// Returns nil when another authentication is in progress or a background or disable superseded this one.
+    private func authenticate(reason: String) async -> Bool? {
+        guard !isAuthenticating else { return nil }
         isAuthenticating = true
         defer { isAuthenticating = false }
 
         let generation = authenticationGeneration
         let success = await authenticator.authenticate(reason: reason)
-        guard generation == authenticationGeneration else { return false }
-        isLocked = !success
+        guard generation == authenticationGeneration else { return nil }
         return success
     }
 }
-
 
 /// Covers sheets and editors together without replacing their controller hierarchy.
 @MainActor
@@ -140,23 +130,21 @@ final class JournalPrivacyShield {
     let cover: UIWindow
     private weak var window: UIWindow?
     private let appLock: AppLockModel
-    private let requiresLock: () -> Bool
 
-    init(window: UIWindow, appLock: AppLockModel, requiresLock: @escaping () -> Bool) {
+    init(window: UIWindow, appLock: AppLockModel) {
         self.window = window
         self.appLock = appLock
-        self.requiresLock = requiresLock
         if let scene = window.windowScene { cover = UIWindow(windowScene: scene) }
         else { cover = UIWindow(frame: window.bounds) }
         cover.windowLevel = .alert + 1
         cover.rootViewController = LockedJournalController(appLock: appLock) {
-            Task { await appLock.unlock(requiresLock: requiresLock()) }
+            Task { await appLock.unlock() }
         }
         appLock.onChange = { [weak self] in self?.update() }
     }
 
     func update() {
-        let hidden = requiresLock() && appLock.hidesJournalContent
+        let hidden = appLock.hidesJournalContent
         window?.accessibilityElementsHidden = hidden
         window?.isUserInteractionEnabled = !hidden
         if hidden {

@@ -34,7 +34,6 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var privacyShield: JournalPrivacyShield?
     private let appLock = AppLockModel()
-    private var requiresLock: Bool { UserDefaults.standard.requiresAppLock }
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene,
@@ -42,9 +41,7 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         let window = UIWindow(windowScene: scene)
         window.tintColor = UIColor(named: "LineyAqua") ?? .systemTeal
         self.window = window
-        privacyShield = JournalPrivacyShield(window: window, appLock: appLock, requiresLock: { [weak self] in
-            self?.requiresLock ?? true
-        })
+        privacyShield = JournalPrivacyShield(window: window, appLock: appLock)
         showRoot(container: app.container)
         window.makeKeyAndVisible()
         privacyShield?.update()
@@ -66,8 +63,8 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
-        Task { await appLock.unlockIfNeeded(requiresLock: requiresLock) }
+        Task { await appLock.unlock() }
     }
-    func sceneWillResignActive(_ scene: UIScene) { appLock.protectSnapshot(requiresLock: requiresLock) }
-    func sceneDidEnterBackground(_ scene: UIScene) { appLock.didEnterBackground(requiresLock: requiresLock) }
+    func sceneWillResignActive(_ scene: UIScene) { appLock.protectSnapshot() }
+    func sceneDidEnterBackground(_ scene: UIScene) { appLock.didEnterBackground() }
 }
