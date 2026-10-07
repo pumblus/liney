@@ -190,7 +190,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请验证以为 Liney 开启应用锁。"
+            "value" : "请验证以为 Liney 开启 App 锁。"
           }
         }
       }
@@ -1314,7 +1314,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "应用锁"
+            "value" : "App 锁"
           }
         }
       }
@@ -1736,7 +1736,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用 Face ID、Touch ID 或设备密码保护 Liney。"
+            "value" : "使用面容 ID、触控 ID 或设备密码保护 Liney。"
           }
         }
       }
