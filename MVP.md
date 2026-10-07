@@ -8,7 +8,7 @@ People who want a lightweight private journal can feel forced into heavier produ
 
 ## Solution
 
-Build Liney as a lightweight local-first iOS/iPadOS journal for text entries with photos. The MVP lets users write and edit journal entries, insert photo groups between plain text blocks, import an existing Day One JSON zip, export a Markdown zip, search title/body text, protect the app with Face ID/passcode, and use the app in English or Simplified Chinese. The app stays Apple-native, privacy-forward, and intentionally small: no cloud sync, accounts, analytics, rich text, tags, reminders, or speculative product surface.
+Build Liney as a lightweight local-first iOS/iPadOS journal for text entries with photos. The MVP lets users write and edit journal entries, insert photo groups between plain text blocks, import an existing Day One JSON zip, export a Markdown zip, search title/body text, protect the app with Face ID, Touch ID, or passcode, and use the app in English or Simplified Chinese. The app stays Apple-native, privacy-forward, and intentionally small: no cloud sync, accounts, analytics, rich text, tags, reminders, or speculative product surface.
 
 ## Product outcomes
 
@@ -94,36 +94,52 @@ Story numbers are stable acceptance references. Detailed behavior and thresholds
 
 ### App lock and privacy
 
-58. Offer optional Face ID/passcode App Lock.
+58. Offer optional Face ID, Touch ID, or passcode App Lock.
 59. Keep journal content hidden after failed or cancelled authentication.
 60. Cover journal content in app-switcher snapshots.
 61. Explain local-only privacy in the app.
 
 ### Platform, accessibility, and release
 
-62. Use native iPhone navigation and lists.
-63. Support basic native iPad split view.
+62. Use native navigation and lists that follow the available width: one navigation stack when narrow, the timeline beside the open entry when wide (scope update approved on 2026-10-07). This includes large iPhones in landscape; iPad portrait shows the sidebar on demand.
+63. Support native split view, multitasking resizing, and opening or closing iPhone Duo without losing the open entry, unsaved text, or the caret (scope update approved on 2026-10-07).
 64. Support VoiceOver across writing, browsing, import/export, and App Lock.
 65. Adapt the interface to Dynamic Type.
 66. Follow system dark mode.
 67. Localize the core experience in Simplified Chinese.
 68. Release the MVP free, without ads or subscriptions.
 
+### Resizing, windows, and iPhone Duo
+
+Scope update approved on 2026-10-07 for 1.1.0.
+
+69. Run full screen on both iPhone Duo displays, including Split View.
+70. Keep entry text and photos at a comfortable reading width in wide windows.
+71. Keep the line being typed above the fold while iPhone Duo is partially folded with the keyboard up.
+72. On iOS 27.1 and later, show photo detail with the photo and its Photo Info and actions side by side, or above and below the fold.
+73. Continue on the outer display when iPhone Duo closes, without locking.
+74. Open an entry in its own window from the timeline or search results where the system allows new windows.
+75. Edit each entry in at most one place at a time, so windows never overwrite each other.
+76. Restore entry windows and the selected entry after relaunch.
+77. Lock and unlock all Liney windows together with one authentication.
+78. Cancelling export authentication cancels only the export.
+
 ## Implementation Decisions
 
 ### Platform and native UI
 
-- Build the MVP as a native Apple app with iOS/iPadOS 17 minimum, with iPhone as the primary target and basic iPad split-view support. Adaptation and validation scope is OS 17–27 (OS 27 adaptation approved on 2026-09-18); outstanding runtime and device acceptance is tracked in release.md.
+- Build the MVP as a native Apple app with iOS/iPadOS 17 minimum, with iPhone as the primary target and split-view support that follows available width. Adaptation and validation scope is OS 17–27.1 (OS 27 adaptation approved on 2026-09-18; iPhone Duo adaptation approved on 2026-10-07); outstanding runtime and device acceptance is tracked in release.md.
+- Build with Xcode 27.1 (iOS 27.1 SDK) so iPhone Duo runs edge to edge. iOS 27.1-only APIs (reserved regions, the photo detail split arrangement) are gated by availability checks. No code detects the device model, idiom, or orientation for layout.
 - Follow Apple's Human Interface Guidelines for iOS/iPadOS UI behavior, layout, navigation, accessibility, Dynamic Type, dark mode, and localization.
 - Prefer system-native UIKit components and Apple-provided surfaces. Do not introduce a custom UI framework, custom design system, or non-native UI approach for the MVP.
 - Check release-facing UI, privacy, metadata, and review notes against the current App Store Review Guidelines before App Store submission.
-- Use UIKit-native navigation and controls: navigation stack on iPhone, split view on iPad, system lists and sections for the timeline, system sheets/forms/alerts/confirmation dialogs/menus, UIDatePicker, PHPickerViewController, Share Sheet, and SF Symbols.
+- Use UIKit-native navigation and controls: one split view root on every device, collapsing to a navigation stack in compact width and showing timeline and entry in regular width, system lists and sections for the timeline, system sheets/forms/alerts/confirmation dialogs/menus, UIDatePicker, PHPickerViewController, Share Sheet, and SF Symbols.
 - Use Liney Aqua only as the app tint/accent. Do not use it as a full-screen background.
 - Keep Settings for persistent preferences and informational pages. Import and export are timeline menu actions, not settings.
 
 ### UI ownership and rollback
 
-- Scene composition owns navigation and App Lock presentation. Each editor uses a separate ModelContext so a failed mutation cannot roll back another editor or import; domain operations stay in JournalModels.
+- Scene composition owns navigation and App Lock presentation; the App Lock state itself is app-wide. Each editor uses a separate ModelContext so a failed mutation cannot roll back another editor or import; domain operations stay in JournalModels.
 - Build with the current iOS SDK and retain the generated scene manifest and launch screen required by OS 27. Flush each editor when its own window scene deactivates; support native resizing and all four iPad orientations without a full-screen compatibility opt-out.
 - Timeline loading/search and bounded, cancellable image decoding run off the main actor. Reused image views verify request identity before displaying results.
 - Preserve text-input identity during editing and Chinese composition. Apply model edits immediately, coalesce disk saves, and flush on navigation and lifecycle boundaries.
@@ -166,6 +182,23 @@ Story numbers are stable acceptance references. Detailed behavior and thresholds
 - Search covers title and body only. Results are normal timeline rows sorted by entry date descending.
 - Scope update approved on 2026-09-21: timeline and search-result rows offer a native trailing swipe Delete Entry action. Disable full-swipe execution and require the existing permanent-deletion confirmation. Cancel leaves the entry and photos intact; save failure rolls back metadata, and copied files are removed only after a successful save. If the entry is open in iPad detail, use that editor's deletion flow and clear the detail on success. Rollback removes this UI entry point without changing stores or the schema.
 
+### Resizing, windows, and iPhone Duo
+
+Scope update approved on 2026-10-07 for 1.1.0.
+
+- Collapsing keeps an open entry (including a new entry being written) on top with Back to the timeline; otherwise it shows the timeline, never the empty placeholder. Expanding moves that same editor to the secondary column and selects its timeline row. Presented screens (photo detail, entry date, alerts, photo picker) stay open across a resize.
+- The sidebar uses the system automatic display mode: two columns when wide, an overlay sidebar when narrow (including iPad portrait).
+- Text blocks and photo groups share one centered column capped at about 700 pt; a single photo is at most about 70% of the visible height.
+- Controls stay in navigation controller bar items so the system can move them to vertical bars; there are no custom bars or bar-priority overrides.
+- The open entry, unsaved edits, focused block, caret, keyboard visibility, and timeline selection survive open/close, Split View resizing, and rotation. A resize never saves or discards on its own.
+- Only the editor avoids the fold: on iOS 27.1 and later, while the keyboard is shown under an active horizontal division, the writing area ends at the division's top edge. Timeline, photo groups, and scrolling content ignore the fold; camera regions are left to safe areas.
+- On iOS 27.1 and later, photo detail uses a system split arrangement: photo leading and Photo Info and actions trailing when wide; photo above and actions below the fold when partially folded. It keeps the same information and actions; earlier OS versions keep the current layout.
+- Open in New Window opens an entry window holding only that entry's editor. It is offered from a timeline-row context menu (which also covers search results) and by dragging a row, using the system scene activation action so it hides where new windows are unavailable. Plain new windows still open on the timeline.
+- Each entry has at most one editor app-wide. Opening or selecting an entry already open elsewhere activates that window; Open in New Window on an entry open in a secondary column flushes it and moves it to the entry window. Deleting an entry closes its entry window or clears its secondary column.
+- In an entry window, Done saves and closes the window and Delete Entry confirms, deletes, and closes it. The window title is the Entry Date, cleared while App Lock is locked; never the entry title or text.
+- Restoration stores only the entry UUID. An entry window reopens its entry or closes if the entry is gone; a full window restores its selected entry unless it is deleted or open elsewhere. New-entry drafts are not restored.
+- Closing iPhone Duo needs no custom handling: the system picks the scene that continues on the outer display, and other scenes' editors flush through scene deactivation.
+
 ### Day One import
 
 - Import is available from the timeline menu, including when the journal is empty. Import Journal explains how to export a Day One JSON zip with media and the migration limits, then opens the native file importer.
@@ -181,13 +214,17 @@ Story numbers are stable acceptance references. Detailed behavior and thresholds
 
 - Export produces a Markdown zip named with the export date. It contains one Markdown file per entry plus referenced JPEG media, with front matter for date, all-day state, location text, latitude, and longitude when available.
 - Export does not create PDF or Day One-compatible output in the MVP. It does not cache the zip after sharing.
-- If app lock is enabled, export requires fresh LocalAuthentication before packaging.
+- If app lock is enabled, export requires fresh LocalAuthentication before packaging. A failed or cancelled attempt cancels the export only; it does not lock the app (changed on 2026-10-07).
 
 ### App lock
 
 - App lock is optional, uses LocalAuthentication with system passcode fallback, and has no custom PIN/password or timeout setting in the MVP.
 - When app lock is enabled, authenticate on cold start and when returning from background. Failed/cancelled auth shows a locked screen with Unlock.
 - Cover journal content before the app switcher snapshot.
+- Scope update approved on 2026-10-07: App Lock has one state for the whole app. It locks when the last foreground scene enters the background; one successful authentication unlocks every scene; new or restored scenes inherit the current state; turning App Lock on or off applies to every scene at once.
+- On returning to the foreground, the first scene to become active requests authentication once; after failure or cancellation the next prompt comes only from Unlock or the next return to the foreground.
+- While locked, every scene on every display shows the same locked screen. Liney registers no scene accessory; any future accessory, display, or scene must show no journal content while locked.
+- Snapshot covering stays per scene: a scene covers its content when it resigns active, even if it is still visible, and uncovers when it becomes active. Covering does not lock.
 
 ### Privacy copy, localization, and distribution
 
@@ -199,6 +236,8 @@ Story numbers are stable acceptance references. Detailed behavior and thresholds
 ## Testing Decisions
 
 Use `release.md` for affected flow/contract checks and the real-device, real Day One archive, and one-week writing gates.
+
+- iPhone Duo, resizing, and multi-window behavior are verified in the Xcode 27.1 iPhone Duo simulator (Device Hub poses) and iPad simulators. There is no physical iPhone Duo; release.md records physical iPhone Duo acceptance as an explicit deferral.
 
 ## Out of Scope
 
@@ -230,6 +269,9 @@ Use `release.md` for affected flow/contract checks and the real-device, real Day
 - Day One-compatible export.
 - Import-session rollback, temp tables, complex resume, or per-item error report/export.
 - App Store monetization in the MVP.
+- Pose-specific modes or a custom keyboard, hinge-angle effects, outer-display companion content, and lock-on-close options (iPhone Duo).
+- Scene accessories, Apple Pencil handwriting, and splitting an entry's text and photos across the fold.
+- Read-only entry windows and restoring new-entry drafts.
 
 ## Further Notes
 
