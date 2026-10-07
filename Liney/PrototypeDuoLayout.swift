@@ -133,6 +133,14 @@ final class PrototypeOverlay: UIView {
             pill.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -4),
             pill.widthAnchor.constraint(lessThanOrEqualTo: safeAreaLayoutGuide.widthAnchor, constant: -16)
         ])
+        NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main) { note in
+            MainActor.assumeIsolated {
+                PrototypeOverlay.keyboardFrame = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue
+            }
+        }
+        NotificationCenter.default.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { PrototypeOverlay.keyboardFrame = nil }
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
         }
@@ -172,10 +180,30 @@ final class PrototypeOverlay: UIView {
             if !cameras.isEmpty { lines.append("occlusion: \(cameras.map { "\(Int($0.frame.minX)),\(Int($0.frame.minY)) \(Int($0.frame.width))×\(Int($0.frame.height))" }.joined(separator: "; "))") }
             if let axis = PrototypeOverlay.detailAxis { lines.append("photo detail split axis: \(axis)") }
         }
+        // Keyboard end frame (screen coords == window coords for a full-screen scene) and focused caret.
+        if let frame = PrototypeOverlay.keyboardFrame {
+            let local = window.convert(frame, from: window.screen.coordinateSpace)
+            lines.append("keyboard \(Int(local.minX)),\(Int(local.minY)) \(Int(local.width))×\(Int(local.height))")
+        } else { lines.append("keyboard: hidden") }
+        if let text = PrototypeOverlay.firstResponder(in: window) as? UITextView, let end = text.selectedTextRange?.end {
+            let caret = text.convert(text.caretRect(for: end), to: window)
+            lines.append("caret y \(Int(caret.minY))–\(Int(caret.maxY))")
+        }
         foldLayer.path = path.cgPath
         info.text = lines.joined(separator: "\n")
     }
     static var detailAxis: String?
+    static var keyboardFrame: CGRect?
+    static func firstResponder(in view: UIView) -> UIView? {
+        if view.isFirstResponder { return view }
+        for sub in view.subviews { if let found = firstResponder(in: sub) { return found } }
+        return nil
+    }
+    static func firstBodyText(in view: UIView) -> UITextView? {
+        if let text = view as? UITextView, text.isEditable, text.text.hasPrefix("Sample paragraph") { return text }
+        for sub in view.subviews { if let found = firstBodyText(in: sub) { return found } }
+        return nil
+    }
 }
 
 // MARK: - Photo detail as a split arrangement
@@ -259,12 +287,18 @@ final class PrototypeSplitDelegate: NSObject, UISplitViewControllerDelegate {
 enum PrototypeAutoOpen {
     static func run(in window: UIWindow?) {
         guard let mode = ProcessInfo.processInfo.environment["PROTO_OPEN"] else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
             guard let split = window?.rootViewController as? UISplitViewController,
                   let timeline = (split.viewController(for: .primary) as? UINavigationController)?.viewControllers.first as? TimelineViewController
             else { return }
             timeline.tableView(timeline.tableView, didSelectRowAt: IndexPath(row: 0, section: 0))
             if ProcessInfo.processInfo.environment["PROTO_SIDEBAR"] == "hidden" { split.preferredDisplayMode = .secondaryOnly }
+            if ProcessInfo.processInfo.environment["PROTO_FOCUS"] == "1" {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    guard let window, let text = PrototypeOverlay.firstBodyText(in: window) else { return }
+                    text.becomeFirstResponder(); text.selectedRange = NSRange(location: 40, length: 0)
+                }
+            }
             guard mode == "photo" else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 let editor = (split.viewController(for: .secondary) as? UINavigationController)?.topViewController as? EntryEditorViewController
