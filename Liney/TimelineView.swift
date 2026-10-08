@@ -195,7 +195,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         tableView.selectRow(at: id.flatMap { dataSource.indexPath(for: $0) }, animated: false, scrollPosition: .none)
     }
     /// The New Entry action.
-    func createEntry() {
+    private func createEntry() {
         let context = ModelContext(container)
         context.autosaveEnabled = false
         let entry = JournalEntry()

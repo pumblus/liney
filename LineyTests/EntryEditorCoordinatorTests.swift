@@ -108,7 +108,7 @@ struct EntryEditorCoordinatorTests {
     @Test func doneReleasesTheEntryForOtherWindows() async throws {
         let left = try await open(), right = try await open()
         try await left.select(day: 0)
-        try #require(left.openEditor).finish()
+        try tapDone(in: try #require(left.openEditor))
         try await left.settle()
 
         try await right.select(day: 0)
@@ -125,14 +125,14 @@ struct EntryEditorCoordinatorTests {
         try await right.select(day: 0)
         #expect(right.openEditor == nil)
         try left.type("Written on the left, then more")
-        try #require(left.openEditor).finish()
+        try tapDone(in: try #require(left.openEditor))
         try await left.settle()
 
         // Opened only now, the right window starts from what the left one saved.
         try await right.select(day: 0)
         let rightEditor = try #require(right.openEditor)
         #expect(descendants(rightEditor.view, as: BlockTextView.self).first?.text == "Written on the left, then more")
-        rightEditor.finish()
+        try tapDone(in: rightEditor)
         try await right.settle()
         #expect(try storedBodies() == ["", "Written on the left, then more"])
         await close(left, right)
@@ -140,7 +140,7 @@ struct EntryEditorCoordinatorTests {
 
     @Test func aNewEntryFollowsTheRuleOnceItAppearsInTheTimeline() async throws {
         let left = try await open(), right = try await open()
-        left.timeline.createEntry()
+        try tapNewEntry(in: left.timeline)
         try await left.settle()
         let presented = try #require(left.root.presentedViewController as? UINavigationController)
         let editor = try #require(presented.topViewController as? EntryEditorViewController)

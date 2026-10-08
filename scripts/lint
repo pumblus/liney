@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 status=0
 
 # Shared test fixtures live in LineyTests/TestSupport.swift, not in per-suite copies.
-shared='makeJPEGData|makeInMemoryContainer|descendants|waitForAlert|presentedAlert|mountInWindow|waitForLayout|waitForRows|mountJournal|unmount|typeInFirstBlock'
+shared='makeJPEGData|makeInMemoryContainer|descendants|waitForAlert|presentedAlert|mountInWindow|waitForLayout|waitForRows|mountJournal|unmount|typeInFirstBlock|tapBarButton|tapDone|tapNewEntry'
 shared_types='SyntheticFailure|ApprovingAuthenticator|DenyingAuthenticator|PreferenceSuite'
 copies=$(grep -nE "func ($shared)[<(]|struct ($shared_types)\b" LineyTests/*.swift | grep -v '^LineyTests/TestSupport.swift:')
 if [[ -n "$copies" ]]; then

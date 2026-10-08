@@ -200,3 +200,19 @@ func typeInFirstBlock(_ text: String, of editor: EntryEditorViewController) thro
     input.text = text
     input.delegate?.textViewDidChange?(input)
 }
+
+/// Taps the navigation bar button `controller` shows with `label` as its title or accessibility label.
+@MainActor
+func tapBarButton(_ label: String, in controller: UIViewController) throws {
+    let items = (controller.navigationItem.leftBarButtonItems ?? []) + (controller.navigationItem.rightBarButtonItems ?? [])
+    let item = try #require(items.first { $0.title == label || $0.accessibilityLabel == label })
+    try #require(item.primaryAction).performWithSender(item, target: nil)
+}
+
+/// Taps the editor's Done button.
+@MainActor
+func tapDone(in editor: EntryEditorViewController) throws { try tapBarButton(String(localized: "Done"), in: editor) }
+
+/// Taps the timeline's New Entry button.
+@MainActor
+func tapNewEntry(in timeline: TimelineViewController) throws { try tapBarButton(String(localized: "New Entry"), in: timeline) }

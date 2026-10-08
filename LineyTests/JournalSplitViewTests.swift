@@ -124,7 +124,7 @@ struct JournalSplitViewTests {
 
     @Test func aNewEntryWrittenWideStaysPresentedAcrossACollapse() async throws {
         let mounted = try await mount(.regular)
-        mounted.timeline.createEntry()
+        try tapNewEntry(in: mounted.timeline)
         try await mounted.settle()
         let presented = try #require(mounted.root.presentedViewController as? UINavigationController)
         let editor = try #require(presented.topViewController as? EntryEditorViewController)
@@ -138,7 +138,7 @@ struct JournalSplitViewTests {
 
     @Test func aNewEntryPushedNarrowMovesToTheSecondaryColumnOnExpand() async throws {
         let mounted = try await mount(.compact)
-        mounted.timeline.createEntry()
+        try tapNewEntry(in: mounted.timeline)
         try await mounted.settle()
         #expect(mounted.root.presentedViewController == nil)
         let editor = try #require(mounted.visibleEditor)
@@ -166,7 +166,7 @@ struct JournalSplitViewTests {
         try await mounted.select(day: 0)
         let editor = try #require(mounted.visibleEditor)
         try await mounted.resize(to: .regular)
-        editor.finish()
+        try tapDone(in: editor)
         try await mounted.settle()
         #expect(mounted.showsNoEntrySelected)
         #expect(mounted.primary?.viewControllers.map { $0 === mounted.timeline } == [true])
@@ -181,7 +181,7 @@ struct JournalSplitViewTests {
         try await mounted.select(day: 0)
         let editor = try #require(mounted.visibleEditor)
         try await mounted.resize(to: .compact)
-        editor.finish()
+        try tapDone(in: editor)
         try await mounted.settle()
         #expect(mounted.visible.map { $0 === mounted.timeline } == [true])
         try await mounted.resize(to: .regular)
@@ -191,12 +191,12 @@ struct JournalSplitViewTests {
 
     @Test func aNewEntryMovedOnExpandIsSavedByDone() async throws {
         let mounted = try await mount(.compact)
-        mounted.timeline.createEntry()
+        try tapNewEntry(in: mounted.timeline)
         try await mounted.settle()
         let editor = try #require(mounted.visibleEditor)
         try await mounted.resize(to: .regular)
         try typeInFirstBlock("Written after expanding", of: editor)
-        editor.finish()
+        try tapDone(in: editor)
         try await mounted.settle()
         #expect(mounted.showsNoEntrySelected)
         let saved = try ModelContext(container).fetch(FetchDescriptor<JournalEntry>())
@@ -216,7 +216,7 @@ struct JournalSplitViewTests {
         try await mounted.resize(to: .regular)
         try await mounted.select(day: 1)
         #expect((mounted.secondary?.topViewController as? EntryEditorViewController)?.entry.id == second.id)
-        mounted.timeline.createEntry()
+        try tapNewEntry(in: mounted.timeline)
         try await mounted.settle()
         #expect(mounted.root.presentedViewController != nil)
         await unmount(mounted.window)
@@ -270,7 +270,7 @@ struct JournalSplitViewTests {
 
     @Test func aBlankNewEntryMovedOnExpandIsDiscardedWhenAnotherEntryOpens() async throws {
         let mounted = try await mount(.compact)
-        mounted.timeline.createEntry()
+        try tapNewEntry(in: mounted.timeline)
         try await mounted.settle()
         try await mounted.resize(to: .regular)
         // The resize saved nothing, so the blank draft is not listed.
@@ -286,7 +286,7 @@ struct JournalSplitViewTests {
     /// An entry open at `start`: existing entries are selected from the timeline, new ones created.
     func openEditor(new: Bool, at start: UIUserInterfaceSizeClass) async throws -> (Mounted, EntryEditorViewController) {
         let mounted = try await mount(start)
-        if new { mounted.timeline.createEntry(); try await mounted.settle() } else { try await mounted.select(day: 0) }
+        if new { try tapNewEntry(in: mounted.timeline); try await mounted.settle() } else { try await mounted.select(day: 0) }
         return (mounted, try #require(mounted.visibleEditor))
     }
 

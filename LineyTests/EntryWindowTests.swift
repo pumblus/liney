@@ -220,7 +220,7 @@ struct EntryWindowTests {
         let (opened, scene, window) = try await openEntryWindow()
         try typeInFirstBlock("Synthetic window text", of: opened.editor)
 
-        opened.editor.finish()
+        try tapDone(in: opened.editor)
 
         #expect(scene.destructionCount == 1)
         #expect(try storedEntries().last?.plainTextBody == "Synthetic window text")

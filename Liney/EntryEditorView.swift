@@ -366,7 +366,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
 
     /// The Done action: saves, discards a blank new entry, and closes the editor.
-    func finish() {
+    private func finish() {
         guard !addingPhotos else { return }
         view.endEditing(true)
         guard flush() else { return }

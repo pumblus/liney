@@ -146,7 +146,7 @@ struct WindowRestorationTests {
         #expect(coordinator.scene(editing: entry.id) === content.editors)
         #expect(content.restoration == .selectedEntry(entry.id))
 
-        editor.finish()
+        try tapDone(in: editor)
         try await Task.sleep(for: .milliseconds(400))
         #expect(content.restoration == nil)
         await close(window)
@@ -200,7 +200,7 @@ struct WindowRestorationTests {
         let content = connect(restoring: nil)
         let (root, window) = try await mountJournalRoot(of: content, sizeClass)
 
-        root.timeline.createEntry()
+        try tapNewEntry(in: root.timeline)
         try await Task.sleep(for: .milliseconds(400))
 
         if sizeClass == .compact { #expect(root.openEditor?.isNew == true) }
