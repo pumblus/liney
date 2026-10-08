@@ -25,6 +25,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private var doneButton: UIBarButtonItem!
     private var pendingBlockID: UUID?
     private var pendingOffset: Int?
+    private var foldAvoidance: EditorFoldAvoidance?
 
     /// Fixtures replace `saveContext` to simulate a full disk.
     init(entry: JournalEntry, isNew: Bool, context: ModelContext, storage: PhotoStorage = PhotoStorage(),
@@ -44,17 +45,22 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         stack.axis = .vertical; stack.spacing = 16
         scroll.translatesAutoresizingMaskIntoConstraints = false; stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scroll); scroll.addSubview(stack)
+        // One centred reading column: 16 pt margins until it reaches 700 pt. The system readable
+        // width is far narrower, which wastes wide windows such as iPhone Duo in laptop pose.
+        let column = stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
+        column.priority = .defaultHigh
         NSLayoutConstraint.activate([
             scroll.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scroll.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16),
+            scroll.contentLayoutGuide.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
+            stack.centerXAnchor.constraint(equalTo: scroll.contentLayoutGuide.centerXAnchor),
             stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 16),
             stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
             stack.heightAnchor.constraint(greaterThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor, constant: -40),
-            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
+            stack.widthAnchor.constraint(lessThanOrEqualTo: scroll.frameLayoutGuide.widthAnchor, constant: -32),
+            stack.widthAnchor.constraint(lessThanOrEqualToConstant: 700), column
         ])
         titleField.accessibilityLabel = String(localized: "Title (optional)")
         titleField.font = .preferredFont(forTextStyle: .title2)
@@ -72,6 +78,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         stack.addArrangedSubview(dateButton); stack.addArrangedSubview(placeLabel); stack.addArrangedSubview(titleField)
         render()
         NotificationCenter.default.addObserver(self, selector: #selector(flushBeforeSceneDeactivation(_:)), name: UIScene.willDeactivateNotification, object: nil)
+        foldAvoidance = EditorFoldAvoidance(editorView: view, writingArea: scroll)
     }
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
@@ -151,8 +158,15 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             scroll.scrollRectToVisible(text.convert(text.bounds, to: scroll), animated: true)
         }
     }
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        // Safe-area height, not the area above the keyboard, so photos keep their size while typing.
+        let visibleHeight = view.bounds.inset(by: view.safeAreaInsets).height
+        for group in photoGroups { group.maximumPhotoHeight = visibleHeight > 0 ? visibleHeight * 0.7 : nil }
+    }
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        foldAvoidance?.update()
         refreshVisiblePhotos()
     }
     func scrollViewDidScroll(_ scrollView: UIScrollView) { refreshVisiblePhotos() }
@@ -617,6 +631,15 @@ final class PhotoGroupView: UIStackView {
     private(set) var photoViews: [StoredPhotoView] = []
     let blockID: UUID
     let fileNames: [String]
+    private var heightCap: NSLayoutConstraint?
+    /// The tallest a single photo may be; groups of several photos keep their grid.
+    var maximumPhotoHeight: CGFloat? {
+        didSet {
+            guard let heightCap, maximumPhotoHeight != oldValue else { return }
+            heightCap.constant = maximumPhotoHeight ?? 0
+            heightCap.isActive = maximumPhotoHeight != nil
+        }
+    }
     init(block: EntryBlock, storage: PhotoStorage, deferLoading: Bool = false, open: @escaping (EntryPhoto) -> Void) {
         let photos = block.orderedPhotos
         blockID = block.id; fileNames = photos.map(\.fileName)
@@ -668,6 +691,14 @@ final class PhotoGroupView: UIStackView {
                 for _ in min(start + columns, photos.count)..<(start + columns) { row.addArrangedSubview(UIView()) }
             }
             addArrangedSubview(row)
+        }
+        if photos.count == 1, let button = photoViews.first?.superview {
+            // A capped photo narrows to keep its ratio and stays centred instead of letterboxing.
+            alignment = .center
+            let fill = button.widthAnchor.constraint(equalTo: widthAnchor)
+            fill.priority = .required - 1
+            fill.isActive = true
+            heightCap = button.heightAnchor.constraint(lessThanOrEqualToConstant: 0)
         }
         accessibilityLabel = String(localized: "Photo Group")
     }
