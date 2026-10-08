@@ -267,10 +267,42 @@ struct JournalSplitViewTests {
         mounted.timeline.createEntry()
         try await mounted.settle()
         try await mounted.resize(to: .regular)
-        // The open draft is saved as it is written, so it lists first, on today.
-        try await mounted.select(day: 2)
+        // The resize saved nothing, so the blank draft is not listed.
+        #expect(mounted.timeline.tableView.numberOfSections == 2)
+        try await mounted.select(day: 1)
         #expect((mounted.secondary?.topViewController as? EntryEditorViewController)?.entry.id == second.id)
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<JournalEntry>()) == 2)
+        await unmount(mounted)
+    }
+
+    // A resize keeps the person's place in the open editor and never saves or discards.
+
+    /// An entry open at `start`: existing entries are selected from the timeline, new ones created.
+    func openEditor(new: Bool, at start: UIUserInterfaceSizeClass) async throws -> (Mounted, EntryEditorViewController) {
+        let mounted = try await mount(start)
+        if new { mounted.timeline.createEntry(); try await mounted.settle() } else { try await mounted.select(day: 0) }
+        return (mounted, try #require(mounted.visibleEditor))
+    }
+
+    @Test(arguments: [(false, UIUserInterfaceSizeClass.regular), (false, .compact), (true, .compact)])
+    func unsavedTextCaretAndKeyboardSurviveCollapseAndExpandWithoutSaving(new: Bool, start: UIUserInterfaceSizeClass) async throws {
+        let (mounted, editor) = try await openEditor(new: new, at: start)
+        let input = try #require(descendants(editor.view, as: BlockTextView.self).first)
+        #expect(input.becomeFirstResponder())
+        // Text the debounced save has not reached yet.
+        input.text = "Synthetic unsaved text"
+        input.selectedRange = NSRange(location: 9, length: 0)
+        for sizeClass in [start == .regular ? UIUserInterfaceSizeClass.compact : .regular, start] {
+            try await mounted.resize(to: sizeClass)
+            #expect(mounted.visibleEditor === editor)
+            #expect(descendants(editor.view, as: BlockTextView.self).first === input)
+            #expect(input.text == "Synthetic unsaved text")
+            #expect(input.isFirstResponder)
+            #expect(input.selectedRange == NSRange(location: 9, length: 0))
+        }
+        let stored = try ModelContext(container).fetch(FetchDescriptor<JournalEntry>())
+        #expect(stored.count == 2)
+        #expect(!stored.contains { $0.plainTextBody.contains("Synthetic unsaved text") })
         await unmount(mounted)
     }
 

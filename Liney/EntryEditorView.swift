@@ -26,9 +26,15 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private var pendingBlockID: UUID?
     private var pendingOffset: Int?
     private var foldAvoidance: EditorFoldAvoidance?
-    /// Set by the scene root while a resize moves this editor to another column, until it appears
-    /// there; the move is not leaving the entry, so it never saves on close or discards.
-    var isMovingBetweenColumns = false
+    /// Set while a resize moves this editor to another column, until it appears there; the move
+    /// is not leaving the entry, so it never saves or discards.
+    private var columnMove: ColumnMove?
+    private struct ColumnMove {
+        let focus: UITextView?
+        let selection: NSRange
+        /// The editor can finish an earlier appearance before it leaves its old column.
+        var hasLeft = false
+    }
 
     /// Fixtures replace `saveContext` to simulate a full disk.
     init(entry: JournalEntry, isNew: Bool, context: ModelContext, storage: PhotoStorage = PhotoStorage(),
@@ -83,20 +89,31 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         NotificationCenter.default.addObserver(self, selector: #selector(flushBeforeSceneDeactivation(_:)), name: UIScene.willDeactivateNotification, object: nil)
         foldAvoidance = EditorFoldAvoidance(editorView: view, writingArea: scroll)
     }
+    /// Called by the scene root before a resize moves this editor to another column: keeps the
+    /// unsaved edits unsaved and returns the focus, caret, and keyboard once it appears there.
+    func beginColumnMove() {
+        guard columnMove == nil else { return }
+        let focus = ([titleField] + textViews).first { $0.isFirstResponder }
+        columnMove = ColumnMove(focus: focus, selection: focus?.selectedRange ?? NSRange())
+    }
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        if !finished {
+        if columnMove != nil {
+            columnMove?.hasLeft = true
+        } else if !finished {
             view.endEditing(true)
             _ = flush()
         }
     }
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
-        isMovingBetweenColumns = false
+        guard let move = columnMove, move.hasLeft else { return }
+        columnMove = nil
+        if let focus = move.focus, focus.becomeFirstResponder() { focus.selectedRange = move.selection }
     }
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        guard isMovingFromParent || navigationController == nil, !finished, !isMovingBetweenColumns else { return }
+        guard isMovingFromParent || navigationController == nil, !finished, columnMove == nil else { return }
         do {
             try saveEntryChanges(entry, in: context, discardIfBlank: isNew, save: save)
             finished = true
@@ -208,7 +225,11 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             stack.setCustomSpacing(0, after: text)
         }
     }
-    func textViewDidEndEditing(_ textView: UITextView) { synchronize(textView); scheduleSave() }
+    func textViewDidEndEditing(_ textView: UITextView) {
+        synchronize(textView)
+        // Leaving the window during a column move is not the end of editing.
+        if columnMove == nil { scheduleSave() }
+    }
     private func synchronizeText() {
         synchronize(titleField)
         textViews.forEach(synchronize)
