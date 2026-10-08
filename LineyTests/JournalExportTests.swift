@@ -64,7 +64,11 @@ final class JournalExportTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
         let activity = try XCTUnwrap(presenter.presentedViewController as? UIActivityViewController)
-        XCTAssertTrue(activity.popoverPresentationController?.barButtonItem === source)
+        // Where the system moves bar items into vertical bars (iPhone Duo, iOS 27.1) it clears the
+        // bar button anchor on presentation; testShareSheetAnchorsToInitiatingBarButtonItem covers the anchor itself.
+        if let bar = presenter.navigationController?.navigationBar, bar.bounds.height > 0 {
+            XCTAssertTrue(activity.popoverPresentationController?.barButtonItem === source)
+        }
         XCTAssertFalse(finished)
         await withCheckedContinuation { continuation in
             activity.dismiss(animated: false) { continuation.resume() }
