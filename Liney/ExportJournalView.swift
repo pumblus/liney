@@ -20,7 +20,7 @@ final class ExportJournalFlow {
     func makeShareController(for url: URL) -> UIActivityViewController {
         let activity = UIActivityViewController(activityItems: [url], applicationActivities: nil)
         if let sourceBarButtonItem {
-            activity.popoverPresentationController?.barButtonItem = sourceBarButtonItem
+            activity.popoverPresentationController?.sourceItem = sourceBarButtonItem
         } else if let presenter {
             activity.popoverPresentationController?.sourceView = presenter.view
             activity.popoverPresentationController?.sourceRect = CGRect(
