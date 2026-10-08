@@ -191,13 +191,10 @@ final class JournalEntryFlowTests: XCTestCase {
         ]))
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         XCTAssertTrue(scene.delegate is JournalSceneDelegate)
-        let root = try XCTUnwrap((scene.delegate as? JournalSceneDelegate)?.window?.rootViewController)
-        let navigation: UINavigationController?
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            navigation = (root as? UISplitViewController)?.viewController(for: .primary) as? UINavigationController
-        } else {
-            navigation = root as? UINavigationController
-        }
+        // One split view root on every device; the system picks the display mode from the width.
+        let root = try XCTUnwrap((scene.delegate as? JournalSceneDelegate)?.window?.rootViewController as? JournalSplitViewController)
+        XCTAssertEqual(root.preferredDisplayMode, .automatic)
+        let navigation = root.viewController(for: .primary) as? UINavigationController
         XCTAssertTrue(navigation?.viewControllers.first is TimelineViewController)
     }
 
@@ -232,7 +229,15 @@ final class JournalEntryFlowTests: XCTestCase {
         XCTAssertEqual(reloaded.first?.plainTextBody, "Saved before scene inactivity 中文")
     }
 
-    func testNativeNavigationSavesEditorBeforeSwitchingEntries() async throws {
+    func testNativeNavigationSavesEditorBeforeSwitchingEntriesInOneStack() async throws {
+        try await assertNativeNavigationSavesEditorBeforeSwitchingEntries(width: .compact)
+    }
+
+    func testNativeNavigationSavesEditorBeforeSwitchingEntriesBesideTheTimeline() async throws {
+        try await assertNativeNavigationSavesEditorBeforeSwitchingEntries(width: .regular)
+    }
+
+    private func assertNativeNavigationSavesEditorBeforeSwitchingEntries(width: UIUserInterfaceSizeClass) async throws {
         let first = JournalEntry(title: "Synthetic first", entryDate: Date(timeIntervalSince1970: 1_700_100_000))
         let second = JournalEntry(title: "Synthetic second", entryDate: Date(timeIntervalSince1970: 1_700_000_000))
         context.insert(first); context.insert(second)
@@ -241,14 +246,9 @@ final class JournalEntryFlowTests: XCTestCase {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let window = UIWindow(windowScene: scene)
         let timeline = TimelineViewController(container: container, appLock: AppLockModel())
-        let navigation = FixtureNavigationController(rootViewController: timeline)
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            let split = UISplitViewController(style: .doubleColumn)
-            split.preferredDisplayMode = .oneBesideSecondary
-            split.setViewController(navigation, for: .primary)
-            split.setViewController(UINavigationController(rootViewController: UIViewController()), for: .secondary)
-            window.rootViewController = split
-        } else { window.rootViewController = navigation }
+        let root = JournalSplitViewController(timeline: timeline)
+        root.traitOverrides.horizontalSizeClass = width
+        window.rootViewController = root
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
         for _ in 0..<100 {
@@ -257,13 +257,17 @@ final class JournalEntryFlowTests: XCTestCase {
         }
         XCTAssertEqual(timeline.tableView.numberOfSections, 2)
         guard timeline.tableView.numberOfSections == 2 else { return }
+        XCTAssertEqual(root.isCollapsed, width == .compact)
+        let navigation = try XCTUnwrap(timeline.navigationController)
         func currentEditor() -> EntryEditorViewController? {
-            if let split = timeline.splitViewController, !split.isCollapsed {
-                return (split.viewController(for: .secondary) as? UINavigationController)?.topViewController as? EntryEditorViewController
+            if !root.isCollapsed {
+                return (root.viewController(for: .secondary) as? UINavigationController)?.topViewController as? EntryEditorViewController
             }
-            return navigation.topViewController as? EntryEditorViewController
+            return navigation.viewControllers.last as? EntryEditorViewController
         }
         timeline.tableView(timeline.tableView, didSelectRowAt: IndexPath(row: 0, section: 0))
+        // Let the native push finish before popping it.
+        try await Task.sleep(for: .milliseconds(500))
         let editor = try XCTUnwrap(currentEditor())
         XCTAssertEqual(editor.entry.id, first.id)
         XCTAssertFalse(editor.context === context)
@@ -277,9 +281,10 @@ final class JournalEntryFlowTests: XCTestCase {
         let adjusted = first.entryDate.addingTimeInterval(60)
         picker.date = adjusted
         picker.sendActions(for: .valueChanged)
-        if timeline.splitViewController?.isCollapsed != false {
+        if root.isCollapsed {
             XCTAssertTrue(editor.prepareForReplacement())
             navigation.popViewController(animated: false)
+            try await Task.sleep(for: .milliseconds(300))
         }
         timeline.tableView(timeline.tableView, didSelectRowAt: IndexPath(row: 0, section: 1))
         XCTAssertEqual(currentEditor()?.entry.id, second.id)
@@ -1158,12 +1163,5 @@ final class JournalEntryFlowTests: XCTestCase {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy:MM:dd HH:mm:ss"
         return formatter.date(from: text)
-    }
-}
-
-/// This controller test drives navigation synchronously; animation timing belongs to UI acceptance.
-private final class FixtureNavigationController: UINavigationController {
-    override func pushViewController(_ viewController: UIViewController, animated: Bool) {
-        super.pushViewController(viewController, animated: false)
     }
 }

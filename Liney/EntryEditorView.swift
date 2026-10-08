@@ -26,6 +26,9 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private var pendingBlockID: UUID?
     private var pendingOffset: Int?
     private var foldAvoidance: EditorFoldAvoidance?
+    /// Set by the scene root while a resize moves this editor to another column, until it appears
+    /// there; the move is not leaving the entry, so it never saves on close or discards.
+    var isMovingBetweenColumns = false
 
     /// Fixtures replace `saveContext` to simulate a full disk.
     init(entry: JournalEntry, isNew: Bool, context: ModelContext, storage: PhotoStorage = PhotoStorage(),
@@ -87,9 +90,13 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             _ = flush()
         }
     }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        isMovingBetweenColumns = false
+    }
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        guard isMovingFromParent || navigationController == nil, !finished else { return }
+        guard isMovingFromParent || navigationController == nil, !finished, !isMovingBetweenColumns else { return }
         do {
             try saveEntryChanges(entry, in: context, discardIfBlank: isNew, save: save)
             finished = true
@@ -261,7 +268,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         return flush()
     }
 
-    private func finish() {
+    /// The Done action: saves, discards a blank new entry, and closes the editor.
+    func finish() {
         guard !addingPhotos else { return }
         view.endEditing(true)
         guard flush() else { return }
@@ -274,10 +282,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
     private func closeEditor() {
         if navigationController?.presentingViewController != nil { dismiss(animated: true) }
+        else if let root = splitViewController as? JournalSplitViewController { root.closeEntry(self) }
         else if (navigationController?.viewControllers.count ?? 0) > 1 { navigationController?.popViewController(animated: true) }
-        else if let splitViewController {
-            splitViewController.setViewController(UINavigationController(rootViewController: MessageController(title: String(localized: "No Entry Selected"), message: String(localized: "Choose an entry from the timeline once entries exist."))), for: .secondary)
-        }
     }
     private func pickPhotos() {
         guard flush() else { return }
