@@ -116,8 +116,10 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
     /// Called by the scene root before a resize moves this editor to another column: keeps the
     /// unsaved edits unsaved and returns the focus, caret, and keyboard once it appears there.
+    /// An editor off screen, such as under full-screen photo detail, has no place to keep and
+    /// gets no appearance calls for the move, so it moves as is and later leaves as usual.
     func beginColumnMove() {
-        guard columnMove == nil else { return }
+        guard columnMove == nil, viewIfLoaded?.window != nil else { return }
         let focus = ([titleField] + textViews).first { $0.isFirstResponder }
         columnMove = ColumnMove(focus: focus, selection: focus?.selectedRange ?? NSRange())
         scrollAnchor = currentScrollAnchor()

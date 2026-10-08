@@ -263,6 +263,29 @@ struct JournalSplitViewTests {
         await unmount(mounted)
     }
 
+    @Test func inputTypedAfterAResizeUnderPhotoDetailIsSavedByBack() async throws {
+        let mounted = try await mount(.compact)
+        try await mounted.select(day: 0)
+        let editor = try #require(mounted.visibleEditor)
+        // Photo detail covers the editor full screen, so the resize moves it while off screen.
+        let detail = UINavigationController(rootViewController: UIViewController())
+        detail.modalPresentationStyle = .fullScreen
+        editor.present(detail, animated: false)
+        try await mounted.settle()
+        try await mounted.resize(to: .regular)
+        try await mounted.resize(to: .compact)
+        await withCheckedContinuation { continuation in detail.dismiss(animated: false) { continuation.resume() } }
+        try await mounted.settle()
+        #expect(mounted.visibleEditor === editor)
+        // Input the debounced save has not reached.
+        try #require(descendants(editor.view, as: BlockTextView.self).first).text = "Synthetic input after photo detail"
+        mounted.primary?.popViewController(animated: false)
+        try await mounted.settle()
+        let stored = try ModelContext(container).fetch(FetchDescriptor<JournalEntry>())
+        #expect(stored.contains { $0.plainTextBody == "Synthetic input after photo detail" })
+        await unmount(mounted)
+    }
+
     @Test func aBlankNewEntryMovedOnExpandIsDiscardedWhenAnotherEntryOpens() async throws {
         let mounted = try await mount(.compact)
         mounted.timeline.createEntry()
