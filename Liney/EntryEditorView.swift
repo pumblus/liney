@@ -934,7 +934,7 @@ final class PhotoDetailViewController: UIViewController {
     override func viewWillLayoutSubviews() {
         super.viewWillLayoutSubviews()
         guard #available(iOS 27.1, *) else { return }
-        let divisions = view.reservedRegions(kind: .division).map(\.frame)
+        let divisions = view.reservedRegions(kind: .division).map(EditorFoldRule.Division.init)
         show(PhotoDetailLayout(size: view.bounds.size, horizontalSizeClass: traitCollection.horizontalSizeClass, divisions: divisions))
     }
     @available(iOS 27.1, *)

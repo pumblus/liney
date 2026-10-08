@@ -10,9 +10,9 @@ enum PhotoDetailLayout: Equatable {
     case aroundFold
 
     /// Side by side needs regular width: the system split shows only the photo in compact width.
-    /// `divisions` are the frames of the window's active fold regions.
-    init(size: CGSize, horizontalSizeClass: UIUserInterfaceSizeClass, divisions: [CGRect]) {
-        if divisions.contains(where: { $0.width > $0.height }) {
+    /// `divisions` are the window's fold regions; only an active one across the window places the photo above it.
+    init(size: CGSize, horizontalSizeClass: UIUserInterfaceSizeClass, divisions: [EditorFoldRule.Division]) {
+        if divisions.contains(where: \.isActiveHorizontal) {
             self = .aroundFold
         } else if horizontalSizeClass == .regular, size.width > size.height {
             self = .sideBySide

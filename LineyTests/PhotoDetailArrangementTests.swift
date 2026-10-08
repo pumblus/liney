@@ -72,11 +72,17 @@ struct PhotoDetailArrangementTests {
     @Test
     func `a fold across the window places the photo above it`() {
         let laptop = CGSize(width: 669, height: 951)
-        let fold = CGRect(x: 0, y: 455, width: 669, height: 40)
+        let fold = EditorFoldRule.Division(frame: CGRect(x: 0, y: 455, width: 669, height: 40), isActive: true)
         #expect(PhotoDetailLayout(size: laptop, horizontalSizeClass: .regular, divisions: [fold]) == .aroundFold)
         #expect(PhotoDetailLayout(size: laptop, horizontalSizeClass: .regular, divisions: []) == .stacked)
-        let book = CGRect(x: 455, y: 0, width: 40, height: 669)
+        let book = EditorFoldRule.Division(frame: CGRect(x: 455, y: 0, width: 40, height: 669), isActive: true)
         #expect(PhotoDetailLayout(size: CGSize(width: 951, height: 669), horizontalSizeClass: .regular, divisions: [book]) == .sideBySide)
+    }
+
+    @Test
+    func `an inactive fold across the window keeps today's photo detail`() {
+        let flat = EditorFoldRule.Division(frame: CGRect(x: 0, y: 455, width: 669, height: 40), isActive: false)
+        #expect(PhotoDetailLayout(size: CGSize(width: 669, height: 951), horizontalSizeClass: .regular, divisions: [flat]) == .stacked)
     }
 
     /// The 1.0 layout: the photo is 60% of the height, and the actions sit in the Photo Actions menu.

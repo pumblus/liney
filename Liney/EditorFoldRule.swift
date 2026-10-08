@@ -10,6 +10,13 @@ enum EditorFoldRule {
     struct Division: Equatable, Sendable {
         var frame: CGRect
         var isActive: Bool
+
+        /// A fold the window is bent along that runs across it, splitting it into upper and lower panes.
+        var isActiveHorizontal: Bool { isActive && frame.width > frame.height }
+
+        @available(iOS 27.1, *)
+        init(_ region: UIView.ReservedRegion) { self.init(frame: region.frame, isActive: region.isActive) }
+        init(frame: CGRect, isActive: Bool) { self.frame = frame; self.isActive = isActive }
     }
 
     /// How far the writing area's bottom edge rises above the keyboard's top edge, in points.
@@ -21,7 +28,7 @@ enum EditorFoldRule {
         guard let keyboardFrame, keyboardFrame.intersects(bounds), keyboardFrame.minY < bounds.maxY else { return 0 }
         let keyboardTop = keyboardFrame.minY
         let divisionTop = divisions
-            .filter { $0.isActive && $0.frame.width > $0.frame.height && $0.frame.minY < keyboardTop }
+            .filter { $0.isActiveHorizontal && $0.frame.minY < keyboardTop }
             .map(\.frame.minY)
             .max()
         guard let divisionTop else { return 0 }
@@ -57,9 +64,7 @@ final class EditorFoldAvoidance: NSObject {
         let keyboardFrame = keyboardEndFrame.flatMap { frame in
             editorView.window?.windowScene.map { editorView.convert(frame, from: $0.screen.coordinateSpace) }
         }
-        let divisions = editorView.reservedRegions(kind: .division).map {
-            EditorFoldRule.Division(frame: $0.frame, isActive: $0.isActive)
-        }
+        let divisions = editorView.reservedRegions(kind: .division).map(EditorFoldRule.Division.init)
         let inset = EditorFoldRule.writingAreaBottomInset(bounds: editorView.bounds, keyboardFrame: keyboardFrame, divisions: divisions)
         guard inset != appliedInset else { return }
         appliedInset = inset
