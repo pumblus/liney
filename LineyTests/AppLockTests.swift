@@ -156,17 +156,19 @@ final class AppLockTests: XCTestCase {
         XCTAssertTrue(scene.hidesJournalContent)
     }
 
-    func testExportReauthLocksAfterCancelledAuthentication() async {
-        let authenticator = FakeAuthenticator(results: [false])
+    /// LocalAuthentication reports a cancelled prompt and a failed one alike, as `false`.
+    func testCancelledOrFailedExportAuthenticationCancelsOnlyTheExport() async {
+        let authenticator = FakeAuthenticator(results: [true, false])
         let lock = makeLock(authenticator)
         let scene = lock.connectScene()
+        await scene.didBecomeActive()
 
         let authorized = await lock.authenticateForExport()
 
         XCTAssertFalse(authorized)
-        XCTAssertTrue(lock.isLocked)
-        XCTAssertTrue(scene.hidesJournalContent)
-        XCTAssertEqual(authenticator.callCount, 1)
+        XCTAssertFalse(lock.isLocked)
+        XCTAssertFalse(scene.hidesJournalContent)
+        XCTAssertEqual(authenticator.callCount, 2)
     }
 
     func testExportWithoutAppLockDoesNotAuthenticate() async {

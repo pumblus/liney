@@ -95,11 +95,12 @@ final class AppLockModel {
         isLocked = !success
     }
 
+    /// A cancelled or failed prompt cancels only the export; the lock state is left alone.
     func authenticateForExport() async -> Bool {
         guard isEnabled else { return true }
         guard let success = await authenticate(reason: String(localized: "Authenticate to export your journal."))
         else { return false }
-        isLocked = !success
+        if success { isLocked = false }
         return success
     }
 
