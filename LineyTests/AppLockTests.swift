@@ -156,8 +156,9 @@ final class AppLockTests: XCTestCase {
         XCTAssertTrue(scene.hidesJournalContent)
     }
 
-    /// LocalAuthentication reports a cancelled prompt and a failed one alike, as `false`.
-    func testCancelledOrFailedExportAuthenticationCancelsOnlyTheExport() async {
+    /// `LocalAuthenticator` reports a cancelled prompt and a failed one alike, as `false`, so
+    /// one unsuccessful result stands for both.
+    func testUnsuccessfulExportAuthenticationCancelsOnlyTheExport() async {
         let authenticator = FakeAuthenticator(results: [true, false])
         let lock = makeLock(authenticator)
         let scene = lock.connectScene()
