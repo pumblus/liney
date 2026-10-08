@@ -39,6 +39,8 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     private var privacyShield: JournalPrivacyShield?
     private var lockScene: AppLockScene?
     private var editors: SceneEditors?
+    /// Set when this scene is an entry window: one entry's editor alone.
+    private(set) var entryWindow: EntryWindow?
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene,
@@ -49,10 +51,25 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         let lockScene = app.appLock.connectScene()
         self.lockScene = lockScene
         privacyShield = JournalPrivacyShield(window: window, lockScene: lockScene)
-        let editors = app.editorCoordinator.connectScene(WindowSceneHandle(scene))
-        self.editors = editors
-        window.rootViewController = JournalSplitViewController(
-            timeline: TimelineViewController(container: app.container, appLock: app.appLock, editors: editors))
+        let handle = WindowSceneHandle(scene)
+        // An entry window is requested by Open in New Window or a dragged row; a plain new window shows the timeline.
+        if let entryID = options.userActivities.lazy.compactMap(EntryWindowActivity.entryID(of:)).first {
+            let editors = app.editorCoordinator.connectScene(handle, isEntryWindow: true)
+            if let entryWindow = EntryWindow(entryID: entryID, container: app.container, appLock: app.appLock, editors: editors) {
+                self.editors = editors
+                self.entryWindow = entryWindow
+                window.rootViewController = entryWindow.root
+            } else {
+                // The entry is gone, or another window keeps it and was brought forward.
+                handle.destroy()
+            }
+        }
+        if window.rootViewController == nil {
+            let editors = app.editorCoordinator.connectScene(handle)
+            self.editors = editors
+            window.rootViewController = JournalSplitViewController(
+                timeline: TimelineViewController(container: app.container, appLock: app.appLock, editors: editors))
+        }
         window.makeKeyAndVisible()
         privacyShield?.update()
     }

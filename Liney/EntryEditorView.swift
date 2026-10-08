@@ -33,6 +33,9 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     var isMovingBetweenColumns = false
     /// This scene's editors in the app-wide coordinator: registered while this editor shows its entry.
     private let editors: SceneEditors?
+    /// Called after the title, the Entry Date, changes; an entry window shows it as the window title.
+    var onTitleChange: (() -> Void)?
+    override var title: String? { didSet { if title != oldValue { onTitleChange?() } } }
 
     /// Fixtures replace `saveContext` to simulate a full disk.
     init(entry: JournalEntry, isNew: Bool, context: ModelContext, storage: PhotoStorage = PhotoStorage(),
@@ -122,7 +125,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     /// Reconciles views with the entry by block identity, so unaffected text keeps its
     /// selection, undo history and IME state, and unaffected photos keep their images.
     private func render(focusAfter: UUID? = nil) {
-        title = entry.entryDate.formatted(.dateTime.month(.wide).day().year())
+        showEntryDateTitle()
         let dateText = entry.isAllDay ? entry.entryDate.formatted(date: .long, time: .omitted) + " · " + String(localized: "All-day") : entry.entryDate.formatted(date: .long, time: .shortened)
         dateButton.configuration?.title = dateText
         dateButton.accessibilityValue = dateText
@@ -287,7 +290,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         } catch { saveError(error) }
     }
     private func closeEditor() {
-        if navigationController?.presentingViewController != nil { dismiss(animated: true) }
+        if let editors, editors.isEntryWindow { editors.handle.destroy() }
+        else if navigationController?.presentingViewController != nil { dismiss(animated: true) }
         else if let root = splitViewController as? JournalSplitViewController { root.closeEntry(self) }
         else if (navigationController?.viewControllers.count ?? 0) > 1 { navigationController?.popViewController(animated: true) }
     }
@@ -401,10 +405,13 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
     private func editDate() {
         guard flush() else { return }
-        let controller = EntryDateViewController(entry: entry) { [weak self] in _ = self?.flush() }
+        let controller = EntryDateViewController(entry: entry) { [weak self] in
+            _ = self?.flush(); self?.showEntryDateTitle()
+        }
         controller.onDone = { [weak self] in self?.render() }
         present(UINavigationController(rootViewController: controller), animated: true)
     }
+    private func showEntryDateTitle() { title = entry.entryDate.formatted(.dateTime.month(.wide).day().year()) }
     private func openPhoto(_ photo: EntryPhoto) {
         guard flush() else { return }
         let controller = PhotoDetailViewController(photo: photo, storage: storage)
@@ -434,6 +441,17 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         finished = true; saveTask?.cancel()
         viewIfLoaded?.endEditing(true)
         closeEditor()
+    }
+    /// The entry moves to its own window: its input is saved, then the editor closes. False,
+    /// leaving the editor open, while photos are being added or when saving fails.
+    func closeForMove() -> Bool {
+        guard !finished else { return true }
+        guard !addingPhotos else { return false }
+        viewIfLoaded?.endEditing(true)
+        guard flush() else { return false }
+        finished = true; saveTask?.cancel()
+        closeEditor()
+        return true
     }
     func confirmDeleteEntry() {
         guard !addingPhotos, !finished, flush() else { return }

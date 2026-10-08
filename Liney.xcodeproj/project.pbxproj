@@ -26,9 +26,22 @@
 		F0000000000000000000001E /* LineyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LineyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		F00000000000000000000072 /* Exceptions for "Liney" folder in "Liney" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = F00000000000000000000002 /* Liney */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		F00000000000000000000070 /* Liney */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				F00000000000000000000072 /* Exceptions for "Liney" folder in "Liney" target */,
+			);
 			path = Liney;
 			sourceTree = "<group>";
 		};
@@ -223,6 +236,7 @@
 				DEVELOPMENT_TEAM = VFTWWNGQV8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Liney/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Liney;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Use Face ID to unlock your private journal.";
@@ -260,6 +274,7 @@
 				DEVELOPMENT_TEAM = VFTWWNGQV8;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Liney/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Liney;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.lifestyle";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Use Face ID to unlock your private journal.";

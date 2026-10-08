@@ -5,6 +5,10 @@ import UIKit
 @MainActor protocol SceneHandle: AnyObject {
     /// Brings this scene's window forward.
     func activate()
+    /// Closes this scene's window for good.
+    func destroy()
+    /// The window's title in the app switcher; nil shows none.
+    func setTitle(_ title: String?)
 }
 
 /// A window scene, brought forward through the system.
@@ -16,6 +20,13 @@ final class WindowSceneHandle: SceneHandle {
         guard let scene else { return }
         UIApplication.shared.activateSceneSession(for: UISceneSessionActivationRequest(session: scene.session))
     }
+
+    func destroy() {
+        guard let scene else { return }
+        UIApplication.shared.requestSceneSessionDestruction(scene.session, options: nil)
+    }
+
+    func setTitle(_ title: String?) { scene?.title = title }
 }
 
 /// The app-wide record of which scene holds an editor for which entry, by entry UUID. It is
@@ -30,8 +41,9 @@ final class WindowSceneHandle: SceneHandle {
     private var registrations: [Registration] = []
 
     /// Call once per scene when it connects; the scene keeps the result until it disconnects.
-    func connectScene(_ handle: any SceneHandle) -> SceneEditors {
-        SceneEditors(coordinator: self, handle: handle)
+    /// An entry window holds one entry's editor alone.
+    func connectScene(_ handle: any SceneHandle, isEntryWindow: Bool = false) -> SceneEditors {
+        SceneEditors(coordinator: self, handle: handle, isEntryWindow: isEntryWindow)
     }
 
     /// The scene holding an editor for `id`, if any.
@@ -44,6 +56,22 @@ final class WindowSceneHandle: SceneHandle {
         for registration in liveRegistrations() where registration.entryID == id {
             registration.editor?.closeForDeletedEntry()
         }
+    }
+
+    /// An entry window for `id` is opening in `scene`. An editor showing `id` beside a timeline
+    /// saves and closes, so the entry moves with its edits. Returns false, and brings the
+    /// holding window forward, when another entry window has `id` or its editor could not save.
+    func claimEntryWindow(for id: UUID, in scene: SceneEditors) -> Bool {
+        let holders = liveRegistrations().filter { $0.entryID == id && $0.scene !== scene }
+        if let window = holders.first(where: { $0.scene?.isEntryWindow == true }) {
+            window.scene?.handle.activate()
+            return false
+        }
+        for holder in holders where holder.editor?.closeForMove() == false {
+            holder.scene?.handle.activate()
+            return false
+        }
+        return true
     }
 
     fileprivate func register(_ editor: EntryEditorViewController, in scene: SceneEditors) {
@@ -71,9 +99,11 @@ final class WindowSceneHandle: SceneHandle {
 @MainActor final class SceneEditors {
     let coordinator: EntryEditorCoordinator
     let handle: any SceneHandle
+    /// An entry window: closing its editor closes the window.
+    let isEntryWindow: Bool
 
-    fileprivate init(coordinator: EntryEditorCoordinator, handle: any SceneHandle) {
-        self.coordinator = coordinator; self.handle = handle
+    fileprivate init(coordinator: EntryEditorCoordinator, handle: any SceneHandle, isEntryWindow: Bool) {
+        self.coordinator = coordinator; self.handle = handle; self.isEntryWindow = isEntryWindow
     }
 
     /// An editor now shows its entry in this scene.
@@ -88,6 +118,16 @@ final class WindowSceneHandle: SceneHandle {
         guard let holder = coordinator.scene(editing: id), holder !== self else { return false }
         holder.handle.activate()
         return true
+    }
+
+    /// Open in New Window on `id`: brings forward the entry window that already has it and
+    /// returns nil, or returns the activity that requests a new one.
+    func newWindowActivity(for id: UUID) -> NSUserActivity? {
+        if let holder = coordinator.scene(editing: id), holder.isEntryWindow {
+            holder.handle.activate()
+            return nil
+        }
+        return EntryWindowActivity.make(entryID: id)
     }
 
     /// `id` was deleted from this scene; see `EntryEditorCoordinator.entryDeleted(_:)`.

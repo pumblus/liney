@@ -20,7 +20,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     private let storage: PhotoStorage
     private let saveContext: (ModelContext) throws -> Void
     /// This scene's editors in the app-wide coordinator; fixtures without one skip the one-editor rule.
-    private let editors: SceneEditors?
+    let editors: SceneEditors?
 
     /// Fixtures replace `saveContext` to simulate a full disk; editors opened here inherit it.
     init(container: ModelContainer, appLock: AppLockModel, storage: PhotoStorage = PhotoStorage(),
@@ -47,6 +47,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         title = String(localized: "Journal")
         tableView.register(EntryCell.self, forCellReuseIdentifier: "entry")
         tableView.dataSource = dataSource
+        tableView.dragDelegate = self
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: TimelineViewController, _: UITraitCollection) in
             var snapshot = controller.dataSource.snapshot()
             snapshot.reconfigureItems(snapshot.itemIdentifiers)
@@ -199,6 +200,33 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         exportFlow = flow
         flow.onFinished = { [weak self] in self?.exportFlow = nil }
         flow.start()
+    }
+    override func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath,
+                            point: CGPoint) -> UIContextMenuConfiguration? {
+        guard let menu = rowMenu(at: indexPath) else { return nil }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu }
+    }
+    /// A timeline or search-result row's menu: only Open in New Window, and none where new windows are unavailable.
+    func rowMenu(at indexPath: IndexPath) -> UIMenu? {
+        guard let editors, UIApplication.shared.supportsMultipleScenes,
+              let id = dataSource.itemIdentifier(for: indexPath) else { return nil }
+        // A nil title is the system's Open in New Window; with no alternate, it hides where windows are unavailable.
+        return UIMenu(children: [UIWindowScene.ActivationAction(alternate: nil) { [weak self] _ in
+            guard let activity = editors.newWindowActivity(for: id) else { return nil }
+            let options = UIWindowScene.ActivationRequestOptions()
+            options.requestingScene = self?.view.window?.windowScene
+            return UIWindowScene.ActivationConfiguration(userActivity: activity, options: options)
+        }])
+    }
+}
+
+extension TimelineViewController: UITableViewDragDelegate {
+    /// Dragging a row out creates a window for that entry where new windows are available.
+    func tableView(_ tableView: UITableView, itemsForBeginning session: any UIDragSession,
+                   at indexPath: IndexPath) -> [UIDragItem] {
+        guard editors != nil, UIApplication.shared.supportsMultipleScenes,
+              let id = dataSource.itemIdentifier(for: indexPath) else { return [] }
+        return [UIDragItem(itemProvider: NSItemProvider(object: EntryWindowActivity.make(entryID: id)))]
     }
 }
 

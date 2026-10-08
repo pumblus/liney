@@ -94,3 +94,24 @@ extension PhotoImportResult {
         self.init(photos: fileNames.map { PhotoGroupItem(fileName: $0) }, failedCount: failedCount)
     }
 }
+
+/// A scene as the editor coordinator sees it, recording what the system was asked to do,
+/// because a real scene request cannot run in unit tests.
+@MainActor final class FakeScene: SceneHandle {
+    private(set) var activationCount = 0
+    private(set) var destructionCount = 0
+    private(set) var title: String?
+    func activate() { activationCount += 1 }
+    func destroy() { destructionCount += 1 }
+    func setTitle(_ title: String?) { self.title = title }
+}
+
+/// Taps the action titled `title`: dismisses `alert`, then runs the action's handler, as UIKit does.
+@MainActor
+func perform(_ title: String, in alert: UIAlertController) async throws {
+    typealias Handler = @convention(block) (UIAlertAction) -> Void
+    let action = try #require(alert.actions.first { $0.title == title })
+    let handler = try #require(action.value(forKey: "handler") as AnyObject?)
+    await withCheckedContinuation { continuation in alert.dismiss(animated: false) { continuation.resume() } }
+    unsafeBitCast(handler, to: Handler.self)(action)
+}

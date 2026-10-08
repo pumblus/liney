@@ -22,11 +22,6 @@ struct EntryEditorCoordinatorTests {
         try context.save()
     }
 
-    final class FakeScene: SceneHandle {
-        private(set) var activationCount = 0
-        func activate() { activationCount += 1 }
-    }
-
     /// One window: its root, timeline, fake scene handle, and the coordinator's view of it.
     @MainActor struct Window {
         let root: JournalSplitViewController
