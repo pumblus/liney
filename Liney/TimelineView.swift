@@ -19,12 +19,15 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     private var exportFlow: ExportJournalFlow?
     private let storage: PhotoStorage
     private let saveContext: (ModelContext) throws -> Void
+    /// This scene's editors in the app-wide coordinator; fixtures without one skip the one-editor rule.
+    private let editors: SceneEditors?
 
     /// Fixtures replace `saveContext` to simulate a full disk; editors opened here inherit it.
     init(container: ModelContainer, appLock: AppLockModel, storage: PhotoStorage = PhotoStorage(),
+         editors: SceneEditors? = nil,
          saveContext: @escaping (ModelContext) throws -> Void = { try $0.save() }) {
         self.container = container; self.appLock = appLock
-        self.storage = storage; self.saveContext = saveContext
+        self.storage = storage; self.editors = editors; self.saveContext = saveContext
         repository = TimelineRepository(container: container)
         super.init(style: .insetGrouped)
     }
@@ -145,6 +148,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
             guard let entry = try context.fetch(descriptor).first else { reloadEntries(); return }
             let files = try deleteEntryAndSave(entry, in: context) { [saveContext] in try saveContext(context) }
             NotificationCenter.default.post(name: .journalDidChange, object: id)
+            editors?.entryDeleted(id)
             var cleanupFailed = false
             for file in files {
                 do { try storage.delete(fileName: file) } catch { cleanupFailed = true }
@@ -157,11 +161,18 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         }
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard let id = dataSource.itemIdentifier(for: indexPath) else { return }
+        // An entry edited in another window is edited there; this window keeps what it shows.
+        if editors?.activateOtherScene(editing: id) == true {
+            selectRow(for: root?.openEditor?.entry.id)
+            return
+        }
         if let editor = root?.openEditor, !editor.prepareForReplacement() { return }
-        guard let entry = dataSource.itemIdentifier(for: indexPath).flatMap({ entriesByID[$0] }) else { return }
+        guard let entry = entriesByID[id] else { return }
         let context = ModelContext(container)
         guard let editable = context.model(for: entry.persistentModelID) as? JournalEntry else { return }
-        let editor = EntryEditorViewController(entry: editable, isNew: false, context: context, storage: storage, saveContext: saveContext)
+        let editor = EntryEditorViewController(entry: editable, isNew: false, context: context, storage: storage,
+                                               editors: editors, saveContext: saveContext)
         if let root { root.showEntry(editor) } else { navigationController?.pushViewController(editor, animated: true) }
     }
     /// Marks the row of the entry open beside the timeline; nil, or an entry not yet listed, selects nothing.
@@ -174,7 +185,8 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         context.autosaveEnabled = false
         let entry = JournalEntry()
         context.insert(entry)
-        let editor = EntryEditorViewController(entry: entry, isNew: true, context: context, storage: storage, saveContext: saveContext)
+        let editor = EntryEditorViewController(entry: entry, isNew: true, context: context, storage: storage,
+                                               editors: editors, saveContext: saveContext)
         if let root { root.showNewEntry(editor) } else { navigationController?.pushViewController(editor, animated: true) }
     }
     private func importJournal() {
