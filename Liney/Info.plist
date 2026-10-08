@@ -5,6 +5,7 @@
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>com.liney.app.entry</string>
+		<string>com.liney.app.journal</string>
 	</array>
 </dict>
 </plist>

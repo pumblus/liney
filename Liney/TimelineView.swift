@@ -112,6 +112,10 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         }
         snapshot.reconfigureItems(snapshot.itemIdentifiers.filter { previous[$0].map { $0 != entriesByID[$0.id] } ?? false })
         dataSource.apply(snapshot, animatingDifferences: animated)
+        // A restored entry opens before its row is listed; beside the timeline, its row is selected once listed.
+        if splitViewController?.isCollapsed == false, tableView.indexPathForSelectedRow == nil, let open = root?.openEditor {
+            selectRow(for: open.entry.id)
+        }
         if result.days.isEmpty {
             var configuration = UIContentUnavailableConfiguration.empty()
             configuration.image = UIImage(systemName: "book.closed")
@@ -172,9 +176,21 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         guard let entry = entriesByID[id] else { return }
         let context = ModelContext(container)
         guard let editable = context.model(for: entry.persistentModelID) as? JournalEntry else { return }
-        let editor = EntryEditorViewController(entry: editable, isNew: false, context: context, storage: storage,
+        show(editable, in: context)
+    }
+    /// Reopens the entry this window had selected before relaunch, unless it was deleted or another window has it.
+    func restoreEntry(_ id: UUID) {
+        guard editors?.coordinator.scene(editing: id) == nil else { return }
+        let context = ModelContext(container)
+        let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id })
+        guard let entry = try? context.fetch(descriptor).first else { return }
+        show(entry, in: context, animated: false)
+        if splitViewController?.isCollapsed == false { selectRow(for: id) }
+    }
+    private func show(_ entry: JournalEntry, in context: ModelContext, animated: Bool = true) {
+        let editor = EntryEditorViewController(entry: entry, isNew: false, context: context, storage: storage,
                                                editors: editors, saveContext: saveContext)
-        if let root { root.showEntry(editor) } else { navigationController?.pushViewController(editor, animated: true) }
+        if let root { root.showEntry(editor, animated: animated) } else { navigationController?.pushViewController(editor, animated: animated) }
     }
     /// Marks the row of the entry open beside the timeline; nil, or an entry not yet listed, selects nothing.
     func selectRow(for id: UUID?) {

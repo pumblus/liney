@@ -38,9 +38,8 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var privacyShield: JournalPrivacyShield?
     private var lockScene: AppLockScene?
-    private var editors: SceneEditors?
-    /// Set when this scene is an entry window: one entry's editor alone.
-    private(set) var entryWindow: EntryWindow?
+    /// Keeps the entry window, if any, so its title follows App Lock.
+    private var content: JournalWindowContent?
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene,
@@ -48,28 +47,15 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         let window = UIWindow(windowScene: scene)
         window.tintColor = UIColor(named: "LineyAqua") ?? .systemTeal
         self.window = window
+        // Connected first, so a new or restored window starts covered and follows the app-wide lock state.
         let lockScene = app.appLock.connectScene()
         self.lockScene = lockScene
         privacyShield = JournalPrivacyShield(window: window, lockScene: lockScene)
-        let handle = WindowSceneHandle(scene)
-        // An entry window is requested by Open in New Window or a dragged row; a plain new window shows the timeline.
-        if let entryID = options.userActivities.lazy.compactMap(EntryWindowActivity.entryID(of:)).first {
-            let editors = app.editorCoordinator.connectScene(handle, isEntryWindow: true)
-            if let entryWindow = EntryWindow(entryID: entryID, container: app.container, appLock: app.appLock, editors: editors) {
-                self.editors = editors
-                self.entryWindow = entryWindow
-                window.rootViewController = entryWindow.root
-            } else {
-                // The entry is gone, or another window keeps it and was brought forward.
-                handle.destroy()
-            }
-        }
-        if window.rootViewController == nil {
-            let editors = app.editorCoordinator.connectScene(handle)
-            self.editors = editors
-            window.rootViewController = JournalSplitViewController(
-                timeline: TimelineViewController(container: app.container, appLock: app.appLock, editors: editors))
-        }
+        let content = JournalWindowContent(handle: WindowSceneHandle(scene), requested: options.userActivities,
+                                           restored: session.stateRestorationActivity, container: app.container,
+                                           appLock: app.appLock, coordinator: app.editorCoordinator)
+        self.content = content
+        window.rootViewController = content.root
         window.makeKeyAndVisible()
         privacyShield?.update()
     }
@@ -81,5 +67,7 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     func sceneWillResignActive(_ scene: UIScene) { lockScene?.willResignActive() }
     func sceneDidEnterBackground(_ scene: UIScene) { lockScene?.didEnterBackground() }
-    func sceneDidDisconnect(_ scene: UIScene) { editors?.disconnect() }
+    func sceneDidDisconnect(_ scene: UIScene) { content?.editors.disconnect() }
+    /// Only an entry UUID, never journal text.
+    func stateRestorationActivity(for scene: UIScene) -> NSUserActivity? { content?.restoration?.activity }
 }

@@ -20,6 +20,16 @@ final class JournalSplitViewController: UISplitViewController {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    /// The entry to reopen after relaunch, opened when the window first appears and its width decides the shape.
+    var restoredEntryID: UUID?
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard let id = restoredEntryID else { return }
+        restoredEntryID = nil
+        timeline.restoreEntry(id)
+    }
+
     /// The editor open in this window's timeline flow, outside any modal: above the timeline
     /// when collapsed, in the secondary column otherwise.
     var openEditor: EntryEditorViewController? {
@@ -27,10 +37,15 @@ final class JournalSplitViewController: UISplitViewController {
             .lazy.compactMap { $0 as? EntryEditorViewController }.first
     }
 
+    /// What this window reopens after relaunch: its open entry, but never a new entry's draft.
+    var restoration: WindowRestoration? {
+        openEditor.flatMap { $0.isNew ? nil : .selectedEntry($0.entry.id) }
+    }
+
     /// Opens an existing entry: pushed above the timeline in one stack, otherwise in the secondary column.
-    func showEntry(_ editor: EntryEditorViewController) {
+    func showEntry(_ editor: EntryEditorViewController, animated: Bool = true) {
         if isCollapsed {
-            timelineNavigation.pushViewController(editor, animated: true)
+            timelineNavigation.pushViewController(editor, animated: animated)
         } else {
             entryNavigation.setViewControllers([editor], animated: false)
             show(.secondary)

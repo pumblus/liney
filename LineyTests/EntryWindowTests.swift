@@ -20,9 +20,9 @@ import UIKit
         #expect(EntryWindowActivity.entryID(of: activity) == id)
     }
 
-    @Test func theAppDeclaresTheActivitySoADraggedRowCanCreateAWindow() throws {
+    @Test func theAppDeclaresItsActivitiesSoADraggedRowCanCreateAWindowAndWindowsRestore() throws {
         let info = try #require(Bundle.main.infoDictionary)
-        #expect(info["NSUserActivityTypes"] as? [String] == ["com.liney.app.entry"])
+        #expect(info["NSUserActivityTypes"] as? [String] == ["com.liney.app.entry", "com.liney.app.journal"])
         let manifest = try #require(info["UIApplicationSceneManifest"] as? [String: Any])
         #expect(manifest["UIApplicationSupportsMultipleScenes"] as? Bool == true)
         #expect(info["NSFaceIDUsageDescription"] != nil)
