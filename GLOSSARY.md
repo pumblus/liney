@@ -57,3 +57,12 @@ _Avoid_: Trash, recycle bin
 
 **App Lock**:
 An optional device-authentication gate protecting visible journal content.
+
+### Windows
+
+**Entry Window**:
+A window holding one entry's editor alone, with no timeline; its title is the Entry Date.
+_Avoid_: Entry scene, detached editor
+
+**Open in New Window**:
+The timeline-row action, or row drag, that opens an entry in its own Entry Window, or brings forward the Entry Window already holding it.

@@ -10,7 +10,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     let isNew: Bool
     private let storage: PhotoStorage
     private let saveContext: (ModelContext) throws -> Void
-    private let scroll = UIScrollView()
+    private let scroll = EditorScrollView()
     private let stack = UIStackView()
     private let titleField = EntryTitleView()
     private var dateButton: UIButton!
@@ -20,19 +20,50 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private weak var focusedText: BlockTextView?
     private var saveTask: Task<Void, Never>?
     private var addingPhotos = false
-    private var finished = false
+    private var finished = false {
+        didSet { if finished { editors?.unregister(self) } }
+    }
     private var insertButton: UIBarButtonItem!
     private var doneButton: UIBarButtonItem!
     private var pendingBlockID: UUID?
     private var pendingOffset: Int?
+    private var foldAvoidance: EditorFoldAvoidance?
+    /// Set while a resize moves this editor to another column, until it appears there; the move
+    /// is not leaving the entry, so it never saves or discards.
+    private var columnMove: ColumnMove?
+    private struct ColumnMove {
+        let focus: UITextView?
+        let selection: NSRange
+        /// The editor can finish an earlier appearance before it leaves its old column.
+        var hasLeft = false
+    }
+    /// The reading position a resize keeps while the blocks rewrap at the new width.
+    private var scrollAnchor: ScrollAnchor?
+    private struct ScrollAnchor {
+        enum Target {
+            case caret(UITextView)
+            /// A block and the part of its height above the top of the writing area.
+            case block(UIView, fraction: CGFloat)
+        }
+        let target: Target
+        let distance: CGFloat
+    }
+    /// This scene's editors in the app-wide coordinator: registered while this editor shows its entry.
+    private let editors: SceneEditors?
+    /// Called after the title, the Entry Date, changes; an entry window shows it as the window title.
+    var onTitleChange: (() -> Void)?
+    private weak var presentedOverEntry: UIViewController?
+    override var title: String? { didSet { if title != oldValue { onTitleChange?() } } }
 
     /// Fixtures replace `saveContext` to simulate a full disk.
     init(entry: JournalEntry, isNew: Bool, context: ModelContext, storage: PhotoStorage = PhotoStorage(),
+         editors: SceneEditors? = nil,
          saveContext: @escaping (ModelContext) throws -> Void = { try $0.save() }) {
         self.entry = entry; self.isNew = isNew; self.context = context
-        self.storage = storage; self.saveContext = saveContext
+        self.storage = storage; self.editors = editors; self.saveContext = saveContext
         context.autosaveEnabled = false
         super.init(nibName: nil, bundle: nil)
+        editors?.register(self)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func viewDidLoad() {
@@ -41,20 +72,29 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         navigationItem.largeTitleDisplayMode = .never
         scroll.keyboardDismissMode = .interactive
         scroll.delegate = self
+        scroll.contentWidthWillChange = { [weak self] in
+            guard let self, scrollAnchor == nil, view.window != nil else { return }
+            scrollAnchor = currentScrollAnchor()
+        }
         stack.axis = .vertical; stack.spacing = 16
         scroll.translatesAutoresizingMaskIntoConstraints = false; stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scroll); scroll.addSubview(stack)
+        // One centred reading column: 16 pt margins until it reaches 700 pt. The system readable
+        // width is far narrower, which wastes wide windows such as iPhone Duo in laptop pose.
+        let column = stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
+        column.priority = .defaultHigh
         NSLayoutConstraint.activate([
             scroll.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scroll.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16),
+            scroll.contentLayoutGuide.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
+            stack.centerXAnchor.constraint(equalTo: scroll.contentLayoutGuide.centerXAnchor),
             stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 16),
             stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
             stack.heightAnchor.constraint(greaterThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor, constant: -40),
-            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
+            stack.widthAnchor.constraint(lessThanOrEqualTo: scroll.frameLayoutGuide.widthAnchor, constant: -32),
+            stack.widthAnchor.constraint(lessThanOrEqualToConstant: 700), column
         ])
         titleField.accessibilityLabel = String(localized: "Title (optional)")
         titleField.font = .preferredFont(forTextStyle: .title2)
@@ -72,21 +112,40 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         stack.addArrangedSubview(dateButton); stack.addArrangedSubview(placeLabel); stack.addArrangedSubview(titleField)
         render()
         NotificationCenter.default.addObserver(self, selector: #selector(flushBeforeSceneDeactivation(_:)), name: UIScene.willDeactivateNotification, object: nil)
+        foldAvoidance = EditorFoldAvoidance(editorView: view, writingArea: scroll)
+    }
+    /// Called by the scene root before a resize moves this editor to another column: keeps the
+    /// unsaved edits unsaved and returns the focus, caret, and keyboard once it appears there.
+    /// An editor off screen, such as under full-screen photo detail, has no place to keep and
+    /// gets no appearance calls for the move, so it moves as is and later leaves as usual.
+    func beginColumnMove() {
+        guard columnMove == nil, viewIfLoaded?.window != nil else { return }
+        let focus = ([titleField] + textViews).first { $0.isFirstResponder }
+        columnMove = ColumnMove(focus: focus, selection: focus?.selectedRange ?? NSRange())
+        scrollAnchor = currentScrollAnchor()
     }
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        if !finished {
+        if columnMove != nil {
+            columnMove?.hasLeft = true
+        } else if !finished {
             view.endEditing(true)
             _ = flush()
         }
     }
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard let move = columnMove, move.hasLeft else { return }
+        columnMove = nil
+        if let focus = move.focus, focus.becomeFirstResponder() { focus.selectedRange = move.selection }
+        restoreScrollAnchor()
+    }
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
-        guard isMovingFromParent || navigationController == nil, !finished else { return }
+        guard isMovingFromParent || navigationController == nil, !finished, columnMove == nil else { return }
         do {
             try saveEntryChanges(entry, in: context, discardIfBlank: isNew, save: save)
-            finished = true
-            saveTask?.cancel()
+            markFinished()
             NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
         } catch { saveError(error) }
     }
@@ -102,7 +161,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     /// Reconciles views with the entry by block identity, so unaffected text keeps its
     /// selection, undo history and IME state, and unaffected photos keep their images.
     private func render(focusAfter: UUID? = nil) {
-        title = entry.entryDate.formatted(.dateTime.month(.wide).day().year())
+        showEntryDateTitle()
         let dateText = entry.isAllDay ? entry.entryDate.formatted(date: .long, time: .omitted) + " · " + String(localized: "All-day") : entry.entryDate.formatted(date: .long, time: .shortened)
         dateButton.configuration?.title = dateText
         dateButton.accessibilityValue = dateText
@@ -151,9 +210,62 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             scroll.scrollRectToVisible(text.convert(text.bounds, to: scroll), animated: true)
         }
     }
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        // Safe-area height, not the area above the keyboard, so photos keep their size while typing.
+        let visibleHeight = view.bounds.inset(by: view.safeAreaInsets).height
+        for group in photoGroups { group.maximumPhotoHeight = visibleHeight > 0 ? visibleHeight * 0.7 : nil }
+    }
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        // A column move keeps its anchor until the editor appears in the new column.
+        if columnMove == nil { restoreScrollAnchor() }
+        foldAvoidance?.update()
         refreshVisiblePhotos()
+    }
+    /// The focused line if it is on screen, otherwise the top visible block, at its distance
+    /// below the top of the writing area.
+    private func currentScrollAnchor() -> ScrollAnchor? {
+        let visible = scroll.bounds.inset(by: scroll.adjustedContentInset)
+        let focus = columnMove?.focus ?? ([titleField] + textViews).first { $0.isFirstResponder }
+        if let focus, let y = anchorY(.caret(focus)), visible.minY...visible.maxY ~= y {
+            return ScrollAnchor(target: .caret(focus), distance: y - visible.minY)
+        }
+        let top = stack.arrangedSubviews.first { !$0.isHidden && $0.convert($0.bounds, to: scroll).maxY > visible.minY }
+        guard let top else { return nil }
+        let frame = top.convert(top.bounds, to: scroll)
+        let target = ScrollAnchor.Target.block(top, fraction: frame.height > 0 ? max(0, visible.minY - frame.minY) / frame.height : 0)
+        return anchorY(target).map { ScrollAnchor(target: target, distance: $0 - visible.minY) }
+    }
+    private func anchorY(_ target: ScrollAnchor.Target) -> CGFloat? {
+        switch target {
+        case .caret(let text):
+            guard let selection = text.selectedTextRange else { return nil }
+            return text.convert(text.caretRect(for: selection.end), to: scroll).minY
+        case .block(let block, let fraction):
+            let frame = block.convert(block.bounds, to: scroll)
+            return frame.minY + fraction * frame.height
+        }
+    }
+    /// Restores at once, then again after the rewrapped text views settle at their new heights,
+    /// which takes another layout pass.
+    private func restoreScrollAnchor() {
+        guard let anchor = scrollAnchor else { return }
+        restore(anchor)
+        Task { [weak self] in
+            guard let self, let anchor = self.scrollAnchor else { return }
+            self.scrollAnchor = nil
+            view.layoutIfNeeded()
+            restore(anchor)
+        }
+    }
+    private func restore(_ anchor: ScrollAnchor) {
+        scroll.layoutIfNeeded()
+        guard let y = anchorY(anchor.target) else { return }
+        let inset = scroll.adjustedContentInset
+        let lowest = -inset.top
+        let highest = max(lowest, scroll.contentSize.height + inset.bottom - scroll.bounds.height)
+        scroll.contentOffset.y = min(max(y - anchor.distance - inset.top, lowest), highest)
     }
     func scrollViewDidScroll(_ scrollView: UIScrollView) { refreshVisiblePhotos() }
     private func refreshVisiblePhotos() {
@@ -187,7 +299,11 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             stack.setCustomSpacing(0, after: text)
         }
     }
-    func textViewDidEndEditing(_ textView: UITextView) { synchronize(textView); scheduleSave() }
+    func textViewDidEndEditing(_ textView: UITextView) {
+        synchronize(textView)
+        // Leaving the window during a column move is not the end of editing.
+        if columnMove == nil { scheduleSave() }
+    }
     private func synchronizeText() {
         synchronize(titleField)
         textViews.forEach(synchronize)
@@ -214,6 +330,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             }
         }
     }
+    /// The editor is done with its entry: no pending save runs, and the scene stops tracking it.
+    private func markFinished() { finished = true; saveTask?.cancel() }
     private func scheduleSave() {
         guard !finished else { return }
         saveTask?.cancel()
@@ -247,23 +365,34 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         return flush()
     }
 
+    /// The Done action: saves, discards a blank new entry, and closes the editor.
     private func finish() {
         guard !addingPhotos else { return }
         view.endEditing(true)
         guard flush() else { return }
         do {
             try saveEntryChanges(entry, in: context, discardIfBlank: isNew, save: save)
-            finished = true; saveTask?.cancel()
+            markFinished()
             NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
             closeEditor()
         } catch { saveError(error) }
     }
+    /// Records each screen shown over the entry (photo detail, the Entry Date sheet, the photo
+    /// picker, alerts), so it closes with the editor.
+    override func present(_ controller: UIViewController, animated: Bool, completion: (() -> Void)? = nil) {
+        presentedOverEntry = controller
+        super.present(controller, animated: animated, completion: completion)
+    }
+    /// Whatever is shown over the entry goes first, so no window keeps showing a closed or deleted entry.
     private func closeEditor() {
-        if navigationController?.presentingViewController != nil { dismiss(animated: true) }
-        else if (navigationController?.viewControllers.count ?? 0) > 1 { navigationController?.popViewController(animated: true) }
-        else if let splitViewController {
-            splitViewController.setViewController(UINavigationController(rootViewController: MessageController(title: String(localized: "No Entry Selected"), message: String(localized: "Choose an entry from the timeline once entries exist."))), for: .secondary)
+        if let shown = presentedOverEntry, let presenter = shown.presentingViewController {
+            presentedOverEntry = nil
+            presenter.dismiss(animated: false) { [weak self] in self?.closeEditor() }
         }
+        else if let editors, editors.isEntryWindow { editors.handle.destroy() }
+        else if navigationController?.presentingViewController != nil { dismiss(animated: true) }
+        else if let root = splitViewController as? JournalSplitViewController { root.closeEntry(self) }
+        else if (navigationController?.viewControllers.count ?? 0) > 1 { navigationController?.popViewController(animated: true) }
     }
     private func pickPhotos() {
         guard flush() else { return }
@@ -338,6 +467,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                     UIAccessibility.post(notification: .layoutChanged, argument: insertButton)
                 }
             }
+            // The entry was deleted in another window while the photos were copied.
+            guard !finished else { _ = removeFiles(result.fileNames); return }
             guard let photoBlock = entry.insertPhotoGroup(photos: result.photos, focusedTextBlockID: pendingBlockID, cursorOffset: pendingOffset, in: context) else {
                 if let failureMessage = result.failureMessage { showError(String(localized: "Some Photos Couldn’t Be Added"), message: failureMessage) }
                 return
@@ -373,10 +504,13 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
     private func editDate() {
         guard flush() else { return }
-        let controller = EntryDateViewController(entry: entry) { [weak self] in _ = self?.flush() }
-        controller.onDone = { [weak self] in self?.render() }
+        let controller = EntryDateViewController(entry: entry) { [weak self] in
+            _ = self?.flush(); self?.showEntryDateTitle()
+        }
+        controller.onDone = { [weak self] in if self?.finished == false { self?.render() } }
         present(UINavigationController(rootViewController: controller), animated: true)
     }
+    private func showEntryDateTitle() { title = entry.entryDate.formatted(.dateTime.month(.wide).day().year()) }
     private func openPhoto(_ photo: EntryPhoto) {
         guard flush() else { return }
         let controller = PhotoDetailViewController(photo: photo, storage: storage)
@@ -400,6 +534,24 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         for name in names { do { try storage.delete(fileName: name) } catch { success = false } }
         return success
     }
+    /// The entry was deleted in another window: its unflushed input goes with it, and the editor closes.
+    func closeForDeletedEntry() {
+        guard !finished else { return }
+        markFinished()
+        viewIfLoaded?.endEditing(true)
+        closeEditor()
+    }
+    /// The entry moves to its own window: its input is saved, then the editor closes. False,
+    /// leaving the editor open, while photos are being added or when saving fails.
+    func closeForMove() -> Bool {
+        guard !finished else { return true }
+        guard !addingPhotos else { return false }
+        viewIfLoaded?.endEditing(true)
+        guard flush() else { return false }
+        markFinished()
+        closeEditor()
+        return true
+    }
     func confirmDeleteEntry() {
         guard !addingPhotos, !finished, flush() else { return }
         confirmDeletion(title: String(localized: "Delete Entry"), message: String(localized: "This entry and its photos will be permanently deleted.")) { [weak self] in
@@ -407,8 +559,9 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             do {
                 let id = self.entry.id
                 let files = try deleteEntryAndSave(self.entry, in: self.context, save: self.save)
-                self.finished = true; self.saveTask?.cancel()
+                self.markFinished()
                 NotificationCenter.default.post(name: .journalDidChange, object: id)
+                self.editors?.entryDeleted(id)
                 if self.removeFiles(files) { self.closeEditor() }
                 else {
                     let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "Some copied photo files could not be deleted."), preferredStyle: .alert)
@@ -417,6 +570,15 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                 }
             } catch { self.saveError(error) }
         }
+    }
+}
+
+/// Reports a new content width, which rewraps the blocks, before Auto Layout applies it: the
+/// offset is clamped to the new content height before any view controller layout hook runs.
+private final class EditorScrollView: UIScrollView {
+    var contentWidthWillChange: (() -> Void)?
+    override var contentSize: CGSize {
+        willSet { if contentSize.width > 0, newValue.width != contentSize.width { contentWidthWillChange?() } }
     }
 }
 
@@ -617,6 +779,15 @@ final class PhotoGroupView: UIStackView {
     private(set) var photoViews: [StoredPhotoView] = []
     let blockID: UUID
     let fileNames: [String]
+    private var heightCap: NSLayoutConstraint?
+    /// The tallest a single photo may be; groups of several photos keep their grid.
+    var maximumPhotoHeight: CGFloat? {
+        didSet {
+            guard let heightCap, maximumPhotoHeight != oldValue else { return }
+            heightCap.constant = maximumPhotoHeight ?? 0
+            heightCap.isActive = maximumPhotoHeight != nil
+        }
+    }
     init(block: EntryBlock, storage: PhotoStorage, deferLoading: Bool = false, open: @escaping (EntryPhoto) -> Void) {
         let photos = block.orderedPhotos
         blockID = block.id; fileNames = photos.map(\.fileName)
@@ -669,6 +840,14 @@ final class PhotoGroupView: UIStackView {
             }
             addArrangedSubview(row)
         }
+        if photos.count == 1, let button = photoViews.first?.superview {
+            // A capped photo narrows to keep its ratio and stays centred instead of letterboxing.
+            alignment = .center
+            let fill = button.widthAnchor.constraint(equalTo: widthAnchor)
+            fill.priority = .required - 1
+            fill.isActive = true
+            heightCap = button.heightAnchor.constraint(lessThanOrEqualToConstant: 0)
+        }
         accessibilityLabel = String(localized: "Photo Group")
     }
     required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -715,6 +894,26 @@ final class PhotoDetailViewController: UIViewController {
     let storage: PhotoStorage
     var useInfo: (() -> Void)?
     var deletePhoto: (() -> PhotoDeletionResult)?
+    private var layout = PhotoDetailLayout.stacked
+    private var stacked: UIView?
+    private var arranged: UIViewController?  // The iOS 27.1 UIArrangementViewController, made on first use.
+    private lazy var doneItem = UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in self?.dismiss(animated: true) })
+    private lazy var moreItem: UIBarButtonItem = {
+        let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: UIMenu(children: actions.map(\.menuAction)))
+        more.accessibilityLabel = String(localized: "Photo Actions")
+        return more
+    }()
+    private var info: String {
+        [photo.capturedAt?.formatted(date: .long, time: .shortened), photo.placeDisplayText].compactMap { $0 }.joined(separator: "\n")
+    }
+    private var actions: [PhotoDetailAction] {
+        var actions: [PhotoDetailAction] = []
+        if photo.hasUsableEntryInfo {
+            actions.append(PhotoDetailAction(title: String(localized: "Use as Entry Info"), isDestructive: false) { [weak self] in self?.useInfo?() })
+        }
+        actions.append(PhotoDetailAction(title: String(localized: "Delete Photo"), isDestructive: true) { [weak self] in self?.confirmPhotoDeletion() })
+        return actions
+    }
     init(photo: EntryPhoto, storage: PhotoStorage) {
         self.photo = photo; self.storage = storage
         super.init(nibName: nil, bundle: nil)
@@ -725,26 +924,57 @@ final class PhotoDetailViewController: UIViewController {
         title = String(localized: "Photo Detail")
         let image = StoredPhotoView(); image.contentMode = .scaleAspectFit
         image.load(photo.fileName, storage: storage, pixels: PhotoStorage.targetLongEdge)
-        let info = [photo.capturedAt?.formatted(date: .long, time: .shortened), photo.placeDisplayText].compactMap { $0 }.joined(separator: "\n")
         installStack([image, bodyLabel(info, style: .footnote)])
+        stacked = view.subviews.last
         image.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.6).isActive = true
-        var actions: [UIAction] = []
-        if photo.hasUsableEntryInfo { actions.append(UIAction(title: String(localized: "Use as Entry Info")) { [weak self] _ in self?.useInfo?() }) }
-        actions.append(UIAction(title: String(localized: "Delete Photo"), attributes: .destructive) { [weak self] _ in
-            self?.confirmDeletion(title: String(localized: "Delete Photo"), message: String(localized: "This photo will be removed from this entry.")) { [weak self] in
-                guard let self else { return }
-                switch self.deletePhoto?() ?? .failed {
-                case .deleted: self.dismiss(animated: true)
-                case .failed: self.showError(String(localized: "Photo Couldn’t Be Deleted"), message: String(localized: "Try deleting the photo again."))
-                case .fileCleanupFailed:
-                    let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "The photo was removed from this entry, but its copied file could not be deleted."), preferredStyle: .alert)
-                    alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.dismiss(animated: true) })
-                    self.present(alert, animated: true)
-                }
+        navigationItem.rightBarButtonItems = [doneItem, moreItem]
+        if #available(iOS 27.1, *) {
+            // A pose change can move the fold without resizing the window.
+            view.addInteraction(UIHingeInteraction { [weak self] _, _ in self?.view.setNeedsLayout() })
+            registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (self: Self, _) in self.view.setNeedsLayout() }
+        }
+    }
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        guard #available(iOS 27.1, *) else { return }
+        let divisions = view.reservedRegions(kind: .division).map(EditorFoldRule.Division.init)
+        show(PhotoDetailLayout(size: view.bounds.size, horizontalSizeClass: traitCollection.horizontalSizeClass, divisions: divisions))
+    }
+    @available(iOS 27.1, *)
+    private func show(_ next: PhotoDetailLayout) {
+        guard next != layout else { return }
+        layout = next
+        let isArranged = next != .stacked
+        if isArranged {
+            let arrangement = arranged as? UIArrangementViewController ?? addArrangement()
+            arrangement.arrangePhoto(next)
+        }
+        stacked?.isHidden = isArranged
+        arranged?.view.isHidden = !isArranged
+        navigationItem.rightBarButtonItems = isArranged ? [doneItem] : [doneItem, moreItem]
+    }
+    @available(iOS 27.1, *)
+    private func addArrangement() -> UIArrangementViewController {
+        let arrangement = makePhotoArrangement(photo: photo, storage: storage, info: info, actions: actions)
+        addChild(arrangement)
+        arrangement.view.frame = view.bounds
+        arrangement.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(arrangement.view)
+        arrangement.didMove(toParent: self)
+        arranged = arrangement
+        return arrangement
+    }
+    private func confirmPhotoDeletion() {
+        confirmDeletion(title: String(localized: "Delete Photo"), message: String(localized: "This photo will be removed from this entry.")) { [weak self] in
+            guard let self else { return }
+            switch self.deletePhoto?() ?? .failed {
+            case .deleted: self.dismiss(animated: true)
+            case .failed: self.showError(String(localized: "Photo Couldn’t Be Deleted"), message: String(localized: "Try deleting the photo again."))
+            case .fileCleanupFailed:
+                let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "The photo was removed from this entry, but its copied file could not be deleted."), preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.dismiss(animated: true) })
+                self.present(alert, animated: true)
             }
-        })
-        let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: UIMenu(children: actions))
-        more.accessibilityLabel = String(localized: "Photo Actions")
-        navigationItem.rightBarButtonItems = [UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in self?.dismiss(animated: true) }), more]
+        }
     }
 }

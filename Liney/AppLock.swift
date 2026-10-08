@@ -29,17 +29,24 @@ struct LocalAuthenticator: AppAuthenticating {
     }
 }
 
+/// The one App Lock state for the whole app, shared by every scene.
 @MainActor
 final class AppLockModel {
-    private(set) var isLocked = true { didSet { onChange?() } }
-    private(set) var isSnapshotCovered = true { didSet { onChange?() } }
-    private(set) var isAuthenticating = false { didSet { onChange?() } }
-    var onChange: (() -> Void)?
+    private(set) var isLocked = true { didSet { notifyObservers() } }
+    private(set) var isAuthenticating = false { didSet { notifyObservers() } }
 
     private var authenticationGeneration = 0
+    /// Set at launch and whenever Liney leaves the foreground; the next scene to become active consumes it.
+    private var promptsOnActivation = true
+    private let scenes = NSHashTable<AppLockScene>.weakObjects()
+    private var observers: [Observer] = []
     private let authenticator: AppAuthenticating
-    // Read on every use so each scene's model sees the current preference.
     private let defaults: UserDefaults
+
+    private struct Observer {
+        weak var owner: AnyObject?
+        let onChange: () -> Void
+    }
 
     init(authenticator: AppAuthenticating = LocalAuthenticator(), defaults: UserDefaults = .standard) {
         self.authenticator = authenticator
@@ -48,8 +55,16 @@ final class AppLockModel {
 
     var isEnabled: Bool { defaults.requiresAppLock }
 
-    var hidesJournalContent: Bool {
-        isEnabled && (isLocked || isSnapshotCovered)
+    /// Calls `onChange` after every lock, authentication, or preference change until `owner` is released.
+    func addObserver(_ owner: AnyObject, onChange: @escaping () -> Void) {
+        observers.append(Observer(owner: owner, onChange: onChange))
+    }
+
+    /// New and restored scenes start covered and follow the current lock state.
+    func connectScene() -> AppLockScene {
+        let scene = AppLockScene(appLock: self)
+        scenes.add(scene)
+        return scene
     }
 
     /// Enabling requires authentication; the preference is written only when it succeeds.
@@ -57,7 +72,7 @@ final class AppLockModel {
         guard enabled else {
             defaults.requiresAppLock = false
             authenticationGeneration += 1
-            clearLockPresentation()
+            isLocked = false
             return true
         }
         guard let success = await authenticate(reason: String(localized: "Authenticate to enable App Lock for Liney.")),
@@ -68,47 +83,46 @@ final class AppLockModel {
         return true
     }
 
+    /// The locked screen's Unlock action; the only request after a failed or cancelled one.
     func unlock() async {
         guard isEnabled else {
-            clearLockPresentation()
+            isLocked = false
             return
         }
-        isSnapshotCovered = false
         guard isLocked,
               let success = await authenticate(reason: String(localized: "Unlock Liney to view your journal."))
         else { return }
         isLocked = !success
     }
 
-    /// Temporary interruptions (Control Center, banners, the Face ID prompt) only cover content.
-    func protectSnapshot() {
-        guard isEnabled else {
-            clearLockPresentation()
-            return
-        }
-        isSnapshotCovered = true
-    }
-
-    /// Leaving the foreground requires authentication again on return.
-    func didEnterBackground() {
-        authenticationGeneration += 1
-        protectSnapshot()
-        if isEnabled { isLocked = true }
-    }
-
+    /// A cancelled or failed prompt cancels only the export; the lock state is left alone.
     func authenticateForExport() async -> Bool {
         guard isEnabled else { return true }
         guard let success = await authenticate(reason: String(localized: "Authenticate to export your journal."))
         else { return false }
-        isLocked = !success
+        if success { isLocked = false }
         return success
     }
 
-    private func clearLockPresentation() {
-        // Prompt lifecycle callbacks arrive while enabling is still authenticating.
-        // Clearing the disabled lock's UI must not invalidate that pending authentication.
-        isLocked = false
-        isSnapshotCovered = false
+    /// Only the first activation after launch or a return to the foreground prompts,
+    /// and never while another scene's request is in flight.
+    fileprivate func sceneDidBecomeActive() async {
+        guard isEnabled, isLocked, promptsOnActivation, !isAuthenticating else { return }
+        promptsOnActivation = false
+        await unlock()
+    }
+
+    /// Liney as a whole leaves the foreground only when its last foreground scene does.
+    fileprivate func sceneDidEnterBackground() {
+        guard !scenes.allObjects.contains(where: \.isForeground) else { return }
+        authenticationGeneration += 1
+        promptsOnActivation = true
+        if isEnabled { isLocked = true }
+    }
+
+    private func notifyObservers() {
+        observers.removeAll { $0.owner == nil }
+        for observer in observers { observer.onChange() }
     }
 
     /// Returns nil when another authentication is in progress or a background or disable superseded this one.
@@ -124,27 +138,65 @@ final class AppLockModel {
     }
 }
 
+/// One scene's view of the app-wide App Lock. The snapshot cover belongs to the scene:
+/// it covers when the scene resigns active, even if still visible, and covering never locks.
+@MainActor
+final class AppLockScene {
+    let appLock: AppLockModel
+    /// Called when this scene's cover or the app-wide lock state changes.
+    var onChange: (() -> Void)?
+    private(set) var isSnapshotCovered = true { didSet { onChange?() } }
+    fileprivate private(set) var isForeground = false
+
+    fileprivate init(appLock: AppLockModel) {
+        self.appLock = appLock
+        appLock.addObserver(self) { [weak self] in self?.onChange?() }
+    }
+
+    var hidesJournalContent: Bool {
+        appLock.isEnabled && (appLock.isLocked || isSnapshotCovered)
+    }
+
+    /// A visible window counts as foreground even if it never becomes active.
+    func willEnterForeground() { isForeground = true }
+
+    func didBecomeActive() async {
+        isForeground = true
+        isSnapshotCovered = false
+        await appLock.sceneDidBecomeActive()
+    }
+
+    func willResignActive() { isSnapshotCovered = true }
+
+    func didEnterBackground() {
+        isForeground = false
+        isSnapshotCovered = true
+        appLock.sceneDidEnterBackground()
+    }
+}
+
 /// Covers sheets and editors together without replacing their controller hierarchy.
 @MainActor
 final class JournalPrivacyShield {
     let cover: UIWindow
     private weak var window: UIWindow?
-    private let appLock: AppLockModel
+    private let lockScene: AppLockScene
 
-    init(window: UIWindow, appLock: AppLockModel) {
+    init(window: UIWindow, lockScene: AppLockScene) {
         self.window = window
-        self.appLock = appLock
+        self.lockScene = lockScene
         if let scene = window.windowScene { cover = UIWindow(windowScene: scene) }
         else { cover = UIWindow(frame: window.bounds) }
         cover.windowLevel = .alert + 1
+        let appLock = lockScene.appLock
         cover.rootViewController = LockedJournalController(appLock: appLock) {
             Task { await appLock.unlock() }
         }
-        appLock.onChange = { [weak self] in self?.update() }
+        lockScene.onChange = { [weak self] in self?.update() }
     }
 
     func update() {
-        let hidden = appLock.hidesJournalContent
+        let hidden = lockScene.hidesJournalContent
         window?.accessibilityElementsHidden = hidden
         window?.isUserInteractionEnabled = !hidden
         if hidden {

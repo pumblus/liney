@@ -7,6 +7,10 @@ final class LineyApp: UIResponder, UIApplicationDelegate {
         do { return try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self) }
         catch { fatalError("Unable to open the journal store.") }
     }()
+    /// Shared by every scene, so one authentication unlocks every window and they lock together.
+    let appLock = AppLockModel()
+    /// Shared by every scene, so each entry is edited in at most one window.
+    let editorCoordinator = EntryEditorCoordinator()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // Recorded before any scene creates a context, so the sweep never moves a photo copied by this launch.
@@ -33,7 +37,9 @@ final class LineyApp: UIResponder, UIApplicationDelegate {
 final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var privacyShield: JournalPrivacyShield?
-    private let appLock = AppLockModel()
+    private var lockScene: AppLockScene?
+    /// Keeps the entry window, if any, so its title follows App Lock.
+    private var content: JournalWindowContent?
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene,
@@ -41,30 +47,27 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         let window = UIWindow(windowScene: scene)
         window.tintColor = UIColor(named: "LineyAqua") ?? .systemTeal
         self.window = window
-        privacyShield = JournalPrivacyShield(window: window, appLock: appLock)
-        showRoot(container: app.container)
+        // Connected first, so a new or restored window starts covered and follows the app-wide lock state.
+        let lockScene = app.appLock.connectScene()
+        self.lockScene = lockScene
+        privacyShield = JournalPrivacyShield(window: window, lockScene: lockScene)
+        let content = JournalWindowContent(handle: WindowSceneHandle(scene), requested: options.userActivities,
+                                           restored: session.stateRestorationActivity, container: app.container,
+                                           appLock: app.appLock, coordinator: app.editorCoordinator)
+        self.content = content
+        window.rootViewController = content.root
         window.makeKeyAndVisible()
         privacyShield?.update()
     }
 
-    private func showRoot(container: ModelContainer) {
-        let timeline = TimelineViewController(container: container, appLock: appLock)
-        let navigation = UINavigationController(rootViewController: timeline)
-        navigation.navigationBar.prefersLargeTitles = true
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            let split = UISplitViewController(style: .doubleColumn)
-            split.preferredDisplayMode = .oneBesideSecondary
-            split.setViewController(navigation, for: .primary)
-            split.setViewController(UINavigationController(rootViewController: MessageController(
-                title: String(localized: "No Entry Selected"),
-                message: String(localized: "Choose an entry from the timeline once entries exist."))), for: .secondary)
-            window?.rootViewController = split
-        } else { window?.rootViewController = navigation }
-    }
-
+    func sceneWillEnterForeground(_ scene: UIScene) { lockScene?.willEnterForeground() }
     func sceneDidBecomeActive(_ scene: UIScene) {
-        Task { await appLock.unlock() }
+        guard let lockScene else { return }
+        Task { await lockScene.didBecomeActive() }
     }
-    func sceneWillResignActive(_ scene: UIScene) { appLock.protectSnapshot() }
-    func sceneDidEnterBackground(_ scene: UIScene) { appLock.didEnterBackground() }
+    func sceneWillResignActive(_ scene: UIScene) { lockScene?.willResignActive() }
+    func sceneDidEnterBackground(_ scene: UIScene) { lockScene?.didEnterBackground() }
+    func sceneDidDisconnect(_ scene: UIScene) { content?.editors.disconnect() }
+    /// Only an entry UUID, never journal text.
+    func stateRestorationActivity(for scene: UIScene) -> NSUserActivity? { content?.restoration?.activity }
 }

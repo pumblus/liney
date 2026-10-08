@@ -433,8 +433,14 @@ func photoGroupColumnCount(forPhotoCount count: Int) -> Int {
 @MainActor
 func rollBackChanges(to entry: JournalEntry, in context: ModelContext) {
     context.rollback()
-    let id = entry.id
-    _ = try? context.fetch(FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id }))
+    _ = try? context.entry(id: entry.id)
+}
+
+extension ModelContext {
+    /// The stored entry with `id`, or nil once it is deleted.
+    func entry(id: UUID) throws -> JournalEntry? {
+        try fetch(FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id })).first
+    }
 }
 
 @MainActor

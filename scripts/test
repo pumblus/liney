@@ -3,10 +3,12 @@
 #
 #   scripts/test                      all suites, iPhone
 #   scripts/test StorageFullTests ... named suites (or Suite/testName), iPhone
-#   scripts/test --all                all suites, iPhone then iPad
+#   scripts/test --all                all suites, iPhone, iPad, then iPhone Duo
+#   scripts/test --duo [suites ...]   all or named suites, iPhone Duo (iOS 27.1)
 #
-# Simulators are found by name ("Liney OS27 iPhone QA", "Liney OS27 iPad QA");
-# override with LINEY_IPHONE_SIM / LINEY_IPAD_SIM set to a simulator UDID.
+# Simulators are found by name ("Liney OS27 iPhone QA", "Liney OS27 iPad QA",
+# "Liney OS27 Duo QA"); override with LINEY_IPHONE_SIM / LINEY_IPAD_SIM /
+# LINEY_DUO_SIM set to a simulator UDID.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -14,8 +16,9 @@ devices=(iphone)
 only=()
 for arg in "$@"; do
   case "$arg" in
-    --all) devices=(iphone ipad) ;;
-    -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --all) devices=(iphone ipad duo) ;;
+    --duo) devices=(duo) ;;
+    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $arg" >&2; exit 2 ;;
     *) only+=("-only-testing:LineyTests/$arg") ;;
   esac
@@ -37,6 +40,7 @@ for device in "${devices[@]}"; do
   case "$device" in
     iphone) id=$(udid LINEY_IPHONE_SIM "Liney OS27 iPhone QA") ;;
     ipad) id=$(udid LINEY_IPAD_SIM "Liney OS27 iPad QA") ;;
+    duo) id=$(udid LINEY_DUO_SIM "Liney OS27 Duo QA") ;;
   esac
   if [[ -z "$id" ]]; then
     echo "$device: no QA simulator; create one or set its LINEY_*_SIM override" >&2

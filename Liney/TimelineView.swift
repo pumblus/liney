@@ -19,21 +19,35 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     private var exportFlow: ExportJournalFlow?
     private let storage: PhotoStorage
     private let saveContext: (ModelContext) throws -> Void
+    /// This scene's editors in the app-wide coordinator; fixtures without one skip the one-editor rule.
+    let editors: SceneEditors?
 
     /// Fixtures replace `saveContext` to simulate a full disk; editors opened here inherit it.
     init(container: ModelContainer, appLock: AppLockModel, storage: PhotoStorage = PhotoStorage(),
+         editors: SceneEditors? = nil,
          saveContext: @escaping (ModelContext) throws -> Void = { try $0.save() }) {
         self.container = container; self.appLock = appLock
-        self.storage = storage; self.saveContext = saveContext
+        self.storage = storage; self.editors = editors; self.saveContext = saveContext
         repository = TimelineRepository(container: container)
         super.init(style: .insetGrouped)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    /// The scene root; fixtures that mount the timeline in a bare stack have none.
+    private var root: JournalSplitViewController? { splitViewController as? JournalSplitViewController }
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Beside an open entry its row stays selected; in one stack, returning from an entry clears it.
+        if root?.showsEntryColumn != true, let selected = tableView.indexPathForSelectedRow {
+            tableView.deselectRow(at: selected, animated: animated)
+        }
+    }
     override func viewDidLoad() {
         super.viewDidLoad()
+        clearsSelectionOnViewWillAppear = false
         title = String(localized: "Journal")
         tableView.register(EntryCell.self, forCellReuseIdentifier: "entry")
         tableView.dataSource = dataSource
+        tableView.dragDelegate = self
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: TimelineViewController, _: UITraitCollection) in
             var snapshot = controller.dataSource.snapshot()
             snapshot.reconfigureItems(snapshot.itemIdentifiers)
@@ -98,6 +112,10 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         }
         snapshot.reconfigureItems(snapshot.itemIdentifiers.filter { previous[$0].map { $0 != entriesByID[$0.id] } ?? false })
         dataSource.apply(snapshot, animatingDifferences: animated)
+        // A restored entry opens before its row is listed; beside the timeline, its row is selected once listed.
+        if root?.showsEntryColumn == true, tableView.indexPathForSelectedRow == nil, let open = root?.openEditor {
+            selectRow(for: open.entry.id)
+        }
         if result.days.isEmpty {
             var configuration = UIContentUnavailableConfiguration.empty()
             configuration.image = UIImage(systemName: "book.closed")
@@ -119,8 +137,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         return configuration
     }
     func confirmDeleteEntry(id: UUID) {
-        if let detail = splitViewController?.viewController(for: .secondary) as? UINavigationController,
-           let editor = detail.topViewController as? EntryEditorViewController, editor.entry.id == id {
+        if let editor = root?.openEditor, editor.entry.id == id {
             editor.confirmDeleteEntry()
             return
         }
@@ -132,10 +149,10 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         let context = ModelContext(container)
         context.autosaveEnabled = false
         do {
-            let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id })
-            guard let entry = try context.fetch(descriptor).first else { reloadEntries(); return }
+            guard let entry = try context.entry(id: id) else { reloadEntries(); return }
             let files = try deleteEntryAndSave(entry, in: context) { [saveContext] in try saveContext(context) }
             NotificationCenter.default.post(name: .journalDidChange, object: id)
+            editors?.entryDeleted(id)
             var cleanupFailed = false
             for file in files {
                 do { try storage.delete(fileName: file) } catch { cleanupFailed = true }
@@ -148,30 +165,44 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         }
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        if let detail = splitViewController?.viewController(for: .secondary) as? UINavigationController,
-           let editor = detail.topViewController as? EntryEditorViewController, !editor.prepareForReplacement() { return }
-        guard let entry = dataSource.itemIdentifier(for: indexPath).flatMap({ entriesByID[$0] }) else { return }
+        guard let id = dataSource.itemIdentifier(for: indexPath) else { return }
+        // An entry edited in another window is edited there; this window keeps what it shows.
+        if editors?.activateOtherScene(editing: id) == true {
+            selectRow(for: root?.openEditor?.entry.id)
+            return
+        }
+        if let editor = root?.openEditor, !editor.prepareForReplacement() { return }
+        guard let entry = entriesByID[id] else { return }
         let context = ModelContext(container)
         guard let editable = context.model(for: entry.persistentModelID) as? JournalEntry else { return }
-        let editor = EntryEditorViewController(entry: editable, isNew: false, context: context, storage: storage, saveContext: saveContext)
-        if let splitViewController, !splitViewController.isCollapsed {
-            splitViewController.setViewController(UINavigationController(rootViewController: editor), for: .secondary)
-            splitViewController.show(.secondary)
-        } else { navigationController?.pushViewController(editor, animated: true) }
+        show(editable, in: context)
     }
+    /// Reopens the entry this window had selected before relaunch, unless it was deleted or another window has it.
+    func restoreEntry(_ id: UUID) {
+        guard editors?.isOpenAnywhere(id) != true else { return }
+        let context = ModelContext(container)
+        guard let entry = try? context.entry(id: id) else { return }
+        show(entry, in: context, animated: false)
+        if root?.showsEntryColumn == true { selectRow(for: id) }
+    }
+    private func show(_ entry: JournalEntry, in context: ModelContext, animated: Bool = true) {
+        let editor = EntryEditorViewController(entry: entry, isNew: false, context: context, storage: storage,
+                                               editors: editors, saveContext: saveContext)
+        if let root { root.showEntry(editor, animated: animated) } else { navigationController?.pushViewController(editor, animated: animated) }
+    }
+    /// Marks the row of the entry open beside the timeline; nil, or an entry not yet listed, selects nothing.
+    func selectRow(for id: UUID?) {
+        tableView.selectRow(at: id.flatMap { dataSource.indexPath(for: $0) }, animated: false, scrollPosition: .none)
+    }
+    /// The New Entry action.
     private func createEntry() {
         let context = ModelContext(container)
         context.autosaveEnabled = false
         let entry = JournalEntry()
         context.insert(entry)
-        let editor = EntryEditorViewController(entry: entry, isNew: true, context: context, storage: storage, saveContext: saveContext)
-        if splitViewController?.isCollapsed != false {
-            navigationController?.pushViewController(editor, animated: true)
-        } else {
-            let navigation = UINavigationController(rootViewController: editor)
-            navigation.isModalInPresentation = true
-            present(navigation, animated: true)
-        }
+        let editor = EntryEditorViewController(entry: entry, isNew: true, context: context, storage: storage,
+                                               editors: editors, saveContext: saveContext)
+        if let root { root.showNewEntry(editor) } else { navigationController?.pushViewController(editor, animated: true) }
     }
     private func importJournal() {
         present(UINavigationController(rootViewController: ImportJournalViewController(container: container)), animated: true)
@@ -183,6 +214,31 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         exportFlow = flow
         flow.onFinished = { [weak self] in self?.exportFlow = nil }
         flow.start()
+    }
+    override func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath,
+                            point: CGPoint) -> UIContextMenuConfiguration? {
+        guard let menu = rowMenu(at: indexPath) else { return nil }
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu }
+    }
+    /// A timeline or search-result row's menu: only Open in New Window, which the system hides where new windows are unavailable.
+    func rowMenu(at indexPath: IndexPath) -> UIMenu? {
+        guard let editors, let id = dataSource.itemIdentifier(for: indexPath) else { return nil }
+        // A nil title is the system's Open in New Window; with no alternate, it hides where windows are unavailable.
+        return UIMenu(children: [UIWindowScene.ActivationAction(alternate: nil) { [weak self] _ in
+            guard let activity = editors.newWindowActivity(for: id) else { return nil }
+            let options = UIWindowScene.ActivationRequestOptions()
+            options.requestingScene = self?.view.window?.windowScene
+            return UIWindowScene.ActivationConfiguration(userActivity: activity, options: options)
+        }])
+    }
+}
+
+extension TimelineViewController: UITableViewDragDelegate {
+    /// Dragging a row out creates a window for that entry; the system creates none where new windows are unavailable.
+    func tableView(_ tableView: UITableView, itemsForBeginning session: any UIDragSession,
+                   at indexPath: IndexPath) -> [UIDragItem] {
+        guard editors != nil, let id = dataSource.itemIdentifier(for: indexPath) else { return [] }
+        return [UIDragItem(itemProvider: NSItemProvider(object: WindowRestoration.entryWindow(id).activity))]
     }
 }
 

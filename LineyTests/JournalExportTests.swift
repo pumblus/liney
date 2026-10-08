@@ -64,7 +64,14 @@ final class JournalExportTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
         let activity = try XCTUnwrap(presenter.presentedViewController as? UIActivityViewController)
-        XCTAssertTrue(activity.popoverPresentationController?.barButtonItem === source)
+        for _ in 0..<100 {
+            if activity.viewIfLoaded?.window != nil, !activity.isBeingPresented { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        // Every device keeps an anchor: the bar button, or, where iPhone Duo moves bar items into
+        // vertical bars, the window the system re-anchors the popover to.
+        let popover = try XCTUnwrap(activity.popoverPresentationController)
+        XCTAssertTrue(popover.sourceItem === source || popover.sourceView != nil)
         XCTAssertFalse(finished)
         await withCheckedContinuation { continuation in
             activity.dismiss(animated: false) { continuation.resume() }
@@ -89,7 +96,7 @@ final class JournalExportTests: XCTestCase {
         let activity = flow.makeShareController(for: temporaryDirectory.appendingPathComponent("synthetic.zip"))
         let popover = try XCTUnwrap(activity.popoverPresentationController)
 
-        XCTAssertTrue(popover.barButtonItem === source)
+        XCTAssertTrue(popover.sourceItem === source)
         XCTAssertNil(popover.sourceView)
     }
 
@@ -101,7 +108,7 @@ final class JournalExportTests: XCTestCase {
         let activity = flow.makeShareController(for: temporaryDirectory.appendingPathComponent("synthetic.zip"))
         let popover = try XCTUnwrap(activity.popoverPresentationController)
 
-        XCTAssertNil(popover.barButtonItem)
+        XCTAssertNil(popover.sourceItem)
         XCTAssertTrue(popover.sourceView === presenter.view)
         XCTAssertEqual(popover.sourceRect, CGRect(x: 300, y: 400, width: 1, height: 1))
     }

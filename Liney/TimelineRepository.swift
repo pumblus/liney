@@ -61,8 +61,7 @@ actor TimelineRepository {
 
     func update(id: UUID) throws {
         let context = ModelContext(container)
-        let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id })
-        let updated = try context.fetch(descriptor).first.map(TimelineEntry.init)
+        let updated = try context.entry(id: id).map(TimelineEntry.init)
         entries.removeAll { $0.id == id }
         if let updated { entries.append(updated) }
     }
