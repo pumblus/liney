@@ -35,6 +35,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private let editors: SceneEditors?
     /// Called after the title, the Entry Date, changes; an entry window shows it as the window title.
     var onTitleChange: (() -> Void)?
+    private weak var presentedOverEntry: UIViewController?
     override var title: String? { didSet { if title != oldValue { onTitleChange?() } } }
 
     /// Fixtures replace `saveContext` to simulate a full disk.
@@ -289,8 +290,19 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             closeEditor()
         } catch { saveError(error) }
     }
+    /// Records each screen shown over the entry (photo detail, the Entry Date sheet, the photo
+    /// picker, alerts), so it closes with the editor.
+    override func present(_ controller: UIViewController, animated: Bool, completion: (() -> Void)? = nil) {
+        presentedOverEntry = controller
+        super.present(controller, animated: animated, completion: completion)
+    }
+    /// Whatever is shown over the entry goes first, so no window keeps showing a closed or deleted entry.
     private func closeEditor() {
-        if let editors, editors.isEntryWindow { editors.handle.destroy() }
+        if let shown = presentedOverEntry, let presenter = shown.presentingViewController {
+            presentedOverEntry = nil
+            presenter.dismiss(animated: false) { [weak self] in self?.closeEditor() }
+        }
+        else if let editors, editors.isEntryWindow { editors.handle.destroy() }
         else if navigationController?.presentingViewController != nil { dismiss(animated: true) }
         else if let root = splitViewController as? JournalSplitViewController { root.closeEntry(self) }
         else if (navigationController?.viewControllers.count ?? 0) > 1 { navigationController?.popViewController(animated: true) }
@@ -408,7 +420,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         let controller = EntryDateViewController(entry: entry) { [weak self] in
             _ = self?.flush(); self?.showEntryDateTitle()
         }
-        controller.onDone = { [weak self] in self?.render() }
+        controller.onDone = { [weak self] in if self?.finished == false { self?.render() } }
         present(UINavigationController(rootViewController: controller), animated: true)
     }
     private func showEntryDateTitle() { title = entry.entryDate.formatted(.dateTime.month(.wide).day().year()) }

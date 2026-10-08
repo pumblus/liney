@@ -247,6 +247,50 @@ struct EntryWindowTests {
         await close(window)
     }
 
+    /// A screen an editor shows over its entry.
+    enum Presentation: CaseIterable { case entryDate, photoDetail, deleteConfirmation }
+
+    func present(_ presentation: Presentation, from editor: EntryEditorViewController, in window: UIWindow) async throws {
+        switch presentation {
+        case .entryDate:
+            try #require(descendants(editor.view, as: UIButton.self)
+                .first { $0.accessibilityLabel == String(localized: "Edit Entry Date") }).sendActions(for: .touchUpInside)
+        case .photoDetail:
+            let group = try #require(descendants(editor.view, as: PhotoGroupView.self).first)
+            try #require(descendants(group, as: UIButton.self).first).sendActions(for: .touchUpInside)
+        case .deleteConfirmation:
+            editor.confirmDeleteEntry()
+        }
+        try await settle(window)
+        try #require(editor.presentedViewController != nil)
+    }
+
+    @Test(arguments: Presentation.allCases)
+    func deletingTheEntryElsewhereClosesWhatIsShownOverIt(presentation: Presentation) async throws {
+        let context = ModelContext(container)
+        for stored in try context.fetch(FetchDescriptor<JournalEntry>()) {
+            _ = stored.insertPhotoGroup(fileNames: ["synthetic-missing.jpg"], in: context)
+        }
+        try context.save()
+        let (shown, _, shownWindow) = try await openJournalWindow()
+        let (opened, scene, window) = try await openEntryWindow(other.id)
+        let besideTimeline = try await select(in: shown, shownWindow)
+        try await present(presentation, from: besideTimeline, in: shownWindow)
+        try await present(presentation, from: opened.editor, in: window)
+        let (deleting, _, deletingWindow) = try await openJournalWindow()
+
+        deleting.timeline.deleteEntry(id: entry.id)
+        deleting.timeline.deleteEntry(id: other.id)
+        try await settle(shownWindow)
+
+        #expect(shown.presentedViewController == nil)
+        #expect(shown.openEditor == nil)
+        #expect(opened.root.presentedViewController == nil)
+        #expect(scene.destructionCount == 1)
+        #expect(try storedEntries().isEmpty)
+        await close(shownWindow, window, deletingWindow)
+    }
+
     func type(_ text: String, in editor: EntryEditorViewController) throws {
         let input = try #require(descendants(editor.view, as: BlockTextView.self).first)
         input.text = text
