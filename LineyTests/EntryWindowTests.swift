@@ -225,7 +225,9 @@ struct EntryWindowTests {
         #expect(EntryWindow(entryID: UUID(), container: container, appLock: appLock(), editors: editors) == nil)
     }
 
-    @Test func rowsOfferOnlyOpenInNewWindowWhereNewWindowsAreAvailable() async throws {
+    /// The system hides Open in New Window and ignores a dragged row where new windows are
+    /// unavailable, so every device offers them.
+    @Test func rowsOfferOnlyTheSystemOpenInNewWindowAndDragOutAnEntryWindowActivity() async throws {
         let (journal, _, window) = try await openJournalWindow()
         let table = journal.timeline.tableView!
         let row = IndexPath(row: 0, section: 0)
@@ -233,17 +235,12 @@ struct EntryWindowTests {
         let menu = journal.timeline.tableView(table, contextMenuConfigurationForRowAt: row, point: .zero)
         let items = journal.timeline.tableView(table, itemsForBeginning: FakeDragSession(), at: row)
 
-        if UIApplication.shared.supportsMultipleScenes {
-            #expect(menu != nil)
-            let actions = try #require(journal.timeline.rowMenu(at: row))
-            #expect(actions.children.count == 1)
-            #expect(actions.children.first is UIWindowScene.ActivationAction)
-            #expect(items.count == 1)
-            #expect(items.first?.itemProvider.canLoadObject(ofClass: NSUserActivity.self) == true)
-        } else {
-            #expect(menu == nil)
-            #expect(items.isEmpty)
-        }
+        #expect(menu != nil)
+        let actions = try #require(journal.timeline.rowMenu(at: row))
+        #expect(actions.children.count == 1)
+        #expect(actions.children.first is UIWindowScene.ActivationAction)
+        #expect(items.count == 1)
+        #expect(items.first?.itemProvider.canLoadObject(ofClass: NSUserActivity.self) == true)
         await close(window)
     }
 
