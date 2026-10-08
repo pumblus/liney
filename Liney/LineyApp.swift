@@ -7,6 +7,8 @@ final class LineyApp: UIResponder, UIApplicationDelegate {
         do { return try ModelContainer(for: JournalEntry.self, EntryBlock.self, EntryPhoto.self) }
         catch { fatalError("Unable to open the journal store.") }
     }()
+    /// Shared by every scene, so one authentication unlocks every window and they lock together.
+    let appLock = AppLockModel()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // Recorded before any scene creates a context, so the sweep never moves a photo copied by this launch.
@@ -33,7 +35,7 @@ final class LineyApp: UIResponder, UIApplicationDelegate {
 final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var privacyShield: JournalPrivacyShield?
-    private let appLock = AppLockModel()
+    private var lockScene: AppLockScene?
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene,
@@ -41,16 +43,20 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         let window = UIWindow(windowScene: scene)
         window.tintColor = UIColor(named: "LineyAqua") ?? .systemTeal
         self.window = window
-        privacyShield = JournalPrivacyShield(window: window, appLock: appLock)
+        let lockScene = app.appLock.connectScene()
+        self.lockScene = lockScene
+        privacyShield = JournalPrivacyShield(window: window, lockScene: lockScene)
         window.rootViewController = JournalSplitViewController(
-            timeline: TimelineViewController(container: app.container, appLock: appLock))
+            timeline: TimelineViewController(container: app.container, appLock: app.appLock))
         window.makeKeyAndVisible()
         privacyShield?.update()
     }
 
+    func sceneWillEnterForeground(_ scene: UIScene) { lockScene?.willEnterForeground() }
     func sceneDidBecomeActive(_ scene: UIScene) {
-        Task { await appLock.unlock() }
+        guard let lockScene else { return }
+        Task { await lockScene.didBecomeActive() }
     }
-    func sceneWillResignActive(_ scene: UIScene) { appLock.protectSnapshot() }
-    func sceneDidEnterBackground(_ scene: UIScene) { appLock.didEnterBackground() }
+    func sceneWillResignActive(_ scene: UIScene) { lockScene?.willResignActive() }
+    func sceneDidEnterBackground(_ scene: UIScene) { lockScene?.didEnterBackground() }
 }

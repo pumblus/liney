@@ -2,7 +2,16 @@ import UIKit
 
 final class SettingsViewController: UITableViewController {
     let appLock: AppLockModel
-    init(appLock: AppLockModel) { self.appLock = appLock; super.init(style: .insetGrouped) }
+    private weak var appLockToggle: UISwitch?
+    init(appLock: AppLockModel) {
+        self.appLock = appLock
+        super.init(style: .insetGrouped)
+        // Turning App Lock on or off in another window shows here at once; a toggle mid-request keeps its own state.
+        appLock.addObserver(self) { [weak self] in
+            guard let self, let toggle = appLockToggle, toggle.isEnabled else { return }
+            toggle.setOn(self.appLock.isEnabled, animated: true)
+        }
+    }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func viewDidLoad() { super.viewDidLoad(); title = String(localized: "Settings") }
     override func numberOfSections(in tableView: UITableView) -> Int { 2 }
@@ -18,6 +27,7 @@ final class SettingsViewController: UITableViewController {
             let toggle = UISwitch()
             toggle.isOn = appLock.isEnabled
             toggle.accessibilityLabel = content.text
+            appLockToggle = toggle
             toggle.addAction(UIAction { [weak self, weak toggle] _ in
                 guard let self, let toggle else { return }
                 let enabling = toggle.isOn
