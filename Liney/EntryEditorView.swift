@@ -25,6 +25,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private var doneButton: UIBarButtonItem!
     private var pendingBlockID: UUID?
     private var pendingOffset: Int?
+    private var foldAvoidance: EditorFoldAvoidance?
 
     /// Fixtures replace `saveContext` to simulate a full disk.
     init(entry: JournalEntry, isNew: Bool, context: ModelContext, storage: PhotoStorage = PhotoStorage(),
@@ -72,6 +73,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         stack.addArrangedSubview(dateButton); stack.addArrangedSubview(placeLabel); stack.addArrangedSubview(titleField)
         render()
         NotificationCenter.default.addObserver(self, selector: #selector(flushBeforeSceneDeactivation(_:)), name: UIScene.willDeactivateNotification, object: nil)
+        foldAvoidance = EditorFoldAvoidance(editorView: view, writingArea: scroll)
     }
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
@@ -153,6 +155,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        foldAvoidance?.update()
         refreshVisiblePhotos()
     }
     func scrollViewDidScroll(_ scrollView: UIScrollView) { refreshVisiblePhotos() }

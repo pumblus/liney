@@ -1,4 +1,4 @@
-import CoreGraphics
+import UIKit
 
 /// Keeps the line being typed in the upper pane of a partially folded iPhone Duo.
 ///
@@ -26,5 +26,54 @@ enum EditorFoldRule {
             .max()
         guard let divisionTop else { return 0 }
         return max(0, keyboardTop - max(divisionTop, bounds.minY))
+    }
+}
+
+/// Applies `EditorFoldRule` to the editor's writing area on iOS 27.1 and later.
+/// Earlier versions keep the writing area ending at the keyboard.
+@MainActor
+final class EditorFoldAvoidance: NSObject {
+    private weak var editorView: UIView?
+    private weak var writingArea: UIScrollView?
+    /// The keyboard's end frame in screen coordinates; nil while it is hidden.
+    private var keyboardEndFrame: CGRect?
+    private var appliedInset: CGFloat = 0
+
+    init(editorView: UIView, writingArea: UIScrollView) {
+        self.editorView = editorView
+        self.writingArea = writingArea
+        super.init()
+        guard #available(iOS 27.1, *) else { return }
+        let center = NotificationCenter.default
+        center.addObserver(self, selector: #selector(keyboardWillChangeFrame(_:)), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
+        center.addObserver(self, selector: #selector(keyboardWillHide(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
+        // Reserved regions post no change notifications; a pose change only needs a fresh layout pass.
+        editorView.addInteraction(UIHingeInteraction { [weak editorView] _, _ in editorView?.setNeedsLayout() })
+    }
+
+    /// Call from `viewDidLayoutSubviews`.
+    func update() {
+        guard #available(iOS 27.1, *), let editorView, let writingArea else { return }
+        let keyboardFrame = keyboardEndFrame.flatMap { frame in
+            editorView.window?.windowScene.map { editorView.convert(frame, from: $0.screen.coordinateSpace) }
+        }
+        let divisions = editorView.reservedRegions(kind: .division).map {
+            EditorFoldRule.Division(frame: $0.frame, isActive: $0.isActive)
+        }
+        let inset = EditorFoldRule.writingAreaBottomInset(bounds: editorView.bounds, keyboardFrame: keyboardFrame, divisions: divisions)
+        guard inset != appliedInset else { return }
+        appliedInset = inset
+        writingArea.contentInset.bottom = inset
+        writingArea.verticalScrollIndicatorInsets.bottom = inset
+    }
+
+    @objc private func keyboardWillChangeFrame(_ notification: Notification) {
+        keyboardEndFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+        update()
+    }
+
+    @objc private func keyboardWillHide(_ notification: Notification) {
+        keyboardEndFrame = nil
+        update()
     }
 }
