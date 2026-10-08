@@ -44,17 +44,22 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         stack.axis = .vertical; stack.spacing = 16
         scroll.translatesAutoresizingMaskIntoConstraints = false; stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scroll); scroll.addSubview(stack)
+        // One centred reading column: 16 pt margins until it reaches 700 pt. The system readable
+        // width is far narrower, which wastes wide windows such as iPhone Duo in laptop pose.
+        let column = stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
+        column.priority = .defaultHigh
         NSLayoutConstraint.activate([
             scroll.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             scroll.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16),
+            scroll.contentLayoutGuide.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
+            stack.centerXAnchor.constraint(equalTo: scroll.contentLayoutGuide.centerXAnchor),
             stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 16),
             stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -24),
             stack.heightAnchor.constraint(greaterThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor, constant: -40),
-            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32)
+            stack.widthAnchor.constraint(lessThanOrEqualTo: scroll.frameLayoutGuide.widthAnchor, constant: -32),
+            stack.widthAnchor.constraint(lessThanOrEqualToConstant: 700), column
         ])
         titleField.accessibilityLabel = String(localized: "Title (optional)")
         titleField.font = .preferredFont(forTextStyle: .title2)

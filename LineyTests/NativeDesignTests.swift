@@ -118,6 +118,42 @@ struct NativeDesignTests {
         #expect(entry.title == "Synthetic transfer")
     }
 
+    static let readingColumns: [(windowWidth: CGFloat, columnX: CGFloat, columnWidth: CGFloat)] = [
+        (390, 16, 358), (732, 16, 700), (1100, 200, 700)
+    ]
+
+    /// Wide windows centre text and photos in one column of at most 700 pt; narrow ones keep 16 pt margins.
+    @Test(arguments: readingColumns)
+    func entryContentSharesOneReadingColumn(windowWidth: CGFloat, columnX: CGFloat, columnWidth: CGFloat) throws {
+        let (storage, directory) = makeTemporaryPhotoStorage()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let editor = try makeEditor(photoSize: CGSize(width: 300, height: 200), storage: storage,
+                                    frame: CGRect(x: 0, y: 0, width: windowWidth, height: 800))
+        let texts = descendants(editor.view, as: BlockTextView.self)
+        let groups = descendants(editor.view, as: PhotoGroupView.self)
+        #expect(!texts.isEmpty)
+        #expect(groups.count == 1)
+        for content in texts as [UIView] + groups {
+            let frame = content.convert(content.bounds, to: editor.view)
+            #expect(abs(frame.minX - columnX) < 0.5)
+            #expect(abs(frame.width - columnWidth) < 0.5)
+        }
+    }
+
+    private func makeEditor(photoSize: CGSize, storage: PhotoStorage, frame: CGRect) throws -> EntryEditorViewController {
+        let context = ModelContext(try makeInMemoryContainer())
+        let photo = try storage.saveJPEG(from: makeJPEGData(size: photoSize))
+        let entry = JournalEntry(title: "Synthetic width")
+        context.insert(entry)
+        entry.setBody("Synthetic paragraph", in: context)
+        entry.insertPhotoGroup(fileNames: [photo.fileName], in: context)
+        let editor = EntryEditorViewController(entry: entry, isNew: false, context: context, storage: storage)
+        editor.loadViewIfNeeded()
+        editor.view.frame = frame
+        editor.view.layoutIfNeeded()
+        return editor
+    }
+
     @Test(arguments: [UIUserInterfaceStyle.light, .dark], [UIAccessibilityContrast.normal, .high])
     func accentHasReadableContrast(style: UIUserInterfaceStyle, contrast: UIAccessibilityContrast) throws {
         let traits = UITraitCollection {
