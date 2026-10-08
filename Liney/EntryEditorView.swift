@@ -746,6 +746,26 @@ final class PhotoDetailViewController: UIViewController {
     let storage: PhotoStorage
     var useInfo: (() -> Void)?
     var deletePhoto: (() -> PhotoDeletionResult)?
+    private var layout = PhotoDetailLayout.stacked
+    private var stacked: UIView?
+    private var arranged: UIViewController?  // The iOS 27.1 UIArrangementViewController, made on first use.
+    private lazy var doneItem = UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in self?.dismiss(animated: true) })
+    private lazy var moreItem: UIBarButtonItem = {
+        let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: UIMenu(children: actions.map(\.menuAction)))
+        more.accessibilityLabel = String(localized: "Photo Actions")
+        return more
+    }()
+    private var info: String {
+        [photo.capturedAt?.formatted(date: .long, time: .shortened), photo.placeDisplayText].compactMap { $0 }.joined(separator: "\n")
+    }
+    private var actions: [PhotoDetailAction] {
+        var actions: [PhotoDetailAction] = []
+        if photo.hasUsableEntryInfo {
+            actions.append(PhotoDetailAction(title: String(localized: "Use as Entry Info"), isDestructive: false) { [weak self] in self?.useInfo?() })
+        }
+        actions.append(PhotoDetailAction(title: String(localized: "Delete Photo"), isDestructive: true) { [weak self] in self?.confirmPhotoDeletion() })
+        return actions
+    }
     init(photo: EntryPhoto, storage: PhotoStorage) {
         self.photo = photo; self.storage = storage
         super.init(nibName: nil, bundle: nil)
@@ -756,26 +776,57 @@ final class PhotoDetailViewController: UIViewController {
         title = String(localized: "Photo Detail")
         let image = StoredPhotoView(); image.contentMode = .scaleAspectFit
         image.load(photo.fileName, storage: storage, pixels: PhotoStorage.targetLongEdge)
-        let info = [photo.capturedAt?.formatted(date: .long, time: .shortened), photo.placeDisplayText].compactMap { $0 }.joined(separator: "\n")
         installStack([image, bodyLabel(info, style: .footnote)])
+        stacked = view.subviews.last
         image.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.6).isActive = true
-        var actions: [UIAction] = []
-        if photo.hasUsableEntryInfo { actions.append(UIAction(title: String(localized: "Use as Entry Info")) { [weak self] _ in self?.useInfo?() }) }
-        actions.append(UIAction(title: String(localized: "Delete Photo"), attributes: .destructive) { [weak self] _ in
-            self?.confirmDeletion(title: String(localized: "Delete Photo"), message: String(localized: "This photo will be removed from this entry.")) { [weak self] in
-                guard let self else { return }
-                switch self.deletePhoto?() ?? .failed {
-                case .deleted: self.dismiss(animated: true)
-                case .failed: self.showError(String(localized: "Photo Couldn’t Be Deleted"), message: String(localized: "Try deleting the photo again."))
-                case .fileCleanupFailed:
-                    let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "The photo was removed from this entry, but its copied file could not be deleted."), preferredStyle: .alert)
-                    alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.dismiss(animated: true) })
-                    self.present(alert, animated: true)
-                }
+        navigationItem.rightBarButtonItems = [doneItem, moreItem]
+        if #available(iOS 27.1, *) {
+            // A pose change can move the fold without resizing the window.
+            view.addInteraction(UIHingeInteraction { [weak self] _, _ in self?.view.setNeedsLayout() })
+            registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (self: Self, _) in self.view.setNeedsLayout() }
+        }
+    }
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        guard #available(iOS 27.1, *) else { return }
+        let divisions = view.reservedRegions(kind: .division).map(\.frame)
+        show(PhotoDetailLayout(size: view.bounds.size, horizontalSizeClass: traitCollection.horizontalSizeClass, divisions: divisions))
+    }
+    @available(iOS 27.1, *)
+    private func show(_ next: PhotoDetailLayout) {
+        guard next != layout else { return }
+        layout = next
+        let isArranged = next != .stacked
+        if isArranged {
+            let arrangement = arranged as? UIArrangementViewController ?? addArrangement()
+            arrangement.arrangePhoto(next)
+        }
+        stacked?.isHidden = isArranged
+        arranged?.view.isHidden = !isArranged
+        navigationItem.rightBarButtonItems = isArranged ? [doneItem] : [doneItem, moreItem]
+    }
+    @available(iOS 27.1, *)
+    private func addArrangement() -> UIArrangementViewController {
+        let arrangement = makePhotoArrangement(photo: photo, storage: storage, info: info, actions: actions)
+        addChild(arrangement)
+        arrangement.view.frame = view.bounds
+        arrangement.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(arrangement.view)
+        arrangement.didMove(toParent: self)
+        arranged = arrangement
+        return arrangement
+    }
+    private func confirmPhotoDeletion() {
+        confirmDeletion(title: String(localized: "Delete Photo"), message: String(localized: "This photo will be removed from this entry.")) { [weak self] in
+            guard let self else { return }
+            switch self.deletePhoto?() ?? .failed {
+            case .deleted: self.dismiss(animated: true)
+            case .failed: self.showError(String(localized: "Photo Couldn’t Be Deleted"), message: String(localized: "Try deleting the photo again."))
+            case .fileCleanupFailed:
+                let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "The photo was removed from this entry, but its copied file could not be deleted."), preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.dismiss(animated: true) })
+                self.present(alert, animated: true)
             }
-        })
-        let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: UIMenu(children: actions))
-        more.accessibilityLabel = String(localized: "Photo Actions")
-        navigationItem.rightBarButtonItems = [UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in self?.dismiss(animated: true) }), more]
+        }
     }
 }
