@@ -87,10 +87,7 @@ struct WindowRestorationTests {
 
     func deleteEntry() throws {
         let context = ModelContext(container)
-        let id = entry.id
-        for stored in try context.fetch(FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id })) {
-            context.delete(stored)
-        }
+        if let stored = try context.entry(id: entry.id) { context.delete(stored) }
         try context.save()
     }
 

@@ -149,8 +149,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         let context = ModelContext(container)
         context.autosaveEnabled = false
         do {
-            let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id })
-            guard let entry = try context.fetch(descriptor).first else { reloadEntries(); return }
+            guard let entry = try context.entry(id: id) else { reloadEntries(); return }
             let files = try deleteEntryAndSave(entry, in: context) { [saveContext] in try saveContext(context) }
             NotificationCenter.default.post(name: .journalDidChange, object: id)
             editors?.entryDeleted(id)
@@ -182,8 +181,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     func restoreEntry(_ id: UUID) {
         guard editors?.coordinator.scene(editing: id) == nil else { return }
         let context = ModelContext(container)
-        let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id })
-        guard let entry = try? context.fetch(descriptor).first else { return }
+        guard let entry = try? context.entry(id: id) else { return }
         show(entry, in: context, animated: false)
         if root?.showsEntryColumn == true { selectRow(for: id) }
     }

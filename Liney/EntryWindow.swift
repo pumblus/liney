@@ -17,8 +17,7 @@ import UIKit
         guard editors.coordinator.claimEntryWindow(for: entryID, in: editors) else { return nil }
         let context = ModelContext(container)
         context.autosaveEnabled = false
-        let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == entryID })
-        guard let entry = try? context.fetch(descriptor).first else { return nil }
+        guard let entry = try? context.entry(id: entryID) else { return nil }
         self.entryID = entryID
         editor = EntryEditorViewController(entry: entry, isNew: false, context: context, storage: storage, editors: editors)
         root = UINavigationController(rootViewController: editor)
