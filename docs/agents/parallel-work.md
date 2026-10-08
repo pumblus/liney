@@ -14,6 +14,7 @@ For an orchestrator running subagents in worktrees (`/implement-spec`), and for 
 
 ## Orchestrator
 
+- Run exploration whose notes later subagents read as general-purpose: it must write the notes file, and every implementer builds on it. Send single lookups to Explore.
 - Give each concurrent implementer a distinct slot number. After the run, `scripts/test --remove-slots` deletes the clones.
 - In the PR body, write one `Closes #<n>` line per issue: GitHub closes only the first number of a comma list.
 - Remove the integration worktree as soon as the PR is open, so `gh pr merge --delete-branch` can delete the local branch.
