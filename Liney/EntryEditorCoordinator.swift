@@ -61,7 +61,7 @@ final class WindowSceneHandle: SceneHandle {
     /// An entry window for `id` is opening in `scene`. An editor showing `id` beside a timeline
     /// saves and closes, so the entry moves with its edits. Returns false, and brings the
     /// holding window forward, when another entry window has `id` or its editor could not save.
-    func claimEntryWindow(for id: UUID, in scene: SceneEditors) -> Bool {
+    fileprivate func claimEntryWindow(for id: UUID, in scene: SceneEditors) -> Bool {
         let holders = liveRegistrations().filter { $0.entryID == id && $0.scene !== scene }
         if let window = holders.first(where: { $0.scene?.isEntryWindow == true }) {
             window.scene?.handle.activate()
@@ -97,7 +97,7 @@ final class WindowSceneHandle: SceneHandle {
 /// One scene's editors as the coordinator sees them. The scene delegate keeps it; the
 /// scene's timeline and editors report through it.
 @MainActor final class SceneEditors {
-    let coordinator: EntryEditorCoordinator
+    private let coordinator: EntryEditorCoordinator
     let handle: any SceneHandle
     /// An entry window: closing its editor closes the window.
     let isEntryWindow: Bool
@@ -112,6 +112,12 @@ final class WindowSceneHandle: SceneHandle {
     func unregister(_ editor: EntryEditorViewController) { coordinator.unregister(editor) }
     /// This scene disconnected; its editors no longer hold their entries.
     func disconnect() { coordinator.disconnect(self) }
+
+    /// An editor in any scene shows `id`.
+    func isOpenAnywhere(_ id: UUID) -> Bool { coordinator.scene(editing: id) != nil }
+
+    /// This scene is becoming an entry window for `id`; see `EntryEditorCoordinator.claimEntryWindow(for:in:)`.
+    func claimEntryWindow(for id: UUID) -> Bool { coordinator.claimEntryWindow(for: id, in: self) }
 
     /// Selecting `id` here: if another scene edits it, brings that scene forward and returns true.
     func activateOtherScene(editing id: UUID) -> Bool {

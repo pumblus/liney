@@ -179,7 +179,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     }
     /// Reopens the entry this window had selected before relaunch, unless it was deleted or another window has it.
     func restoreEntry(_ id: UUID) {
-        guard editors?.coordinator.scene(editing: id) == nil else { return }
+        guard editors?.isOpenAnywhere(id) != true else { return }
         let context = ModelContext(container)
         guard let entry = try? context.entry(id: id) else { return }
         show(entry, in: context, animated: false)

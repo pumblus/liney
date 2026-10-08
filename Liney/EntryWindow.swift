@@ -14,7 +14,7 @@ import UIKit
     /// entry no longer exists, or another window keeps it and has been brought forward.
     init?(entryID: UUID, container: ModelContainer, appLock: AppLockModel, editors: SceneEditors,
           storage: PhotoStorage = PhotoStorage()) {
-        guard editors.coordinator.claimEntryWindow(for: entryID, in: editors) else { return nil }
+        guard editors.claimEntryWindow(for: entryID) else { return nil }
         let context = ModelContext(container)
         context.autosaveEnabled = false
         guard let entry = try? context.entry(id: entryID) else { return nil }
