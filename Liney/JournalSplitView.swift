@@ -42,19 +42,24 @@ final class JournalSplitViewController: UISplitViewController {
         openEditor.flatMap { $0.isNew ? nil : .selectedEntry($0.entry.id) }
     }
 
-    /// Opens an existing entry: pushed above the timeline in one stack, otherwise in the secondary column.
+    /// The current hierarchy shape: true while the entry column is in this window beside the
+    /// timeline, false while the timeline stack is the one stack. A resize changes it, so routing
+    /// asks at the moment of each action.
+    var showsEntryColumn: Bool { entryNavigation.parent === self }
+
+    /// Opens an existing entry: in the secondary column beside the timeline, otherwise pushed above it.
     func showEntry(_ editor: EntryEditorViewController, animated: Bool = true) {
-        if isCollapsed {
-            timelineNavigation.pushViewController(editor, animated: animated)
-        } else {
+        if showsEntryColumn {
             entryNavigation.setViewControllers([editor], animated: false)
             show(.secondary)
+        } else {
+            timelineNavigation.pushViewController(editor, animated: animated)
         }
     }
 
-    /// Opens a new entry: pushed above the timeline in one stack, otherwise presented modally.
+    /// Opens a new entry: presented modally beside the timeline, otherwise pushed above it.
     func showNewEntry(_ editor: EntryEditorViewController) {
-        if isCollapsed {
+        if !showsEntryColumn {
             timelineNavigation.pushViewController(editor, animated: true)
         } else {
             let navigation = UINavigationController(rootViewController: editor)

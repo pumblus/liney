@@ -37,7 +37,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         // Beside an open entry its row stays selected; in one stack, returning from an entry clears it.
-        if splitViewController?.isCollapsed != false, let selected = tableView.indexPathForSelectedRow {
+        if root?.showsEntryColumn != true, let selected = tableView.indexPathForSelectedRow {
             tableView.deselectRow(at: selected, animated: animated)
         }
     }
@@ -113,7 +113,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         snapshot.reconfigureItems(snapshot.itemIdentifiers.filter { previous[$0].map { $0 != entriesByID[$0.id] } ?? false })
         dataSource.apply(snapshot, animatingDifferences: animated)
         // A restored entry opens before its row is listed; beside the timeline, its row is selected once listed.
-        if splitViewController?.isCollapsed == false, tableView.indexPathForSelectedRow == nil, let open = root?.openEditor {
+        if root?.showsEntryColumn == true, tableView.indexPathForSelectedRow == nil, let open = root?.openEditor {
             selectRow(for: open.entry.id)
         }
         if result.days.isEmpty {
@@ -185,7 +185,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         let descriptor = FetchDescriptor<JournalEntry>(predicate: #Predicate { $0.id == id })
         guard let entry = try? context.fetch(descriptor).first else { return }
         show(entry, in: context, animated: false)
-        if splitViewController?.isCollapsed == false { selectRow(for: id) }
+        if root?.showsEntryColumn == true { selectRow(for: id) }
     }
     private func show(_ entry: JournalEntry, in context: ModelContext, animated: Bool = true) {
         let editor = EntryEditorViewController(entry: entry, isNew: false, context: context, storage: storage,

@@ -177,6 +177,16 @@ struct JournalSplitViewTests {
 
     // Open, new, and close follow the hierarchy as it is after a resize.
 
+    @Test func theEntryColumnIsInTheHierarchyOnlyBesideTheTimeline() async throws {
+        let mounted = try await mount(.regular)
+        #expect(mounted.root.showsEntryColumn)
+        try await mounted.resize(to: .compact)
+        #expect(!mounted.root.showsEntryColumn)
+        try await mounted.resize(to: .regular, width: 700)
+        #expect(mounted.root.showsEntryColumn)
+        await unmount(mounted)
+    }
+
     @Test func doneAfterExpandingReturnsTheSecondaryColumnToNoEntrySelected() async throws {
         let mounted = try await mount(.compact)
         try await mounted.select(day: 0)
