@@ -9,6 +9,8 @@ final class LineyApp: UIResponder, UIApplicationDelegate {
     }()
     /// Shared by every scene, so one authentication unlocks every window and they lock together.
     let appLock = AppLockModel()
+    /// Shared by every scene, so each entry is edited in at most one window.
+    let editorCoordinator = EntryEditorCoordinator()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // Recorded before any scene creates a context, so the sweep never moves a photo copied by this launch.
@@ -36,6 +38,7 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
     private var privacyShield: JournalPrivacyShield?
     private var lockScene: AppLockScene?
+    private var editors: SceneEditors?
 
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene,
@@ -46,8 +49,10 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         let lockScene = app.appLock.connectScene()
         self.lockScene = lockScene
         privacyShield = JournalPrivacyShield(window: window, lockScene: lockScene)
+        let editors = app.editorCoordinator.connectScene(WindowSceneHandle(scene))
+        self.editors = editors
         window.rootViewController = JournalSplitViewController(
-            timeline: TimelineViewController(container: app.container, appLock: app.appLock))
+            timeline: TimelineViewController(container: app.container, appLock: app.appLock, editors: editors))
         window.makeKeyAndVisible()
         privacyShield?.update()
     }
@@ -59,4 +64,5 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
     func sceneWillResignActive(_ scene: UIScene) { lockScene?.willResignActive() }
     func sceneDidEnterBackground(_ scene: UIScene) { lockScene?.didEnterBackground() }
+    func sceneDidDisconnect(_ scene: UIScene) { editors?.disconnect() }
 }

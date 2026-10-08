@@ -20,7 +20,9 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     private weak var focusedText: BlockTextView?
     private var saveTask: Task<Void, Never>?
     private var addingPhotos = false
-    private var finished = false
+    private var finished = false {
+        didSet { if finished { editors?.unregister(self) } }
+    }
     private var insertButton: UIBarButtonItem!
     private var doneButton: UIBarButtonItem!
     private var pendingBlockID: UUID?
@@ -46,14 +48,18 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         let target: Target
         let distance: CGFloat
     }
+    /// This scene's editors in the app-wide coordinator: registered while this editor shows its entry.
+    private let editors: SceneEditors?
 
     /// Fixtures replace `saveContext` to simulate a full disk.
     init(entry: JournalEntry, isNew: Bool, context: ModelContext, storage: PhotoStorage = PhotoStorage(),
+         editors: SceneEditors? = nil,
          saveContext: @escaping (ModelContext) throws -> Void = { try $0.save() }) {
         self.entry = entry; self.isNew = isNew; self.context = context
-        self.storage = storage; self.saveContext = saveContext
+        self.storage = storage; self.editors = editors; self.saveContext = saveContext
         context.autosaveEnabled = false
         super.init(nibName: nil, bundle: nil)
+        editors?.register(self)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
     override func viewDidLoad() {
@@ -442,6 +448,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                     UIAccessibility.post(notification: .layoutChanged, argument: insertButton)
                 }
             }
+            // The entry was deleted in another window while the photos were copied.
+            guard !finished else { _ = removeFiles(result.fileNames); return }
             guard let photoBlock = entry.insertPhotoGroup(photos: result.photos, focusedTextBlockID: pendingBlockID, cursorOffset: pendingOffset, in: context) else {
                 if let failureMessage = result.failureMessage { showError(String(localized: "Some Photos Couldn’t Be Added"), message: failureMessage) }
                 return
@@ -504,6 +512,13 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         for name in names { do { try storage.delete(fileName: name) } catch { success = false } }
         return success
     }
+    /// The entry was deleted in another window: its unflushed input goes with it, and the editor closes.
+    func closeForDeletedEntry() {
+        guard !finished else { return }
+        finished = true; saveTask?.cancel()
+        viewIfLoaded?.endEditing(true)
+        closeEditor()
+    }
     func confirmDeleteEntry() {
         guard !addingPhotos, !finished, flush() else { return }
         confirmDeletion(title: String(localized: "Delete Entry"), message: String(localized: "This entry and its photos will be permanently deleted.")) { [weak self] in
@@ -513,6 +528,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                 let files = try deleteEntryAndSave(self.entry, in: self.context, save: self.save)
                 self.finished = true; self.saveTask?.cancel()
                 NotificationCenter.default.post(name: .journalDidChange, object: id)
+                self.editors?.entryDeleted(id)
                 if self.removeFiles(files) { self.closeEditor() }
                 else {
                     let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "Some copied photo files could not be deleted."), preferredStyle: .alert)
