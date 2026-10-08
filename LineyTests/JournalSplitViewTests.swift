@@ -48,39 +48,13 @@ struct JournalSplitViewTests {
             timeline.tableView(timeline.tableView, didSelectRowAt: IndexPath(row: 0, section: day))
             try await settle()
         }
-        func settle() async throws {
-            root.view.layoutIfNeeded()
-            try await Task.sleep(for: .milliseconds(400))
-        }
+        func settle() async throws { try await waitForLayout(window) }
     }
 
     /// Mounts the root in a window `width` points wide; the system picks the display mode from it.
     func mount(_ sizeClass: UIUserInterfaceSizeClass, width: CGFloat = 1100, days: Int = 2) async throws -> Mounted {
-        let timeline = TimelineViewController(container: container, appLock: AppLockModel(authenticator: DenyingAuthenticator()))
-        let root = JournalSplitViewController(timeline: timeline)
-        root.traitOverrides.horizontalSizeClass = sizeClass
-        let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
-        let window = UIWindow(windowScene: scene)
-        window.frame = CGRect(x: 0, y: 0, width: width, height: 800)
-        window.rootViewController = root
-        window.makeKeyAndVisible()
-        for _ in 0..<100 {
-            if timeline.tableView.numberOfSections == days { break }
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        try #require(timeline.tableView.numberOfSections == days)
-        let mounted = Mounted(root: root, timeline: timeline, window: window)
-        try await mounted.settle()
-        return mounted
-    }
-
-    func unmount(_ mounted: Mounted) async {
-        if let presented = mounted.root.presentedViewController {
-            await withCheckedContinuation { continuation in
-                presented.dismiss(animated: false) { continuation.resume() }
-            }
-        }
-        mounted.window.isHidden = true
+        let (root, window) = try await mountJournal(container, days: days, sizeClass: sizeClass, width: width)
+        return Mounted(root: root, timeline: root.timeline, window: window)
     }
 
     @Test func narrowShowsOneStackAndTappingARowPushesTheEditor() async throws {
@@ -91,7 +65,7 @@ struct JournalSplitViewTests {
         let editor = try #require(mounted.visibleEditor)
         #expect(editor.entry.id == first.id)
         #expect(mounted.primary?.viewControllers.first === mounted.timeline)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func wideShowsTheTimelineBesideTheOpenEntry() async throws {
@@ -104,7 +78,7 @@ struct JournalSplitViewTests {
         #expect(editor.entry.id == second.id)
         #expect(mounted.visible.first === mounted.timeline)
         #expect(!mounted.showsNoEntrySelected)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func collapsingKeepsTheOpenEditorAboveTheTimeline() async throws {
@@ -117,7 +91,7 @@ struct JournalSplitViewTests {
         // Back leads to the timeline.
         #expect(mounted.primary?.viewControllers.map { $0 === mounted.timeline || $0 === editor } == [true, true])
         #expect(mounted.primary?.viewControllers.first === mounted.timeline)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func collapsingWithNothingOpenShowsTheTimeline() async throws {
@@ -125,7 +99,7 @@ struct JournalSplitViewTests {
         try await mounted.resize(to: .compact)
         #expect(mounted.visible.map { $0 === mounted.timeline } == [true])
         #expect(mounted.primary?.viewControllers.count == 1)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func expandingMovesThePushedEditorToTheSecondaryColumnWithItsRowSelected() async throws {
@@ -137,7 +111,7 @@ struct JournalSplitViewTests {
         #expect(mounted.secondary?.viewControllers.map { $0 === editor } == [true])
         #expect(mounted.primary?.viewControllers.map { $0 === mounted.timeline } == [true])
         #expect(mounted.timeline.tableView.indexPathForSelectedRow == IndexPath(row: 0, section: 1))
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func expandingWithNothingOpenShowsNoEntrySelected() async throws {
@@ -145,7 +119,7 @@ struct JournalSplitViewTests {
         try await mounted.resize(to: .regular)
         #expect(mounted.visible.first === mounted.timeline)
         #expect(mounted.showsNoEntrySelected)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func aNewEntryWrittenWideStaysPresentedAcrossACollapse() async throws {
@@ -159,7 +133,7 @@ struct JournalSplitViewTests {
         #expect(mounted.root.presentedViewController === presented)
         #expect(presented.topViewController === editor)
         #expect(mounted.visible.map { $0 === mounted.timeline } == [true])
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func aNewEntryPushedNarrowMovesToTheSecondaryColumnOnExpand() async throws {
@@ -172,7 +146,7 @@ struct JournalSplitViewTests {
         try await mounted.resize(to: .regular)
         #expect(mounted.secondary?.viewControllers.map { $0 === editor } == [true])
         #expect(mounted.primary?.viewControllers.map { $0 === mounted.timeline } == [true])
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     // Open, new, and close follow the hierarchy as it is after a resize.
@@ -184,7 +158,7 @@ struct JournalSplitViewTests {
         #expect(!mounted.root.showsEntryColumn)
         try await mounted.resize(to: .regular, width: 700)
         #expect(mounted.root.showsEntryColumn)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func doneAfterExpandingReturnsTheSecondaryColumnToNoEntrySelected() async throws {
@@ -199,7 +173,7 @@ struct JournalSplitViewTests {
         #expect(mounted.timeline.tableView.indexPathForSelectedRow == nil)
         try await mounted.select(day: 1)
         #expect((mounted.secondary?.topViewController as? EntryEditorViewController)?.entry.id == second.id)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func doneAfterCollapsingReturnsToTheTimeline() async throws {
@@ -212,7 +186,7 @@ struct JournalSplitViewTests {
         #expect(mounted.visible.map { $0 === mounted.timeline } == [true])
         try await mounted.resize(to: .regular)
         #expect(mounted.showsNoEntrySelected)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func aNewEntryMovedOnExpandIsSavedByDone() async throws {
@@ -221,16 +195,14 @@ struct JournalSplitViewTests {
         try await mounted.settle()
         let editor = try #require(mounted.visibleEditor)
         try await mounted.resize(to: .regular)
-        let input = try #require(descendants(editor.view, as: BlockTextView.self).first)
-        input.text = "Written after expanding"
-        input.delegate?.textViewDidChange?(input)
+        try typeInFirstBlock("Written after expanding", of: editor)
         editor.finish()
         try await mounted.settle()
         #expect(mounted.showsNoEntrySelected)
         let saved = try ModelContext(container).fetch(FetchDescriptor<JournalEntry>())
         #expect(saved.count == 3)
         #expect(saved.contains { $0.plainTextBody == "Written after expanding" })
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func openingAfterAResizeFollowsTheNewWidth() async throws {
@@ -247,7 +219,7 @@ struct JournalSplitViewTests {
         mounted.timeline.createEntry()
         try await mounted.settle()
         #expect(mounted.root.presentedViewController != nil)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test(arguments: [UIUserInterfaceSizeClass.regular, .compact])
@@ -270,7 +242,7 @@ struct JournalSplitViewTests {
         await withCheckedContinuation { continuation in
             alert.dismiss(animated: false) { continuation.resume() }
         }
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func inputTypedAfterAResizeUnderPhotoDetailIsSavedByBack() async throws {
@@ -293,7 +265,7 @@ struct JournalSplitViewTests {
         try await mounted.settle()
         let stored = try ModelContext(container).fetch(FetchDescriptor<JournalEntry>())
         #expect(stored.contains { $0.plainTextBody == "Synthetic input after photo detail" })
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func aBlankNewEntryMovedOnExpandIsDiscardedWhenAnotherEntryOpens() async throws {
@@ -306,7 +278,7 @@ struct JournalSplitViewTests {
         try await mounted.select(day: 1)
         #expect((mounted.secondary?.topViewController as? EntryEditorViewController)?.entry.id == second.id)
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<JournalEntry>()) == 2)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     // A resize keeps the person's place in the open editor and never saves or discards.
@@ -337,7 +309,7 @@ struct JournalSplitViewTests {
         let stored = try ModelContext(container).fetch(FetchDescriptor<JournalEntry>())
         #expect(stored.count == 2)
         #expect(!stored.contains { $0.plainTextBody.contains("Synthetic unsaved text") })
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     /// Collapse to a narrow window, rotate it, then expand: the text rewraps at every width.
@@ -384,7 +356,7 @@ struct JournalSplitViewTests {
                 #expect(topVisibleBlock === blocks[15], "top block at \(width) pt")
             }
         }
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func aNarrowWideWindowShowsTheSidebarAsAnOverlayThatHidesAfterASelection() async throws {
@@ -395,7 +367,7 @@ struct JournalSplitViewTests {
         try await mounted.select(day: 0)
         #expect(mounted.root.displayMode == .secondaryOnly)
         #expect(mounted.visible.map { ($0 as? EntryEditorViewController)?.entry.id } == [first.id])
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 
     @Test func aWideWindowShowsTheTimelineBesideTheEntry() async throws {
@@ -404,6 +376,6 @@ struct JournalSplitViewTests {
         try await mounted.select(day: 0)
         #expect(mounted.root.displayMode == .oneBesideSecondary)
         #expect(mounted.visible.first === mounted.timeline)
-        await unmount(mounted)
+        await unmount(mounted.window)
     }
 }

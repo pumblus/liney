@@ -50,8 +50,7 @@ struct EntryWindowTests {
     let entry: JournalEntry
     let other: JournalEntry
     let coordinator = EntryEditorCoordinator()
-    let defaults: UserDefaults
-    private let defaultsName = "EntryWindowTests-\(UUID().uuidString)"
+    let preferences = PreferenceSuite()
 
     init() throws {
         container = try makeInMemoryContainer()
@@ -61,13 +60,6 @@ struct EntryWindowTests {
         other = JournalEntry(title: "Synthetic other", entryDate: noon.addingTimeInterval(-86_400 * 30))
         context.insert(entry); context.insert(other)
         try context.save()
-        defaults = try #require(UserDefaults(suiteName: defaultsName))
-    }
-
-    /// App Lock with its preference `enabled`, starting locked as at launch.
-    func appLock(enabled: Bool = false) -> AppLockModel {
-        defaults.set(enabled, forKey: "liney.requiresAppLock")
-        return AppLockModel(authenticator: ApprovingAuthenticator(), defaults: defaults)
     }
 
     /// An entry window for `id` on a fake scene, mounted in a window.
@@ -75,36 +67,15 @@ struct EntryWindowTests {
         let scene = FakeScene()
         let editors = coordinator.connectScene(scene, isEntryWindow: true)
         let opened = try #require(EntryWindow(entryID: id ?? entry.id, container: container,
-                                              appLock: appLock ?? self.appLock(), editors: editors))
-        let window = try mount(opened.root)
-        try await settle(window)
+                                              appLock: appLock ?? preferences.makeLock(), editors: editors))
+        let window = try mountInWindow(opened.root, width: 700)
+        try await waitForLayout(window)
         return (opened, scene, window)
     }
 
-    func mount(_ root: UIViewController, width: CGFloat = 700) throws -> UIWindow {
-        let live = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
-        let window = UIWindow(windowScene: live)
-        window.frame = CGRect(x: 0, y: 0, width: width, height: 800)
-        window.rootViewController = root
-        window.makeKeyAndVisible()
-        return window
-    }
-
-    func settle(_ window: UIWindow) async throws {
-        window.layoutIfNeeded()
-        try await Task.sleep(for: .milliseconds(400))
-    }
-
     func close(_ windows: UIWindow...) async {
-        for window in windows {
-            if let presented = window.rootViewController?.presentedViewController {
-                await withCheckedContinuation { continuation in
-                    presented.dismiss(animated: false) { continuation.resume() }
-                }
-            }
-            window.isHidden = true
-        }
-        UserDefaults.standard.removePersistentDomain(forName: defaultsName)
+        for window in windows { await unmount(window) }
+        preferences.remove()
     }
 
     @Test func anEntryWindowHoldsOnlyThatEntrysEditorTitledWithItsEntryDate() async throws {
@@ -127,7 +98,7 @@ struct EntryWindowTests {
         let dateButton = try #require(descendants(editor.view, as: UIButton.self)
             .first { $0.accessibilityLabel == String(localized: "Edit Entry Date") })
         dateButton.sendActions(for: .touchUpInside)
-        try await settle(window)
+        try await waitForLayout(window)
         let sheet = try #require((editor.presentedViewController as? UINavigationController)?.topViewController)
         let picker = try #require(descendants(sheet.view, as: UIDatePicker.self).first)
 
@@ -142,24 +113,15 @@ struct EntryWindowTests {
     /// A full window (timeline and secondary column) on a fake scene, listing both entries.
     func openJournalWindow(_ sizeClass: UIUserInterfaceSizeClass = .regular) async throws -> (JournalSplitViewController, FakeScene, UIWindow) {
         let scene = FakeScene()
-        let timeline = TimelineViewController(container: container, appLock: appLock(),
-                                              storage: makeTemporaryPhotoStorage().storage,
-                                              editors: coordinator.connectScene(scene))
-        let root = JournalSplitViewController(timeline: timeline)
-        root.traitOverrides.horizontalSizeClass = sizeClass
-        let window = try mount(root, width: 1100)
-        for _ in 0..<100 where timeline.tableView.numberOfSections != 2 {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        try #require(timeline.tableView.numberOfSections == 2)
-        try await settle(window)
+        let (root, window) = try await mountJournal(container, days: 2, sizeClass: sizeClass, appLock: preferences.makeLock(),
+                                                    editors: coordinator.connectScene(scene))
         return (root, scene, window)
     }
 
     /// Opens `entry` from the timeline of `root`.
     func select(in root: JournalSplitViewController, _ window: UIWindow) async throws -> EntryEditorViewController {
         root.timeline.tableView(root.timeline.tableView, didSelectRowAt: IndexPath(row: 0, section: 0))
-        try await settle(window)
+        try await waitForLayout(window)
         return try #require(root.openEditor)
     }
 
@@ -177,10 +139,10 @@ struct EntryWindowTests {
     func openingAnEntryShownBesideATimelineMovesItWithItsEdits(width: UIUserInterfaceSizeClass) async throws {
         let (journal, journalScene, journalWindow) = try await openJournalWindow(width)
         let source = try await select(in: journal, journalWindow)
-        try type("Unsaved synthetic edit", in: source)
+        try typeInFirstBlock("Unsaved synthetic edit", of: source)
 
         let (opened, _, window) = try await openEntryWindow()
-        try await settle(journalWindow)
+        try await waitForLayout(journalWindow)
 
         #expect(journal.openEditor == nil)
         if width == .regular {
@@ -212,7 +174,7 @@ struct EntryWindowTests {
     @Test func aSecondWindowForTheSameEntryClosesAndBringsTheFirstForward() async throws {
         let (_, scene, window) = try await openEntryWindow()
 
-        let duplicate = EntryWindow(entryID: entry.id, container: container, appLock: appLock(),
+        let duplicate = EntryWindow(entryID: entry.id, container: container, appLock: preferences.makeLock(),
                                     editors: coordinator.connectScene(FakeScene(), isEntryWindow: true))
 
         #expect(duplicate == nil)
@@ -222,7 +184,7 @@ struct EntryWindowTests {
 
     @Test func aMissingEntryOpensNoWindow() throws {
         let editors = coordinator.connectScene(FakeScene(), isEntryWindow: true)
-        #expect(EntryWindow(entryID: UUID(), container: container, appLock: appLock(), editors: editors) == nil)
+        #expect(EntryWindow(entryID: UUID(), container: container, appLock: preferences.makeLock(), editors: editors) == nil)
     }
 
     /// The system hides Open in New Window and ignores a dragged row where new windows are
@@ -258,7 +220,7 @@ struct EntryWindowTests {
         case .deleteConfirmation:
             editor.confirmDeleteEntry()
         }
-        try await settle(window)
+        try await waitForLayout(window)
         try #require(editor.presentedViewController != nil)
     }
 
@@ -278,7 +240,7 @@ struct EntryWindowTests {
 
         deleting.timeline.deleteEntry(id: entry.id)
         deleting.timeline.deleteEntry(id: other.id)
-        try await settle(shownWindow)
+        try await waitForLayout(shownWindow)
 
         #expect(shown.presentedViewController == nil)
         #expect(shown.openEditor == nil)
@@ -288,19 +250,13 @@ struct EntryWindowTests {
         await close(shownWindow, window, deletingWindow)
     }
 
-    func type(_ text: String, in editor: EntryEditorViewController) throws {
-        let input = try #require(descendants(editor.view, as: BlockTextView.self).first)
-        input.text = text
-        input.delegate?.textViewDidChange?(input)
-    }
-
     func storedEntries() throws -> [JournalEntry] {
         try ModelContext(container).fetch(FetchDescriptor<JournalEntry>(sortBy: [SortDescriptor(\.entryDate)]))
     }
 
     @Test func doneSavesThenClosesTheWindow() async throws {
         let (opened, scene, window) = try await openEntryWindow()
-        try type("Synthetic window text", in: opened.editor)
+        try typeInFirstBlock("Synthetic window text", of: opened.editor)
 
         opened.editor.finish()
 
@@ -316,7 +272,7 @@ struct EntryWindowTests {
         let confirmation = try await waitForAlert(from: opened.root)
         #expect(scene.destructionCount == 0)
         try await perform(String(localized: "Delete Entry"), in: confirmation)
-        try await settle(window)
+        try await waitForLayout(window)
 
         #expect(scene.destructionCount == 1)
         #expect(try storedEntries().map(\.id) == [other.id])
@@ -324,7 +280,7 @@ struct EntryWindowTests {
     }
 
     @Test func theWindowTitleIsClearedWhileLocked() async throws {
-        let lock = appLock(enabled: true)
+        let lock = preferences.makeLock(enabled: true)
         let (opened, scene, window) = try await openEntryWindow(appLock: lock)
         #expect(scene.title == nil)
 

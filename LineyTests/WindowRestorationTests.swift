@@ -49,8 +49,7 @@ struct WindowRestorationTests {
     let container: ModelContainer
     let entry: JournalEntry
     let coordinator = EntryEditorCoordinator()
-    let defaults: UserDefaults
-    private let defaultsName = "WindowRestorationTests-\(UUID().uuidString)"
+    let preferences = PreferenceSuite()
 
     init() throws {
         container = try makeInMemoryContainer()
@@ -59,37 +58,18 @@ struct WindowRestorationTests {
         entry = JournalEntry(title: "Synthetic private title", entryDate: noon)
         context.insert(entry)
         try context.save()
-        defaults = try #require(UserDefaults(suiteName: defaultsName))
-    }
-
-    /// App Lock with its preference `enabled`, starting locked as at launch.
-    func appLock(enabled: Bool = false) -> AppLockModel {
-        defaults.set(enabled, forKey: "liney.requiresAppLock")
-        return AppLockModel(authenticator: ApprovingAuthenticator(), defaults: defaults)
     }
 
     /// A scene connecting with `restored` as its saved state-restoration activity.
     func connect(restoring restored: NSUserActivity?, scene: FakeScene? = nil,
                  appLock: AppLockModel? = nil) -> JournalWindowContent {
         JournalWindowContent(handle: scene ?? FakeScene(), requested: [], restored: restored, container: container,
-                             appLock: appLock ?? self.appLock(), coordinator: coordinator)
+                             appLock: appLock ?? preferences.makeLock(), coordinator: coordinator)
     }
 
-    func mount(_ root: UIViewController, _ sizeClass: UIUserInterfaceSizeClass = .regular) async throws -> UIWindow {
-        let live = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
-        let window = UIWindow(windowScene: live)
-        window.frame = CGRect(x: 0, y: 0, width: 1100, height: 800)
-        root.traitOverrides.horizontalSizeClass = sizeClass
-        window.rootViewController = root
-        window.makeKeyAndVisible()
-        window.layoutIfNeeded()
-        try await Task.sleep(for: .milliseconds(400))
-        return window
-    }
-
-    func close(_ window: UIWindow) {
-        window.isHidden = true
-        UserDefaults.standard.removePersistentDomain(forName: defaultsName)
+    func close(_ window: UIWindow) async {
+        await unmount(window)
+        preferences.remove()
     }
 
     func deleteEntry() throws {
@@ -127,10 +107,11 @@ struct WindowRestorationTests {
     }
 
     /// The full window `content` shows, mounted, once its timeline lists the entries.
-    func mountJournal(_ content: JournalWindowContent, _ sizeClass: UIUserInterfaceSizeClass = .regular,
-                      rows: Int = 1) async throws -> (JournalSplitViewController, UIWindow) {
+    func mountJournalRoot(of content: JournalWindowContent, _ sizeClass: UIUserInterfaceSizeClass = .regular,
+                          rows: Int = 1) async throws -> (JournalSplitViewController, UIWindow) {
         let root = try #require(content.root as? JournalSplitViewController)
-        let window = try await mount(root, sizeClass)
+        let window = try mountInWindow(root, sizeClass: sizeClass)
+        try await waitForLayout(window)
         for _ in 0..<100 where root.timeline.tableView.numberOfSections != rows {
             try await Task.sleep(for: .milliseconds(20))
         }
@@ -141,7 +122,7 @@ struct WindowRestorationTests {
     @Test(arguments: [UIUserInterfaceSizeClass.regular, .compact])
     func aFullWindowReopensWithItsSelectedEntry(sizeClass: UIUserInterfaceSizeClass) async throws {
         let content = connect(restoring: WindowRestoration.selectedEntry(entry.id).activity)
-        let (root, window) = try await mountJournal(content, sizeClass)
+        let (root, window) = try await mountJournalRoot(of: content, sizeClass)
 
         let editor = try #require(root.openEditor)
         #expect(editor.entry.id == entry.id)
@@ -158,7 +139,7 @@ struct WindowRestorationTests {
         editor.finish()
         try await Task.sleep(for: .milliseconds(400))
         #expect(content.restoration == nil)
-        close(window)
+        await close(window)
     }
 
     @Test func aFullWindowWhoseSelectedEntryWasDeletedShowsTheTimelineOnly() async throws {
@@ -166,12 +147,12 @@ struct WindowRestorationTests {
         let scene = FakeScene()
 
         let content = connect(restoring: WindowRestoration.selectedEntry(entry.id).activity, scene: scene)
-        let (root, window) = try await mountJournal(content, rows: 0)
+        let (root, window) = try await mountJournalRoot(of: content, rows: 0)
 
         #expect(root.openEditor == nil)
         #expect(content.restoration == nil)
         #expect(scene.destructionCount == 0)
-        close(window)
+        await close(window)
     }
 
     @Test func aFullWindowWhoseSelectedEntryIsOpenInAnotherWindowRestoresOnlyTheTimeline() async throws {
@@ -179,14 +160,14 @@ struct WindowRestorationTests {
         let held = connect(restoring: WindowRestoration.entryWindow(entry.id).activity, scene: holder)
 
         let content = connect(restoring: WindowRestoration.selectedEntry(entry.id).activity)
-        let (root, window) = try await mountJournal(content)
+        let (root, window) = try await mountJournalRoot(of: content)
 
         #expect(root.openEditor == nil)
         #expect(root.timeline.tableView.indexPathForSelectedRow == nil)
         #expect(coordinator.scene(editing: entry.id) === held.editors)
         #expect(holder.activationCount == 0)
         #expect(content.restoration == nil)
-        close(window)
+        await close(window)
     }
 
     @Test func anUnknownActivityOpensTheTimeline() async throws {
@@ -195,19 +176,19 @@ struct WindowRestorationTests {
         let scene = FakeScene()
 
         let content = connect(restoring: unknown, scene: scene)
-        let (root, window) = try await mountJournal(content)
+        let (root, window) = try await mountJournalRoot(of: content)
 
         #expect(content.entryWindow == nil)
         #expect(root.openEditor == nil)
         #expect(scene.destructionCount == 0)
         #expect(content.restoration == nil)
-        close(window)
+        await close(window)
     }
 
     @Test(arguments: [UIUserInterfaceSizeClass.regular, .compact])
     func aNewEntryIsNotRestoredAsADraft(sizeClass: UIUserInterfaceSizeClass) async throws {
         let content = connect(restoring: nil)
-        let (root, window) = try await mountJournal(content, sizeClass)
+        let (root, window) = try await mountJournalRoot(of: content, sizeClass)
 
         root.timeline.createEntry()
         try await Task.sleep(for: .milliseconds(400))
@@ -217,16 +198,17 @@ struct WindowRestorationTests {
         if let presented = root.presentedViewController {
             await withCheckedContinuation { continuation in presented.dismiss(animated: false) { continuation.resume() } }
         }
-        close(window)
+        await close(window)
     }
 
     @Test func restoredWindowsFollowTheAppWideLock() async throws {
-        let lock = appLock(enabled: true)
+        let lock = preferences.makeLock(enabled: true)
         let lockScene = lock.connectScene()
         let scene = FakeScene()
 
         let content = connect(restoring: WindowRestoration.entryWindow(entry.id).activity, scene: scene, appLock: lock)
-        let window = try await mount(content.root)
+        let window = try mountInWindow(content.root)
+        try await waitForLayout(window)
 
         #expect(lockScene.hidesJournalContent)
         #expect(scene.title == nil)
@@ -234,6 +216,6 @@ struct WindowRestorationTests {
         #expect(!lockScene.hidesJournalContent)
         #expect(scene.title?.contains("2023") == true)
         withExtendedLifetime(content) { }  // The scene delegate keeps its content.
-        close(window)
+        await close(window)
     }
 }

@@ -115,3 +115,88 @@ func perform(_ title: String, in alert: UIAlertController) async throws {
     await withCheckedContinuation { continuation in alert.dismiss(animated: false) { continuation.resume() } }
     unsafeBitCast(handler, to: Handler.self)(action)
 }
+
+/// An isolated preference store, so App Lock fixtures never read or write the app's standard
+/// defaults. Call `remove()` when the test ends.
+struct PreferenceSuite {
+    let name = "LineyTests.\(UUID().uuidString)"
+    let defaults: UserDefaults
+
+    init() { defaults = UserDefaults(suiteName: name)! }
+
+    /// App Lock with its preference `enabled`, starting locked as at launch.
+    @MainActor
+    func makeLock(_ authenticator: any AppAuthenticating = ApprovingAuthenticator(), enabled: Bool = false) -> AppLockModel {
+        defaults.set(enabled, forKey: "liney.requiresAppLock")
+        return AppLockModel(authenticator: authenticator, defaults: defaults)
+    }
+
+    func remove() { defaults.removePersistentDomain(forName: name) }
+}
+
+// Mounted windows. Fixtures cannot connect scenes, so they show roots on the live app scene.
+
+/// Shows `root` in a key window `width` × 800 pt, at `sizeClass` width when given.
+@MainActor
+func mountInWindow(_ root: UIViewController, sizeClass: UIUserInterfaceSizeClass? = nil,
+                   width: CGFloat = 1100) throws -> UIWindow {
+    if let sizeClass { root.traitOverrides.horizontalSizeClass = sizeClass }
+    let live = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+    let window = UIWindow(windowScene: live)
+    window.frame = CGRect(x: 0, y: 0, width: width, height: 800)
+    window.rootViewController = root
+    window.makeKeyAndVisible()
+    return window
+}
+
+/// Lets layout and short transitions in `window` finish.
+@MainActor
+func waitForLayout(_ window: UIWindow) async throws {
+    window.layoutIfNeeded()
+    try await Task.sleep(for: .milliseconds(400))
+}
+
+/// Waits until `timeline` lists `days` days of entries.
+@MainActor
+func waitForRows(_ days: Int, in timeline: TimelineViewController) async throws {
+    for _ in 0..<100 where timeline.tableView.numberOfSections != days {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    try #require(timeline.tableView.numberOfSections == days)
+}
+
+/// A full window, the scene root and its timeline, mounted once `days` days of entries are listed.
+@MainActor
+func mountJournal(_ container: ModelContainer, days: Int, sizeClass: UIUserInterfaceSizeClass = .regular,
+                  width: CGFloat = 1100, appLock: AppLockModel? = nil, storage: PhotoStorage? = nil,
+                  editors: SceneEditors? = nil) async throws -> (root: JournalSplitViewController, window: UIWindow) {
+    let timeline = TimelineViewController(container: container,
+                                          appLock: appLock ?? AppLockModel(authenticator: DenyingAuthenticator()),
+                                          storage: storage ?? makeTemporaryPhotoStorage().storage, editors: editors)
+    let root = JournalSplitViewController(timeline: timeline)
+    let window = try mountInWindow(root, sizeClass: sizeClass, width: width)
+    try await waitForRows(days, in: timeline)
+    try await waitForLayout(window)
+    return (root, window)
+}
+
+/// Dismisses anything presented over each window's root, then hides the window.
+@MainActor
+func unmount(_ windows: UIWindow...) async {
+    for window in windows {
+        if let presented = window.rootViewController?.presentedViewController {
+            await withCheckedContinuation { continuation in
+                presented.dismiss(animated: false) { continuation.resume() }
+            }
+        }
+        window.isHidden = true
+    }
+}
+
+/// Types into the editor's first text block as a person would, before the debounced save runs.
+@MainActor
+func typeInFirstBlock(_ text: String, of editor: EntryEditorViewController) throws {
+    let input = try #require(descendants(editor.view, as: BlockTextView.self).first)
+    input.text = text
+    input.delegate?.textViewDidChange?(input)
+}

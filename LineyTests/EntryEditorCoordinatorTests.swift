@@ -39,50 +39,21 @@ struct EntryEditorCoordinatorTests {
             timeline.tableView(timeline.tableView, didSelectRowAt: IndexPath(row: 0, section: day))
             try await settle()
         }
-        func settle() async throws {
-            root.view.layoutIfNeeded()
-            try await Task.sleep(for: .milliseconds(400))
-        }
-        func type(_ text: String) throws {
-            let editor = try #require(openEditor)
-            let input = try #require(descendants(editor.view, as: BlockTextView.self).first)
-            input.text = text
-            input.delegate?.textViewDidChange?(input)
-        }
+        func settle() async throws { try await waitForLayout(window) }
+        func type(_ text: String) throws { try typeInFirstBlock(text, of: try #require(openEditor)) }
     }
 
     func open(_ sizeClass: UIUserInterfaceSizeClass = .regular, sections: Int = 2,
               storage: PhotoStorage = makeTemporaryPhotoStorage().storage) async throws -> Window {
         let scene = FakeScene()
         let editors = coordinator.connectScene(scene)
-        let timeline = TimelineViewController(container: container, appLock: AppLockModel(authenticator: DenyingAuthenticator()),
-                                              storage: storage, editors: editors)
-        let root = JournalSplitViewController(timeline: timeline)
-        root.traitOverrides.horizontalSizeClass = sizeClass
-        let live = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
-        let window = UIWindow(windowScene: live)
-        window.frame = CGRect(x: 0, y: 0, width: 1100, height: 800)
-        window.rootViewController = root
-        window.makeKeyAndVisible()
-        for _ in 0..<100 {
-            if timeline.tableView.numberOfSections == sections { break }
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        try #require(timeline.tableView.numberOfSections == sections)
-        let opened = Window(root: root, timeline: timeline, scene: scene, editors: editors, window: window)
-        try await opened.settle()
-        return opened
+        let (root, window) = try await mountJournal(container, days: sections, sizeClass: sizeClass,
+                                                    storage: storage, editors: editors)
+        return Window(root: root, timeline: root.timeline, scene: scene, editors: editors, window: window)
     }
 
     func close(_ windows: Window...) async {
-        for window in windows {
-            if let presented = window.root.presentedViewController {
-                await withCheckedContinuation { continuation in
-                    presented.dismiss(animated: false) { continuation.resume() }
-                }
-            }
-            window.window.isHidden = true
-        }
+        for window in windows { await unmount(window.window) }
     }
 
     func storedBodies() throws -> [String] {
@@ -173,9 +144,7 @@ struct EntryEditorCoordinatorTests {
         try await left.settle()
         let presented = try #require(left.root.presentedViewController as? UINavigationController)
         let editor = try #require(presented.topViewController as? EntryEditorViewController)
-        let input = try #require(descendants(editor.view, as: BlockTextView.self).first)
-        input.text = "A synthetic new entry"
-        input.delegate?.textViewDidChange?(input)
+        try typeInFirstBlock("A synthetic new entry", of: editor)
         editor.flush()
         for _ in 0..<100 {
             if right.timeline.tableView.numberOfSections == 3 { break }

@@ -686,22 +686,6 @@ final class AppWideAppLockTests {
     }
 }
 
-/// An isolated preference store, so App Lock tests never read or write the app's standard defaults.
-private struct PreferenceSuite {
-    let name = "AppLockTests.\(UUID().uuidString)"
-    let defaults: UserDefaults
-
-    init() { defaults = UserDefaults(suiteName: name)! }
-
-    @MainActor
-    func makeLock(_ authenticator: some AppAuthenticating, enabled: Bool) -> AppLockModel {
-        defaults.set(enabled, forKey: "liney.requiresAppLock")
-        return AppLockModel(authenticator: authenticator, defaults: defaults)
-    }
-
-    func remove() { defaults.removePersistentDomain(forName: name) }
-}
-
 private final class FakeAuthenticator: AppAuthenticating {
     private var results: [Bool]
     private(set) var callCount = 0
