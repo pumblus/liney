@@ -58,8 +58,15 @@ final class JournalSplitViewController: UISplitViewController {
         }
     }
 
-    private static func markMoving(_ controllers: some Sequence<UIViewController>) {
-        for case let editor as EntryEditorViewController in controllers { editor.isMovingBetweenColumns = true }
+    /// What expanding moves to the secondary column: the first editor pushed while collapsed and anything above it.
+    private var pushedEntry: ArraySlice<UIViewController> {
+        let stack = timelineNavigation.viewControllers
+        return stack.firstIndex { $0 is EntryEditorViewController }.map { stack[$0...] } ?? []
+    }
+
+    /// Runs before the move, while the editors are still on screen with their focus and caret.
+    private static func beginMove(_ controllers: some Sequence<UIViewController>) {
+        for case let editor as EntryEditorViewController in controllers { editor.beginColumnMove() }
     }
 
     private static func noEntrySelected() -> MessageController {
@@ -72,26 +79,30 @@ extension JournalSplitViewController: UISplitViewControllerDelegate {
     /// One stack always starts from the timeline; an open editor is moved above it, never the placeholder.
     func splitViewController(_ svc: UISplitViewController,
                              topColumnForCollapsingToProposedTopColumn proposedTopColumn: UISplitViewController.Column) -> UISplitViewController.Column {
-        .primary
+        Self.beginMove(entryNavigation.viewControllers)
+        return .primary
     }
 
     /// Moves the open editor, as the same instance, above the timeline so Back leads to it.
     func splitViewControllerDidCollapse(_ svc: UISplitViewController) {
         let entry = entryNavigation.viewControllers.filter { $0 is EntryEditorViewController }
         guard !entry.isEmpty else { return }
-        Self.markMoving(entry)
         entryNavigation.setViewControllers([Self.noEntrySelected()], animated: false)
         timelineNavigation.setViewControllers(timelineNavigation.viewControllers + entry, animated: false)
     }
 
+    func splitViewController(_ svc: UISplitViewController,
+                             displayModeForExpandingToProposedDisplayMode proposedDisplayMode: UISplitViewController.DisplayMode) -> UISplitViewController.DisplayMode {
+        Self.beginMove(pushedEntry)
+        return proposedDisplayMode
+    }
+
     /// Moves an editor pushed while collapsed, as the same instance, to the secondary column.
     func splitViewControllerDidExpand(_ svc: UISplitViewController) {
-        let stack = timelineNavigation.viewControllers
-        guard let index = stack.firstIndex(where: { $0 is EntryEditorViewController }),
-              let editor = stack[index] as? EntryEditorViewController else { return }
-        Self.markMoving(stack[index...])
-        timelineNavigation.setViewControllers(Array(stack[..<index]), animated: false)
-        entryNavigation.setViewControllers(Array(stack[index...]), animated: false)
+        let entry = pushedEntry
+        guard let editor = entry.first as? EntryEditorViewController else { return }
+        timelineNavigation.setViewControllers(Array(timelineNavigation.viewControllers[..<entry.startIndex]), animated: false)
+        entryNavigation.setViewControllers(Array(entry), animated: false)
         timeline.selectRow(for: editor.entry.id)
     }
 }
