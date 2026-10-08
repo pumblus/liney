@@ -283,6 +283,41 @@ final class AppLockTests: XCTestCase {
         root.dismiss(animated: false)
     }
 
+    /// Closing iPhone Duo resigns the scene briefly: the cover is the only visible effect.
+    func testSnapshotCoverWithoutLockingReturnsTheKeyboardAndCaret() async throws {
+        let (window, input) = try mountFocusedInput()
+        defer { window.isHidden = true }
+        let scene = makeLock(FakeAuthenticator(results: [true])).connectScene()
+        let shield = JournalPrivacyShield(window: window, lockScene: scene)
+        defer { shield.cover.isHidden = true }
+        await scene.didBecomeActive()
+        shield.update()
+        XCTAssertTrue(input.becomeFirstResponder())
+        input.selectedRange = NSRange(location: 9, length: 0)
+
+        scene.willResignActive()
+        XCTAssertTrue(shield.cover.isKeyWindow)
+        XCTAssertFalse(input.isFirstResponder, "No keyboard suggestions show journal text while covered")
+        await scene.didBecomeActive()
+
+        XCTAssertTrue(shield.cover.isHidden)
+        XCTAssertTrue(input.isFirstResponder)
+        XCTAssertEqual(input.selectedRange, NSRange(location: 9, length: 0))
+    }
+
+    /// A key window showing a text view with synthetic text.
+    private func mountFocusedInput() throws -> (UIWindow, UITextView) {
+        let windowScene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let window = UIWindow(windowScene: windowScene)
+        let root = UIViewController()
+        let input = UITextView(frame: CGRect(x: 0, y: 100, width: 200, height: 100))
+        input.text = "Synthetic private input"
+        root.view.addSubview(input)
+        window.rootViewController = root
+        window.makeKeyAndVisible()
+        return (window, input)
+    }
+
     func testPrivacyCoverIsNotShownWhenLockIsDisabled() {
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
         window.rootViewController = UIViewController()
