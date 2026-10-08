@@ -145,8 +145,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         guard isMovingFromParent || navigationController == nil, !finished, columnMove == nil else { return }
         do {
             try saveEntryChanges(entry, in: context, discardIfBlank: isNew, save: save)
-            finished = true
-            saveTask?.cancel()
+            markFinished()
             NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
         } catch { saveError(error) }
     }
@@ -331,6 +330,8 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             }
         }
     }
+    /// The editor is done with its entry: no pending save runs, and the scene stops tracking it.
+    private func markFinished() { finished = true; saveTask?.cancel() }
     private func scheduleSave() {
         guard !finished else { return }
         saveTask?.cancel()
@@ -371,7 +372,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         guard flush() else { return }
         do {
             try saveEntryChanges(entry, in: context, discardIfBlank: isNew, save: save)
-            finished = true; saveTask?.cancel()
+            markFinished()
             NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
             closeEditor()
         } catch { saveError(error) }
@@ -536,7 +537,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     /// The entry was deleted in another window: its unflushed input goes with it, and the editor closes.
     func closeForDeletedEntry() {
         guard !finished else { return }
-        finished = true; saveTask?.cancel()
+        markFinished()
         viewIfLoaded?.endEditing(true)
         closeEditor()
     }
@@ -547,7 +548,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         guard !addingPhotos else { return false }
         viewIfLoaded?.endEditing(true)
         guard flush() else { return false }
-        finished = true; saveTask?.cancel()
+        markFinished()
         closeEditor()
         return true
     }
@@ -558,7 +559,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             do {
                 let id = self.entry.id
                 let files = try deleteEntryAndSave(self.entry, in: self.context, save: self.save)
-                self.finished = true; self.saveTask?.cancel()
+                self.markFinished()
                 NotificationCenter.default.post(name: .journalDidChange, object: id)
                 self.editors?.entryDeleted(id)
                 if self.removeFiles(files) { self.closeEditor() }
