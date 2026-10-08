@@ -10,7 +10,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     let isNew: Bool
     private let storage: PhotoStorage
     private let saveContext: (ModelContext) throws -> Void
-    private let scroll = UIScrollView()
+    private let scroll = EditorScrollView()
     private let stack = UIStackView()
     private let titleField = EntryTitleView()
     private var dateButton: UIButton!
@@ -35,6 +35,17 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         /// The editor can finish an earlier appearance before it leaves its old column.
         var hasLeft = false
     }
+    /// The reading position a resize keeps while the blocks rewrap at the new width.
+    private var scrollAnchor: ScrollAnchor?
+    private struct ScrollAnchor {
+        enum Target {
+            case caret(UITextView)
+            /// A block and the part of its height above the top of the writing area.
+            case block(UIView, fraction: CGFloat)
+        }
+        let target: Target
+        let distance: CGFloat
+    }
 
     /// Fixtures replace `saveContext` to simulate a full disk.
     init(entry: JournalEntry, isNew: Bool, context: ModelContext, storage: PhotoStorage = PhotoStorage(),
@@ -51,6 +62,10 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         navigationItem.largeTitleDisplayMode = .never
         scroll.keyboardDismissMode = .interactive
         scroll.delegate = self
+        scroll.contentWidthWillChange = { [weak self] in
+            guard let self, scrollAnchor == nil, view.window != nil else { return }
+            scrollAnchor = currentScrollAnchor()
+        }
         stack.axis = .vertical; stack.spacing = 16
         scroll.translatesAutoresizingMaskIntoConstraints = false; stack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(scroll); scroll.addSubview(stack)
@@ -95,6 +110,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         guard columnMove == nil else { return }
         let focus = ([titleField] + textViews).first { $0.isFirstResponder }
         columnMove = ColumnMove(focus: focus, selection: focus?.selectedRange ?? NSRange())
+        scrollAnchor = currentScrollAnchor()
     }
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
@@ -110,6 +126,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
         guard let move = columnMove, move.hasLeft else { return }
         columnMove = nil
         if let focus = move.focus, focus.becomeFirstResponder() { focus.selectedRange = move.selection }
+        restoreScrollAnchor()
     }
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
@@ -190,8 +207,54 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
     }
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        // A column move keeps its anchor until the editor appears in the new column.
+        if columnMove == nil { restoreScrollAnchor() }
         foldAvoidance?.update()
         refreshVisiblePhotos()
+    }
+    /// The focused line if it is on screen, otherwise the top visible block, at its distance
+    /// below the top of the writing area.
+    private func currentScrollAnchor() -> ScrollAnchor? {
+        let visible = scroll.bounds.inset(by: scroll.adjustedContentInset)
+        let focus = columnMove?.focus ?? ([titleField] + textViews).first { $0.isFirstResponder }
+        if let focus, let y = anchorY(.caret(focus)), visible.minY...visible.maxY ~= y {
+            return ScrollAnchor(target: .caret(focus), distance: y - visible.minY)
+        }
+        let top = stack.arrangedSubviews.first { !$0.isHidden && $0.convert($0.bounds, to: scroll).maxY > visible.minY }
+        guard let top else { return nil }
+        let frame = top.convert(top.bounds, to: scroll)
+        let target = ScrollAnchor.Target.block(top, fraction: frame.height > 0 ? max(0, visible.minY - frame.minY) / frame.height : 0)
+        return anchorY(target).map { ScrollAnchor(target: target, distance: $0 - visible.minY) }
+    }
+    private func anchorY(_ target: ScrollAnchor.Target) -> CGFloat? {
+        switch target {
+        case .caret(let text):
+            guard let selection = text.selectedTextRange else { return nil }
+            return text.convert(text.caretRect(for: selection.end), to: scroll).minY
+        case .block(let block, let fraction):
+            let frame = block.convert(block.bounds, to: scroll)
+            return frame.minY + fraction * frame.height
+        }
+    }
+    /// Restores at once, then again after the rewrapped text views settle at their new heights,
+    /// which takes another layout pass.
+    private func restoreScrollAnchor() {
+        guard let anchor = scrollAnchor else { return }
+        restore(anchor)
+        Task { [weak self] in
+            guard let self, let anchor = self.scrollAnchor else { return }
+            self.scrollAnchor = nil
+            view.layoutIfNeeded()
+            restore(anchor)
+        }
+    }
+    private func restore(_ anchor: ScrollAnchor) {
+        scroll.layoutIfNeeded()
+        guard let y = anchorY(anchor.target) else { return }
+        let inset = scroll.adjustedContentInset
+        let lowest = -inset.top
+        let highest = max(lowest, scroll.contentSize.height + inset.bottom - scroll.bounds.height)
+        scroll.contentOffset.y = min(max(y - anchor.distance - inset.top, lowest), highest)
     }
     func scrollViewDidScroll(_ scrollView: UIScrollView) { refreshVisiblePhotos() }
     private func refreshVisiblePhotos() {
@@ -458,6 +521,15 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                 }
             } catch { self.saveError(error) }
         }
+    }
+}
+
+/// Reports a new content width, which rewraps the blocks, before Auto Layout applies it: the
+/// offset is clamped to the new content height before any view controller layout hook runs.
+private final class EditorScrollView: UIScrollView {
+    var contentWidthWillChange: (() -> Void)?
+    override var contentSize: CGSize {
+        willSet { if contentSize.width > 0, newValue.width != contentSize.width { contentWidthWillChange?() } }
     }
 }
 

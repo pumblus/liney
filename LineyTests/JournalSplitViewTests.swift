@@ -39,7 +39,8 @@ struct JournalSplitViewTests {
             visible.contains { $0.title == String(localized: "No Entry Selected") }
         }
 
-        func resize(to sizeClass: UIUserInterfaceSizeClass) async throws {
+        func resize(to sizeClass: UIUserInterfaceSizeClass, width: CGFloat? = nil) async throws {
+            if let width { window.frame.size.width = width }
             root.traitOverrides.horizontalSizeClass = sizeClass
             try await settle()
         }
@@ -54,7 +55,7 @@ struct JournalSplitViewTests {
     }
 
     /// Mounts the root in a window `width` points wide; the system picks the display mode from it.
-    func mount(_ sizeClass: UIUserInterfaceSizeClass, width: CGFloat = 1100) async throws -> Mounted {
+    func mount(_ sizeClass: UIUserInterfaceSizeClass, width: CGFloat = 1100, days: Int = 2) async throws -> Mounted {
         let timeline = TimelineViewController(container: container, appLock: AppLockModel(authenticator: DenyingAuthenticator()))
         let root = JournalSplitViewController(timeline: timeline)
         root.traitOverrides.horizontalSizeClass = sizeClass
@@ -64,10 +65,10 @@ struct JournalSplitViewTests {
         window.rootViewController = root
         window.makeKeyAndVisible()
         for _ in 0..<100 {
-            if timeline.tableView.numberOfSections == 2 { break }
+            if timeline.tableView.numberOfSections == days { break }
             try await Task.sleep(for: .milliseconds(20))
         }
-        try #require(timeline.tableView.numberOfSections == 2)
+        try #require(timeline.tableView.numberOfSections == days)
         let mounted = Mounted(root: root, timeline: timeline, window: window)
         try await mounted.settle()
         return mounted
@@ -303,6 +304,53 @@ struct JournalSplitViewTests {
         let stored = try ModelContext(container).fetch(FetchDescriptor<JournalEntry>())
         #expect(stored.count == 2)
         #expect(!stored.contains { $0.plainTextBody.contains("Synthetic unsaved text") })
+        await unmount(mounted)
+    }
+
+    /// Collapse to a narrow window, rotate it, then expand: the text rewraps at every width.
+    @Test(arguments: [true, false])
+    func theFocusedLineOrElseTheTopVisibleBlockStaysInViewAcrossResizes(focused: Bool) async throws {
+        let context = ModelContext(container)
+        let long = JournalEntry(title: "Synthetic long", entryDate: Date(timeIntervalSince1970: 1_699_000_000))
+        context.insert(long)
+        for index in 0..<30 {
+            let words = String(repeating: "Synthetic words rewrap at every width. ", count: 8)
+            let block = EntryBlock(sortIndex: index, text: "Paragraph \(index). " + words, entry: long)
+            long.blocks.append(block); context.insert(block)
+        }
+        try context.save()
+        let mounted = try await mount(.regular, days: 3)
+        try await mounted.select(day: 2)
+        let editor = try #require(mounted.visibleEditor)
+        let scroll = try #require(descendants(editor.view, as: UIScrollView.self).first { !($0 is UITextView) })
+        let blocks = descendants(editor.view, as: BlockTextView.self)
+        func frame(of view: UIView) -> CGRect { view.convert(view.bounds, to: scroll) }
+        var visible: CGRect { scroll.bounds.inset(by: scroll.adjustedContentInset) }
+        var topVisibleBlock: BlockTextView? {
+            blocks.sorted { frame(of: $0).minY < frame(of: $1).minY }.first { frame(of: $0).maxY > visible.minY }
+        }
+        let input = blocks[20]
+        func caret() throws -> CGRect {
+            input.convert(input.caretRect(for: try #require(input.selectedTextRange).end), to: scroll)
+        }
+        if focused {
+            #expect(input.becomeFirstResponder())
+            input.selectedRange = NSRange(location: 150, length: 0)
+            scroll.layoutIfNeeded()
+            scroll.contentOffset.y = try caret().midY - scroll.bounds.height / 2
+        } else {
+            scroll.contentOffset.y = frame(of: blocks[15]).minY - scroll.adjustedContentInset.top
+        }
+        try await mounted.settle()
+        for (sizeClass, width) in [(UIUserInterfaceSizeClass.compact, 400.0), (.compact, 800), (.regular, 1100)] {
+            try await mounted.resize(to: sizeClass, width: width)
+            if focused {
+                #expect(input.isFirstResponder)
+                #expect(visible.contains(try caret()), "caret at \(width) pt")
+            } else {
+                #expect(topVisibleBlock === blocks[15], "top block at \(width) pt")
+            }
+        }
         await unmount(mounted)
     }
 
