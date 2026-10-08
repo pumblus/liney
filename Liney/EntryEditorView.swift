@@ -156,6 +156,12 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
             scroll.scrollRectToVisible(text.convert(text.bounds, to: scroll), animated: true)
         }
     }
+    override func viewWillLayoutSubviews() {
+        super.viewWillLayoutSubviews()
+        // Safe-area height, not the area above the keyboard, so photos keep their size while typing.
+        let visibleHeight = view.bounds.inset(by: view.safeAreaInsets).height
+        for group in photoGroups { group.maximumPhotoHeight = visibleHeight > 0 ? visibleHeight * 0.7 : nil }
+    }
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         refreshVisiblePhotos()
@@ -622,6 +628,15 @@ final class PhotoGroupView: UIStackView {
     private(set) var photoViews: [StoredPhotoView] = []
     let blockID: UUID
     let fileNames: [String]
+    private var heightCap: NSLayoutConstraint?
+    /// The tallest a single photo may be; groups of several photos keep their grid.
+    var maximumPhotoHeight: CGFloat? {
+        didSet {
+            guard let heightCap, maximumPhotoHeight != oldValue else { return }
+            heightCap.constant = maximumPhotoHeight ?? 0
+            heightCap.isActive = maximumPhotoHeight != nil
+        }
+    }
     init(block: EntryBlock, storage: PhotoStorage, deferLoading: Bool = false, open: @escaping (EntryPhoto) -> Void) {
         let photos = block.orderedPhotos
         blockID = block.id; fileNames = photos.map(\.fileName)
@@ -673,6 +688,14 @@ final class PhotoGroupView: UIStackView {
                 for _ in min(start + columns, photos.count)..<(start + columns) { row.addArrangedSubview(UIView()) }
             }
             addArrangedSubview(row)
+        }
+        if photos.count == 1, let button = photoViews.first?.superview {
+            // A capped photo narrows to keep its ratio and stays centred instead of letterboxing.
+            alignment = .center
+            let fill = button.widthAnchor.constraint(equalTo: widthAnchor)
+            fill.priority = .required - 1
+            fill.isActive = true
+            heightCap = button.heightAnchor.constraint(lessThanOrEqualToConstant: 0)
         }
         accessibilityLabel = String(localized: "Photo Group")
     }

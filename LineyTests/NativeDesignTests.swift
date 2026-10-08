@@ -140,6 +140,26 @@ struct NativeDesignTests {
         }
     }
 
+    static let tallPhotoBounds: [(window: CGSize, photo: CGRect)] = [
+        (CGSize(width: 1100, height: 800), CGRect(x: 410, y: 0, width: 280, height: 560)),
+        (CGSize(width: 390, height: 844), CGRect(x: 47.3, y: 0, width: 295.4, height: 590.8))
+    ]
+
+    /// A tall single photo is at most 70% of the visible height, narrowed to keep its ratio and centred.
+    @Test(arguments: tallPhotoBounds)
+    func singlePhotoStaysWithinMostOfTheVisibleHeight(window: CGSize, photo expected: CGRect) throws {
+        let (storage, directory) = makeTemporaryPhotoStorage()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let editor = try makeEditor(photoSize: CGSize(width: 200, height: 400), storage: storage,
+                                    frame: CGRect(origin: .zero, size: window))
+        let group = try #require(descendants(editor.view, as: PhotoGroupView.self).first)
+        let button = try #require(group.photoViews.first?.superview)
+        let frame = button.convert(button.bounds, to: editor.view)
+        #expect(abs(frame.minX - expected.minX) < 0.5)
+        #expect(abs(frame.width - expected.width) < 0.5)
+        #expect(abs(frame.height - expected.height) < 0.5)
+    }
+
     private func makeEditor(photoSize: CGSize, storage: PhotoStorage, frame: CGRect) throws -> EntryEditorViewController {
         let context = ModelContext(try makeInMemoryContainer())
         let photo = try storage.saveJPEG(from: makeJPEGData(size: photoSize))
