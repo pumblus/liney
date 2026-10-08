@@ -5,10 +5,13 @@
 #   scripts/test StorageFullTests ... named suites (or Suite/testName), iPhone
 #   scripts/test --all                all suites, iPhone, iPad, then iPhone Duo
 #   scripts/test --duo [suites ...]   all or named suites, iPhone Duo (iOS 27.1)
+#   scripts/test --remove-slots       delete every slot clone
 #
 # Simulators are found by name ("Liney OS27 iPhone QA", "Liney OS27 iPad QA",
-# "Liney OS27 Duo QA"); override with LINEY_IPHONE_SIM / LINEY_IPAD_SIM /
-# LINEY_DUO_SIM set to a simulator UDID.
+# "Liney OS27 Duo QA"). With LINEY_SIM_SLOT=<n>, runs use "Liney Agent <n> iPhone",
+# "... iPad", and "... Duo", cloned from the QA simulators on first use, so parallel
+# worktrees never share a simulator. LINEY_IPHONE_SIM / LINEY_IPAD_SIM /
+# LINEY_DUO_SIM set to a simulator UDID override both.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -18,7 +21,11 @@ for arg in "$@"; do
   case "$arg" in
     --all) devices=(iphone ipad duo) ;;
     --duo) devices=(duo) ;;
-    -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --remove-slots)
+      xcrun simctl list devices | grep -F 'Liney Agent ' | grep -oE '[0-9A-F-]{36}' |
+        while read -r id; do xcrun simctl delete "$id"; done
+      exit 0 ;;
+    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $arg" >&2; exit 2 ;;
     *) only+=("-only-testing:LineyTests/$arg") ;;
   esac
@@ -27,10 +34,20 @@ if [[ ${#only[@]} -gt 0 && ${#devices[@]} -gt 1 ]]; then
   echo "--all runs every suite; drop the suite names" >&2; exit 2
 fi
 
+find_sim() {
+  xcrun simctl list devices available | grep -F "$1 (" | head -1 | grep -oE '[0-9A-F-]{36}'
+}
+
 udid() {
-  local override=$1 name=$2
+  local override=$1 qa=$2 kind=$3
   if [[ -n "${!override:-}" ]]; then echo "${!override}"; return; fi
-  xcrun simctl list devices available | grep -F "$name (" | head -1 | grep -oE '[0-9A-F-]{36}'
+  if [[ -z "${LINEY_SIM_SLOT:-}" ]]; then find_sim "$qa"; return; fi
+  local name="Liney Agent $LINEY_SIM_SLOT $kind" id source
+  id=$(find_sim "$name")
+  if [[ -z "$id" ]] && source=$(find_sim "$qa") && [[ -n "$source" ]]; then
+    id=$(xcrun simctl clone "$source" "$name") || echo "$kind: clone failed; shut down \"$qa\" and retry" >&2
+  fi
+  echo "$id"
 }
 
 mkdir -p .build/agent-logs
@@ -38,9 +55,9 @@ stamp=$(date +%Y%m%d-%H%M%S)
 status=0
 for device in "${devices[@]}"; do
   case "$device" in
-    iphone) id=$(udid LINEY_IPHONE_SIM "Liney OS27 iPhone QA") ;;
-    ipad) id=$(udid LINEY_IPAD_SIM "Liney OS27 iPad QA") ;;
-    duo) id=$(udid LINEY_DUO_SIM "Liney OS27 Duo QA") ;;
+    iphone) id=$(udid LINEY_IPHONE_SIM "Liney OS27 iPhone QA" iPhone) ;;
+    ipad) id=$(udid LINEY_IPAD_SIM "Liney OS27 iPad QA" iPad) ;;
+    duo) id=$(udid LINEY_DUO_SIM "Liney OS27 Duo QA" Duo) ;;
   esac
   if [[ -z "$id" ]]; then
     echo "$device: no QA simulator; create one or set its LINEY_*_SIM override" >&2
