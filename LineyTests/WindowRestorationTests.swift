@@ -3,7 +3,8 @@ import Testing
 import UIKit
 @testable import Liney
 
-/// What a window saves for the next launch: only an entry UUID, never journal text.
+/// What a window saves for the next launch, and what requests an entry window: only an entry
+/// UUID, never journal text.
 @Suite struct WindowRestorationActivityTests {
     static let id = UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!
 
@@ -12,7 +13,7 @@ import UIKit
         let activity = restoration.activity
 
         #expect(activity.userInfo?.count == 1)
-        #expect(activity.userInfo?.values.first as? String == "6F9619FF-8B86-D011-B42D-00C04FC964FF")
+        #expect(activity.userInfo?["entryID"] as? String == "6F9619FF-8B86-D011-B42D-00C04FC964FF")
         #expect(activity.title == nil)
         #expect(activity.keywords.isEmpty)
         #expect(activity.webpageURL == nil)
@@ -24,20 +25,32 @@ import UIKit
     @Test func anEntryWindowSavesTheActivityThatOpensEntryWindows() {
         let activity = WindowRestoration.entryWindow(Self.id).activity
 
-        #expect(EntryWindowActivity.entryID(of: activity) == Self.id)
-        #expect(EntryWindowActivity.entryID(of: WindowRestoration.selectedEntry(Self.id).activity) == nil)
+        #expect(activity.activityType == "com.liney.app.entry")
+        #expect(WindowRestoration.entryWindowID(of: activity) == Self.id)
+        #expect(WindowRestoration.selectedEntry(Self.id).activity.activityType == "com.liney.app.journal")
+        #expect(WindowRestoration.entryWindowID(of: WindowRestoration.selectedEntry(Self.id).activity) == nil)
     }
 
-    @Test func unknownOrMalformedActivitiesRestoreNothing() {
+    @Test func theAppDeclaresItsActivitiesSoADraggedRowCanCreateAWindowAndWindowsRestore() throws {
+        let info = try #require(Bundle.main.infoDictionary)
+        #expect(info["NSUserActivityTypes"] as? [String] == ["com.liney.app.entry", "com.liney.app.journal"])
+        let manifest = try #require(info["UIApplicationSceneManifest"] as? [String: Any])
+        #expect(manifest["UIApplicationSupportsMultipleScenes"] as? Bool == true)
+        #expect(info["NSFaceIDUsageDescription"] != nil)
+    }
+
+    @Test(arguments: [WindowRestoration.entryWindow(id), .selectedEntry(id)])
+    func unknownOrMalformedActivitiesRestoreNothing(restoration: WindowRestoration) {
         let other = NSUserActivity(activityType: "com.liney.app.other")
         other.userInfo = ["entryID": Self.id.uuidString]
-        let malformed = WindowRestoration.selectedEntry(Self.id).activity
+        let malformed = restoration.activity
         malformed.userInfo = ["entryID": "not a UUID"]
-        let empty = NSUserActivity(activityType: WindowRestoration.selectedEntry(Self.id).activity.activityType)
+        let empty = NSUserActivity(activityType: restoration.activity.activityType)
 
         #expect(WindowRestoration(other) == nil)
         #expect(WindowRestoration(malformed) == nil)
         #expect(WindowRestoration(empty) == nil)
+        #expect(WindowRestoration.entryWindowID(of: malformed) == nil)
     }
 }
 

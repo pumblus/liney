@@ -127,7 +127,7 @@ final class WindowSceneHandle: SceneHandle {
             holder.handle.activate()
             return nil
         }
-        return EntryWindowActivity.make(entryID: id)
+        return WindowRestoration.entryWindow(id).activity
     }
 
     /// `id` was deleted from this scene; see `EntryEditorCoordinator.entryDeleted(_:)`.

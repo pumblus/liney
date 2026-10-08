@@ -3,44 +3,6 @@ import Testing
 import UIKit
 @testable import Liney
 
-/// The user activity that configures an entry window carries only the entry UUID.
-@Suite struct EntryWindowActivityTests {
-    @Test func theActivityCarriesOnlyTheEntryUUID() throws {
-        let id = UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!
-        let activity = EntryWindowActivity.make(entryID: id)
-
-        #expect(activity.activityType == "com.liney.app.entry")
-        #expect(activity.userInfo?.count == 1)
-        #expect(activity.userInfo?["entryID"] as? String == "6F9619FF-8B86-D011-B42D-00C04FC964FF")
-        #expect(activity.title == nil)
-        #expect(activity.keywords.isEmpty)
-        #expect(activity.webpageURL == nil)
-        #expect(activity.targetContentIdentifier == nil)
-        #expect(!activity.isEligibleForHandoff && !activity.isEligibleForSearch && !activity.isEligibleForPrediction)
-        #expect(EntryWindowActivity.entryID(of: activity) == id)
-    }
-
-    @Test func theAppDeclaresItsActivitiesSoADraggedRowCanCreateAWindowAndWindowsRestore() throws {
-        let info = try #require(Bundle.main.infoDictionary)
-        #expect(info["NSUserActivityTypes"] as? [String] == ["com.liney.app.entry", "com.liney.app.journal"])
-        let manifest = try #require(info["UIApplicationSceneManifest"] as? [String: Any])
-        #expect(manifest["UIApplicationSupportsMultipleScenes"] as? Bool == true)
-        #expect(info["NSFaceIDUsageDescription"] != nil)
-    }
-
-    @Test func otherActivitiesNameNoEntry() {
-        let other = NSUserActivity(activityType: "com.liney.app.other")
-        other.userInfo = ["entryID": UUID().uuidString]
-        let malformed = NSUserActivity(activityType: "com.liney.app.entry")
-        malformed.userInfo = ["entryID": "not a UUID"]
-        let empty = NSUserActivity(activityType: "com.liney.app.entry")
-
-        #expect(EntryWindowActivity.entryID(of: other) == nil)
-        #expect(EntryWindowActivity.entryID(of: malformed) == nil)
-        #expect(EntryWindowActivity.entryID(of: empty) == nil)
-    }
-}
-
 /// Entry windows and the routing that keeps each entry in one place, with fake scene handles,
 /// because a real scene request cannot run in unit tests.
 @Suite(.serialized)
@@ -166,7 +128,7 @@ struct EntryWindowTests {
         #expect(editors.newWindowActivity(for: entry.id) == nil)
         #expect(scene.activationCount == 1)
         let request = try #require(editors.newWindowActivity(for: other.id))
-        #expect(EntryWindowActivity.entryID(of: request) == other.id)
+        #expect(WindowRestoration(request) == .entryWindow(other.id))
         #expect(scene.activationCount == 1)
         await close(window, journalWindow)
     }

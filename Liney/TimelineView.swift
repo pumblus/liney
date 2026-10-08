@@ -240,7 +240,7 @@ extension TimelineViewController: UITableViewDragDelegate {
     func tableView(_ tableView: UITableView, itemsForBeginning session: any UIDragSession,
                    at indexPath: IndexPath) -> [UIDragItem] {
         guard editors != nil, let id = dataSource.itemIdentifier(for: indexPath) else { return [] }
-        return [UIDragItem(itemProvider: NSItemProvider(object: EntryWindowActivity.make(entryID: id)))]
+        return [UIDragItem(itemProvider: NSItemProvider(object: WindowRestoration.entryWindow(id).activity))]
     }
 }
 
