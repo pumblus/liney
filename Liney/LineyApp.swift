@@ -42,24 +42,10 @@ final class JournalSceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.tintColor = UIColor(named: "LineyAqua") ?? .systemTeal
         self.window = window
         privacyShield = JournalPrivacyShield(window: window, appLock: appLock)
-        showRoot(container: app.container)
+        window.rootViewController = JournalSplitViewController(
+            timeline: TimelineViewController(container: app.container, appLock: appLock))
         window.makeKeyAndVisible()
         privacyShield?.update()
-    }
-
-    private func showRoot(container: ModelContainer) {
-        let timeline = TimelineViewController(container: container, appLock: appLock)
-        let navigation = UINavigationController(rootViewController: timeline)
-        navigation.navigationBar.prefersLargeTitles = true
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            let split = UISplitViewController(style: .doubleColumn)
-            split.preferredDisplayMode = .oneBesideSecondary
-            split.setViewController(navigation, for: .primary)
-            split.setViewController(UINavigationController(rootViewController: MessageController(
-                title: String(localized: "No Entry Selected"),
-                message: String(localized: "Choose an entry from the timeline once entries exist."))), for: .secondary)
-            window?.rootViewController = split
-        } else { window?.rootViewController = navigation }
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {

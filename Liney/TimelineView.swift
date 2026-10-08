@@ -29,8 +29,18 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         super.init(style: .insetGrouped)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    /// The scene root; fixtures that mount the timeline in a bare stack have none.
+    private var root: JournalSplitViewController? { splitViewController as? JournalSplitViewController }
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Beside an open entry its row stays selected; in one stack, returning from an entry clears it.
+        if splitViewController?.isCollapsed != false, let selected = tableView.indexPathForSelectedRow {
+            tableView.deselectRow(at: selected, animated: animated)
+        }
+    }
     override func viewDidLoad() {
         super.viewDidLoad()
+        clearsSelectionOnViewWillAppear = false
         title = String(localized: "Journal")
         tableView.register(EntryCell.self, forCellReuseIdentifier: "entry")
         tableView.dataSource = dataSource
@@ -119,8 +129,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         return configuration
     }
     func confirmDeleteEntry(id: UUID) {
-        if let detail = splitViewController?.viewController(for: .secondary) as? UINavigationController,
-           let editor = detail.topViewController as? EntryEditorViewController, editor.entry.id == id {
+        if let editor = root?.openEditor, editor.entry.id == id {
             editor.confirmDeleteEntry()
             return
         }
@@ -148,30 +157,25 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         }
     }
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        if let detail = splitViewController?.viewController(for: .secondary) as? UINavigationController,
-           let editor = detail.topViewController as? EntryEditorViewController, !editor.prepareForReplacement() { return }
+        if let editor = root?.openEditor, !editor.prepareForReplacement() { return }
         guard let entry = dataSource.itemIdentifier(for: indexPath).flatMap({ entriesByID[$0] }) else { return }
         let context = ModelContext(container)
         guard let editable = context.model(for: entry.persistentModelID) as? JournalEntry else { return }
         let editor = EntryEditorViewController(entry: editable, isNew: false, context: context, storage: storage, saveContext: saveContext)
-        if let splitViewController, !splitViewController.isCollapsed {
-            splitViewController.setViewController(UINavigationController(rootViewController: editor), for: .secondary)
-            splitViewController.show(.secondary)
-        } else { navigationController?.pushViewController(editor, animated: true) }
+        if let root { root.showEntry(editor) } else { navigationController?.pushViewController(editor, animated: true) }
     }
-    private func createEntry() {
+    /// Marks the row of the entry open beside the timeline; nil, or an entry not yet listed, selects nothing.
+    func selectRow(for id: UUID?) {
+        tableView.selectRow(at: id.flatMap { dataSource.indexPath(for: $0) }, animated: false, scrollPosition: .none)
+    }
+    /// The New Entry action.
+    func createEntry() {
         let context = ModelContext(container)
         context.autosaveEnabled = false
         let entry = JournalEntry()
         context.insert(entry)
         let editor = EntryEditorViewController(entry: entry, isNew: true, context: context, storage: storage, saveContext: saveContext)
-        if splitViewController?.isCollapsed != false {
-            navigationController?.pushViewController(editor, animated: true)
-        } else {
-            let navigation = UINavigationController(rootViewController: editor)
-            navigation.isModalInPresentation = true
-            present(navigation, animated: true)
-        }
+        if let root { root.showNewEntry(editor) } else { navigationController?.pushViewController(editor, animated: true) }
     }
     private func importJournal() {
         present(UINavigationController(rootViewController: ImportJournalViewController(container: container)), animated: true)

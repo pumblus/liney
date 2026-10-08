@@ -11,8 +11,7 @@ import XCTest
 struct TimelineDeletionTests {
 
     @Test(arguments: [false, true])
-    func openIPadEntryUsesEditorConfirmation(searching: Bool) async throws {
-        guard UIDevice.current.userInterfaceIdiom == .pad else { return }
+    func entryOpenBesideTheTimelineUsesEditorConfirmation(searching: Bool) async throws {
         let container = try makeInMemoryContainer()
         let context = ModelContext(container)
         let entry = JournalEntry(title: "Open fixture")
@@ -21,20 +20,21 @@ struct TimelineDeletionTests {
         let timeline = TimelineViewController(container: container,
             appLock: AppLockModel(authenticator: DenyingAuthenticator()))
         let editor = EntryEditorViewController(entry: entry, isNew: false, context: context)
-        let split = UISplitViewController(style: .doubleColumn)
-        split.preferredDisplayMode = .oneBesideSecondary
-        split.setViewController(UINavigationController(rootViewController: timeline), for: .primary)
-        split.setViewController(UINavigationController(rootViewController: editor), for: .secondary)
+        let root = JournalSplitViewController(timeline: timeline)
+        root.traitOverrides.horizontalSizeClass = .regular
         let scene = try #require(UIApplication.shared.connectedScenes.first as? UIWindowScene)
         let window = UIWindow(windowScene: scene)
-        window.rootViewController = split
+        // Wide enough that the system shows the timeline beside the entry.
+        window.frame = CGRect(x: 0, y: 0, width: 1100, height: 800)
+        window.rootViewController = root
         window.makeKeyAndVisible()
         defer {
             timeline.navigationItem.searchController?.isActive = false
             window.isHidden = true
         }
         window.layoutIfNeeded()
-        try #require(!split.isCollapsed)
+        try #require(!root.isCollapsed)
+        root.showEntry(editor)
         if searching {
             try await Task.sleep(for: .milliseconds(100))
             let search = try #require(timeline.navigationItem.searchController)
