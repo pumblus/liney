@@ -1,6 +1,6 @@
 # Liney Agent Guide
 
-- **Scope:** read the affected scope and architecture in [MVP.md](MVP.md) before product changes. New product surface, including surface a spec adds, needs a user-approved MVP.md scope update first.
+- **Scope:** read the affected scope in [MVP.md](MVP.md) (and relevant specs in `docs/specs/`) before product changes. New product surface, including surface a spec adds, needs a user-approved MVP.md scope update first.
 - **Code:** read [CODING_STANDARDS.md](CODING_STANDARDS.md) before changing code or dependencies, building, testing, or committing.
 - **Architecture:** find where code lives in [docs/agents/architecture.md](docs/agents/architecture.md) before exploring `Liney/`.
 - **Parallel work:** worktree subagents and their orchestrator follow [docs/agents/parallel-work.md](docs/agents/parallel-work.md).

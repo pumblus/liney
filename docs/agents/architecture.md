@@ -1,6 +1,6 @@
 # Architecture map
 
-Where each responsibility lives in `Liney/`. Product decisions and their reasons live in [MVP.md](../../MVP.md) under Implementation Decisions; this map only says which file carries them. Named by file and type, so it stays true while line numbers move.
+Where each responsibility lives in `Liney/`. Product decisions and their reasons live in [MVP.md](../../MVP.md) and its referenced specifications in [docs/specs/](../specs/); this map only says which file carries them. Named by file and type, so it stays true while line numbers move.
 
 ## Scene composition
 
