@@ -120,7 +120,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
             var configuration = UIContentUnavailableConfiguration.empty()
             configuration.image = UIImage(systemName: "book.closed")
             configuration.text = totalCount == 0 ? String(localized: "No Entries") : String(localized: "No Results")
-            configuration.secondaryText = totalCount == 0 ? String(localized: "Start your private journal or import an existing journal.") : search.searchBar.text
+            configuration.secondaryText = totalCount == 0 ? String(localized: "Start writing, or import an existing journal.") : search.searchBar.text
             contentUnavailableConfiguration = configuration
         } else { contentUnavailableConfiguration = nil }
     }
@@ -158,7 +158,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
                 do { try storage.delete(fileName: file) } catch { cleanupFailed = true }
             }
             if cleanupFailed {
-                showError(String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "Some copied photo files could not be deleted."))
+                showError(String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "Some photo files could not be deleted from storage."))
             }
         } catch {
             showError(String(localized: "Could Not Save Entry"), message: writeFailureMessage(for: error, otherwise: String(localized: "Your changes could not be saved. Please try again.")))

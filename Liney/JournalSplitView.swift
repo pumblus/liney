@@ -91,7 +91,7 @@ final class JournalSplitViewController: UISplitViewController {
 
     private static func noEntrySelected() -> MessageController {
         MessageController(title: String(localized: "No Entry Selected"),
-                          message: String(localized: "Choose an entry from the timeline once entries exist."))
+                          message: String(localized: "Select an entry from the timeline."))
     }
 }
 

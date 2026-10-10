@@ -34,7 +34,7 @@ final class ExportJournalFlow {
         task = Task { [self] in
             guard await appLock.authenticateForExport(),
                   let presenter else { onFinished?(); return }
-            let progress = ProcessingViewController(title: String(localized: "Export Journal"), message: String(localized: "Preparing Export"))
+            let progress = ProcessingViewController(title: String(localized: "Export Journal"), message: String(localized: "Preparing Export…"))
             // Even a tiny export must not dismiss a sheet that is still being presented.
             await withCheckedContinuation { continuation in
                 presenter.present(progress, animated: true) { continuation.resume() }

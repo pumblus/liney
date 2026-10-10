@@ -51,7 +51,7 @@ struct DayOneImportIssue: Equatable {
             case .appendedPhotos: "The original photo position was removed. Recovered photos were added at the end of the entry."
             case .archiveFailed: "The archive could not be read completely. Export again and retry; saved entries are kept."
             case .storageFull: "Some photos could not be saved because this device is out of storage. Free up space and import the zip again to retry."
-            case .cleanupFailed: "Some copied photo files could not be deleted."
+            case .cleanupFailed: "Some photo files could not be deleted from storage."
             }
         }
     }
@@ -72,7 +72,7 @@ enum DayOneImportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unreadableArchive:
-            String(localized: "The selected file is not a readable Day One JSON zip.")
+            String(localized: "The selected file is not a valid Day One JSON ZIP.")
         case .missingDayOneJSON:
             String(localized: "No Day One entries were found in the selected zip.")
         }

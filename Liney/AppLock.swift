@@ -75,7 +75,7 @@ final class AppLockModel {
             isLocked = false
             return true
         }
-        guard let success = await authenticate(reason: String(localized: "Authenticate to enable App Lock for Liney.")),
+        guard let success = await authenticate(reason: String(localized: "Authenticate to turn on App Lock.")),
               success
         else { return false }
         defaults.requiresAppLock = true
@@ -240,7 +240,7 @@ final class LockedJournalController: UIViewController {
         let heading = bodyLabel(String(localized: "Liney Locked"), style: .title2)
         heading.textAlignment = .center
         heading.accessibilityTraits.insert(.header)
-        let detail = bodyLabel(String(localized: "Unlock to view your private journal."))
+        let detail = bodyLabel(String(localized: "Unlock to view your journal."))
         detail.textAlignment = .center
         detail.textColor = .secondaryLabel
         let buttonRow = UIStackView(arrangedSubviews: [UIView(), button, UIView()])

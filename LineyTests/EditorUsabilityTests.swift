@@ -26,7 +26,7 @@ struct EditorUsabilityTests {
         editor.view.layoutIfNeeded()
         let body = try #require(descendants(editor.view, as: BlockTextView.self).last)
         #expect(body.bounds.height > 200)
-        #expect(descendants(body, as: UILabel.self).contains { $0.text == String(localized: "Write something...") && !$0.isHidden })
+        #expect(descendants(body, as: UILabel.self).contains { $0.text == String(localized: "Write something…") && !$0.isHidden })
         #expect(!editor.navigationItem.hidesBackButton)
         #expect(body.becomeFirstResponder())
         body.text = "Fixture body"

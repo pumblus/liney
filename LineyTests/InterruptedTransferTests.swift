@@ -160,7 +160,7 @@ final class InterruptedTransferTests {
             #expect(try journal() == before)
         }
         #expect(ImportJournalViewController.summaryRows(summary).contains {
-            $0.hasSuffix(String(localized: "Some copied photo files could not be deleted."))
+            $0.hasSuffix(String(localized: "Some photo files could not be deleted from storage."))
         })
         #expect(try seedSnapshot(seed.id) == seed.snapshot)
         // These are the orphans reported in #3: the failed entry's copies that could not be deleted.

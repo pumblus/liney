@@ -54,7 +54,7 @@ enum JournalExportError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingPhoto:
-            String(localized: "A copied photo file is missing.")
+            String(localized: "A photo file is missing.")
         }
     }
 }

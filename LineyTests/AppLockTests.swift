@@ -461,7 +461,7 @@ final class AppLockCopyTests {
         #expect(lock.isEnabled == success)
         #expect(lock.isLocked == !success)
         #expect(!lock.isAuthenticating)
-        #expect(authenticator.reasons == [String(localized: "Authenticate to enable App Lock for Liney.")])
+        #expect(authenticator.reasons == [String(localized: "Authenticate to turn on App Lock.")])
     }
 
     @Test

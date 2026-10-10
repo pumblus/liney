@@ -31,7 +31,7 @@ struct PhotoDetailArrangementTests {
         defer { shown.close() }
         let photo = try #require(shown.visible(StoredPhotoView.self).first)
         let info = try #require(shown.visibleLabel(shown.infoText))
-        let use = try #require(shown.visibleButton(String(localized: "Use as Entry Info")))
+        let use = try #require(shown.visibleButton(String(localized: "Set as Entry Date & Location")))
         let delete = try #require(shown.visibleButton(String(localized: "Delete Photo")))
         for pane in [info, use, delete] {
             #expect(shown.frame(of: photo).maxX <= shown.frame(of: pane).minX)
@@ -50,7 +50,7 @@ struct PhotoDetailArrangementTests {
         defer { shown.close() }
         var usedInfo = 0
         shown.detail.useInfo = { usedInfo += 1 }
-        try #require(shown.visibleButton(String(localized: "Use as Entry Info"))).sendActions(for: .touchUpInside)
+        try #require(shown.visibleButton(String(localized: "Set as Entry Date & Location"))).sendActions(for: .touchUpInside)
         #expect(usedInfo == 1)
         try #require(shown.visibleButton(String(localized: "Delete Photo"))).sendActions(for: .touchUpInside)
         let alert = try await waitForAlert(from: shown.detail)
@@ -96,7 +96,7 @@ struct PhotoDetailArrangementTests {
         let items = try #require(shown.detail.navigationItem.rightBarButtonItems)
         #expect(items.count == 2)
         let menu = try #require(items.last?.menu)
-        #expect(menu.children.map(\.title) == [String(localized: "Use as Entry Info"), String(localized: "Delete Photo")])
+        #expect(menu.children.map(\.title) == [String(localized: "Set as Entry Date & Location"), String(localized: "Delete Photo")])
         #expect((menu.children.last as? UIAction)?.attributes.contains(.destructive) == true)
     }
 

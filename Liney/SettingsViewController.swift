@@ -36,7 +36,7 @@ final class SettingsViewController: UITableViewController {
                     let success = await self.appLock.setEnabled(enabling)
                     toggle.isOn = self.appLock.isEnabled; toggle.isEnabled = true
                     if !success {
-                        self.showError(String(localized: "Could Not Enable App Lock"), message: String(localized: "Device authentication was not completed."))
+                        self.showError(String(localized: "Could Not Enable App Lock"), message: String(localized: "Authentication was not completed."))
                     }
                 }
             }, for: .valueChanged)
@@ -54,11 +54,11 @@ final class SettingsViewController: UITableViewController {
         let controller: MessageController
         if indexPath.row == 0 {
             controller = MessageController(title: String(localized: "Privacy"), message: [
-                String(localized: "Your journal is stored on this device."),
+                String(localized: "Your journal is stored locally on this device."),
                 String(localized: "Liney does not require an account."),
                 String(localized: "Liney does not collect analytics or advertising data."),
-                String(localized: "Photos you add are copied into Liney so entries keep working."),
-                String(localized: "Imports and exports happen only when you choose them.")
+                String(localized: "Photos are saved directly in Liney, so your entries remain intact even if deleted from Photos."),
+                String(localized: "Data is only imported or exported when you choose to do so.")
             ].joined(separator: "\n\n"))
         } else {
             let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"

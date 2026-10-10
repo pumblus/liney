@@ -39,9 +39,9 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
     }
     @objc private func cancelInBackground() { task?.cancel() }
     private var scope: [String] { [
-        String(localized: "Text, photos, entry dates and available locations are imported into one timeline. Leading titles and checklist states are preserved; other formatting becomes plain text. Photos are saved as compressed JPEGs up to 2400 pixels on the long edge."),
-        String(localized: "Videos, audio, PDFs, other attachments, tags, weather and other Day One metadata are not kept. Original journal divisions are not kept. Timed entries use your device’s time zone."),
-        String(localized: "Keep Liney open during import. Cancelling keeps saved entries. Import the zip again to continue or recover failed photos; existing text and edits are kept. Older imports without recovery information are skipped.")
+        String(localized: "Text, photos, dates, and locations are imported into a single timeline. Titles and checklists are preserved; other rich text becomes plain text. Photos are optimized to save device storage."),
+        String(localized: "Videos, audio, attachments, tags, and weather data are not imported. Multiple journals will be merged into one timeline. Timed entries use your current time zone."),
+        String(localized: "Keep Liney open while importing. Cancelling keeps saved entries. You can re-import the ZIP at any time to resume or restore missing photos without overwriting your edits.")
     ] }
     private func render() {
         navigationController?.isModalInPresentation = busy
@@ -61,7 +61,7 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
             rows = [Row(text: String(localized: "Entries"), value: plan.entryCount.formatted()),
                     Row(text: String(localized: "Photos"), value: plan.photoCount.formatted()),
                     Row(text: String(localized: "Unsupported Media"), value: plan.unsupportedMediaCount.formatted()),
-                    Row(text: String(localized: "Unsupported Metadata"), value: plan.ignoredMetadataCount.formatted())]
+                    Row(text: String(localized: "Ignored Metadata"), value: plan.ignoredMetadataCount.formatted())]
             footer = scope.joined(separator: "\n\n")
             navigationItem.rightBarButtonItem = UIBarButtonItem(title: String(localized: "Import"), primaryAction: UIAction { [weak self] _ in self?.startImport() })
         } else {
@@ -73,13 +73,13 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
     static func summaryRows(_ summary: DayOneImportSummary) -> [String] {
         var rows = [
             "\(String(localized: "Imported")): \(summary.importedEntries)",
-            "\(String(localized: "Repaired Entries")): \(summary.repairedEntries)",
+            "\(String(localized: "Entries with Photos Restored")): \(summary.repairedEntries)",
             "\(String(localized: "Recovered Photos")): \(summary.recoveredPhotos)",
             "\(String(localized: "Skipped Duplicates")): \(summary.skippedDuplicates)",
             "\(String(localized: "Failed Entries")): \(summary.failedEntries)",
             "\(String(localized: "Failed Photos")): \(summary.failedPhotos)",
             "\(String(localized: "Unsupported Media")): \(summary.skippedMedia)",
-            "\(String(localized: "Unsupported Metadata")): \(summary.ignoredMetadata)"
+            "\(String(localized: "Ignored Metadata")): \(summary.ignoredMetadata)"
         ]
         for issue in summary.issues {
             rows.append([issue.entryNumber > 0 ? String(localized: "Entry \(issue.entryNumber)") : nil,

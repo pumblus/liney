@@ -485,15 +485,15 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                 rollBackChanges(to: entry, in: context)
                 let removed = removeFiles(result.fileNames)
                 render()
-                showError(String(localized: "Some Photos Couldn’t Be Added"), message: removed ? writeFailureMessage(for: error, otherwise: String(localized: "Some selected photos could not be added.")) : String(localized: "Some copied photo files could not be deleted."))
+                showError(String(localized: "Some Photos Couldn’t Be Added"), message: removed ? writeFailureMessage(for: error, otherwise: String(localized: "Some selected photos could not be added.")) : String(localized: "Some photo files could not be deleted from storage."))
             }
         }
     }
     private func promptPhotoInfo(_ photo: EntryPhoto?) {
         guard let photo else { return }
-        let alert = UIAlertController(title: String(localized: "Use Photo Info?"), message: String(localized: "Use this photo’s date and location for the entry?"), preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: String(localized: "Use Photo Info"), style: .default) { [weak self] _ in self?.usePhotoInfo(photo) })
-        alert.addAction(UIAlertAction(title: String(localized: "Keep Entry Info"), style: .cancel) { [weak self] _ in
+        let alert = UIAlertController(title: String(localized: "Use Photo Date and Location?"), message: String(localized: "Update this entry’s date and location to match this photo?"), preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: String(localized: "Use Photo Date & Location"), style: .default) { [weak self] _ in self?.usePhotoInfo(photo) })
+        alert.addAction(UIAlertAction(title: String(localized: "Keep Current"), style: .cancel) { [weak self] _ in
             self?.entry.hasShownPhotoInfoPrompt = true; _ = self?.flush()
         })
         present(alert, animated: true)
@@ -564,7 +564,7 @@ final class EntryEditorViewController: UIViewController, UITextViewDelegate, PHP
                 self.editors?.entryDeleted(id)
                 if self.removeFiles(files) { self.closeEditor() }
                 else {
-                    let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "Some copied photo files could not be deleted."), preferredStyle: .alert)
+                    let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "Some photo files could not be deleted from storage."), preferredStyle: .alert)
                     alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.closeEditor() })
                     self.present(alert, animated: true)
                 }
@@ -632,10 +632,10 @@ final class BlockTextView: UITextView {
         textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
         textContainer.lineFragmentPadding = 0
         accessibilityLabel = String(localized: "Body")
-        accessibilityHint = String(localized: "Write something...")
+        accessibilityHint = String(localized: "Write something…")
         minimumHeight = heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         minimumHeight.isActive = true
-        placeholder.text = String(localized: "Write something...")
+        placeholder.text = String(localized: "Write something…")
         placeholder.font = .preferredFont(forTextStyle: .body)
         placeholder.adjustsFontForContentSizeCategory = true
         placeholder.textColor = .placeholderText
@@ -848,7 +848,7 @@ final class PhotoGroupView: UIStackView {
             fill.isActive = true
             heightCap = button.heightAnchor.constraint(lessThanOrEqualToConstant: 0)
         }
-        accessibilityLabel = String(localized: "Photo Group")
+        accessibilityLabel = String(localized: "Photos")
     }
     required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }
@@ -909,7 +909,7 @@ final class PhotoDetailViewController: UIViewController {
     private var actions: [PhotoDetailAction] {
         var actions: [PhotoDetailAction] = []
         if photo.hasUsableEntryInfo {
-            actions.append(PhotoDetailAction(title: String(localized: "Use as Entry Info"), isDestructive: false) { [weak self] in self?.useInfo?() })
+            actions.append(PhotoDetailAction(title: String(localized: "Set as Entry Date & Location"), isDestructive: false) { [weak self] in self?.useInfo?() })
         }
         actions.append(PhotoDetailAction(title: String(localized: "Delete Photo"), isDestructive: true) { [weak self] in self?.confirmPhotoDeletion() })
         return actions
@@ -971,7 +971,7 @@ final class PhotoDetailViewController: UIViewController {
             case .deleted: self.dismiss(animated: true)
             case .failed: self.showError(String(localized: "Photo Couldn’t Be Deleted"), message: String(localized: "Try deleting the photo again."))
             case .fileCleanupFailed:
-                let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "The photo was removed from this entry, but its copied file could not be deleted."), preferredStyle: .alert)
+                let alert = UIAlertController(title: String(localized: "Photo File Couldn’t Be Deleted"), message: String(localized: "The photo was removed from this entry, but the file could not be deleted from storage."), preferredStyle: .alert)
                 alert.addAction(UIAlertAction(title: String(localized: "OK"), style: .default) { _ in self.dismiss(animated: true) })
                 self.present(alert, animated: true)
             }

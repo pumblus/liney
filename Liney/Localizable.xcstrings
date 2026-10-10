@@ -1,1954 +1,1960 @@
 {
-  "sourceLanguage" : "en",
-  "strings" : {
-    "Title (optional)" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Title (optional)"
+  "sourceLanguage": "en",
+  "strings": {
+    "Title (optional)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Title (optional)"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "标题（选填）"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标题（选填）"
           }
         }
       }
     },
-    "Adding Photos…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adding Photos…"
+    "Adding Photos…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adding Photos…"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在添加照片…"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在添加照片…"
           }
         }
       }
     },
-    "Mark incomplete" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mark incomplete"
+    "Mark incomplete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark incomplete"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "标记为未完成"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标记为未完成"
           }
         }
       }
     },
-    "Mark complete" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mark complete"
+    "Mark complete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mark complete"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "标记为已完成"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "标记为已完成"
           }
         }
       }
     },
-    "Not completed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not completed"
+    "Not completed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not completed"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未完成"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未完成"
           }
         }
       }
     },
-    "Completed" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Completed"
+    "Completed": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Completed"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已完成"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
           }
         }
       }
     },
-    "A copied photo file is missing." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A copied photo file is missing."
+    "A light journal for words and photos.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A light journal for words and photos."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "找不到已复制的照片文件。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轻盈记录文字与照片。"
           }
         }
       }
     },
-    "A light journal for words and photos." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A light journal for words and photos."
+    "About": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "轻盈记录文字与照片。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关于"
           }
         }
       }
     },
-    "About" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "About"
+    "All-day": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All-day"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "关于"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全天"
           }
         }
       }
     },
-    "All-day" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "All-day"
+    "Authenticate to export your journal.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Authenticate to export your journal."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "全天"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证身份以导出日记。"
           }
         }
       }
     },
-    "Authenticate to export your journal." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Authenticate to export your journal."
+    "Automatic backups may omit photos. Keep the original export until you have checked the imported entries.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic backups may omit photos. Keep the original export until you have checked the imported entries."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请验证以导出日记。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自动备份可能不包含照片。请在核对导入的日记前保留原始导出文件。"
           }
         }
       }
     },
-    "Authenticate to enable App Lock for Liney." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Authenticate to enable App Lock for Liney."
+    "Body": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Body"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请验证以为 Liney 开启 App 锁。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正文"
           }
         }
       }
     },
-    "Automatic backups may omit photos. Keep the original export until you have checked the imported entries." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Automatic backups may omit photos. Keep the original export until you have checked the imported entries."
+    "Cancel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自动备份可能不包含照片。请在核对导入的日记前保留原始导出文件。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
           }
         }
       }
     },
-    "Body" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Body"
+    "Choose JSON Zip": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose JSON Zip"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正文"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择 JSON ZIP 文件"
           }
         }
       }
     },
-    "Cancel" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cancel"
+    "Could Not Enable App Lock": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could Not Enable App Lock"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "取消"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法开启 App 锁定"
           }
         }
       }
     },
-    "Choose an entry from the timeline once entries exist." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose an entry from the timeline once entries exist."
+    "Could Not Export Journal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could Not Export Journal"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "有日记后，可从时间线选择一篇。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法导出日记"
           }
         }
       }
     },
-    "Choose JSON Zip" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose JSON Zip"
+    "Could Not Import Journal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could Not Import Journal"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "选择 JSON ZIP 文件"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法导入日记"
           }
         }
       }
     },
-    "Could Not Enable App Lock" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could Not Enable App Lock"
+    "Could Not Load Journal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could Not Load Journal"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法开启 App 锁"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法载入日记"
           }
         }
       }
     },
-    "Could Not Export Journal" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could Not Export Journal"
+    "Could Not Save Entry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could Not Save Entry"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法导出日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法保存日记"
           }
         }
       }
     },
-    "Could Not Import Journal" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could Not Import Journal"
+    "Date": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法导入日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日期"
           }
         }
       }
     },
-    "Could Not Load Journal" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could Not Load Journal"
+    "Day One ID": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Day One ID"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法载入日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Day One ID"
           }
         }
       }
     },
-    "Could Not Save Entry" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could Not Save Entry"
+    "Delete Entry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Entry"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法保存日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除日记"
           }
         }
       }
     },
-    "Date" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Date"
+    "Delete Photo": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Photo"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "日期"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "删除照片"
           }
         }
       }
     },
-    "Day One ID" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Day One ID"
+    "Done": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Day One ID"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
           }
         }
       }
     },
-    "Delete Entry" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Entry"
+    "Edit Entry Date": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edit Entry Date"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑日记日期"
           }
         }
       }
     },
-    "Delete Photo" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Photo"
+    "Entries": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entries"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "删除照片"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记"
           }
         }
       }
     },
-    "Done" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Done"
+    "Entry %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entry %lld"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "完成"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 篇日记"
           }
         }
       }
     },
-    "Edit Entry Date" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit Entry Date"
+    "Entry Date": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entry Date"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "编辑日记日期"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记日期"
           }
         }
       }
     },
-    "Entries" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Entries"
+    "Entry Photos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entry Photos"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记照片"
           }
         }
       }
     },
-    "Entry %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Entry %lld"
+    "Export again with media included, then import the zip to retry. Existing entries and your edits are kept.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export again with media included, then import the zip to retry. Existing entries and your edits are kept."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "第 %lld 篇日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请在 Day One 中选择包含媒体后重新导出，再导入 ZIP 重试。已有日记和修改会保留。"
           }
         }
       }
     },
-    "Entry Date" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Entry Date"
+    "Export Journal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Journal"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "日记日期"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导出日记"
           }
         }
       }
     },
-    "Entry Photos" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Entry Photos"
+    "Failed Entries": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed Entries"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "日记照片"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败日记"
           }
         }
       }
     },
-    "Export again with media included, then import the zip to retry. Existing entries and your edits are kept." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export again with media included, then import the zip to retry. Existing entries and your edits are kept."
+    "Failed Photos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed Photos"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请在 Day One 中选择包含媒体后重新导出，再导入 ZIP 重试。已有日记和修改会保留。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失败照片"
           }
         }
       }
     },
-    "Export Journal" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export Journal"
+    "Import": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导出日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入"
           }
         }
       }
     },
-    "Device authentication was not completed." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Device authentication was not completed."
+    "Import Cancelled": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import Cancelled"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未完成设备身份验证。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入已取消"
           }
         }
       }
     },
-    "Failed Entries" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed Entries"
+    "Import Complete": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import Complete"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导入失败"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入完成"
           }
         }
       }
     },
-    "Failed Photos" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed Photos"
+    "Import from Day One": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import from Day One"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待重试的照片"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从 Day One 导入"
           }
         }
       }
     },
-    "Import" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import"
+    "Import Journal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import Journal"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导入"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入日记"
           }
         }
       }
     },
-    "Import Cancelled" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import Cancelled"
+    "Import Needs Review": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Import Needs Review"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导入已取消"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入结果待核对"
           }
         }
       }
     },
-    "Import Complete" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import Complete"
+    "Imported": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imported"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导入完成"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已导入"
           }
         }
       }
     },
-    "Import from Day One" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import from Day One"
+    "Importing...": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Importing..."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "从 Day One 导入"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在导入…"
           }
         }
       }
     },
-    "Import Journal" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import Journal"
+    "In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导入日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Day One 中打开“设置 → 导入/导出”，选择 JSON 并包含媒体。Mac 上请选择“文件 → 导出 → JSON”，然后在这里选择导出的 ZIP 文件。"
           }
         }
       }
     },
-    "Import Needs Review" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import Needs Review"
+    "Insert Photos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insert Photos"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导入结果待核对"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插入照片"
           }
         }
       }
     },
-    "Imported" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Imported"
+    "Journal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Journal"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已导入"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记"
           }
         }
       }
     },
-    "Importing..." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Importing..."
+    "Keep Liney open. Cancelling keeps saved entries.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Liney open. Cancelling keeps saved entries."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在导入…"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请保持 Liney 处于打开状态。取消将保留已导入的内容。"
           }
         }
       }
     },
-    "Imports and exports happen only when you choose them." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Imports and exports happen only when you choose them."
+    "Liney does not collect analytics or advertising data.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liney does not collect analytics or advertising data."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "只有在你选择时，Liney 才会导入或导出。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不收集任何使用分析或广告数据。"
           }
         }
       }
     },
-    "In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here."
+    "Liney does not require an account.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liney does not require an account."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在 Day One 中打开“设置 → 导入/导出”，选择 JSON 并包含媒体。Mac 上请选择“文件 → 导出 → JSON”，然后在这里选择导出的 ZIP 文件。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无需注册或登录账号。"
           }
         }
       }
     },
-    "Insert Photos" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Insert Photos"
+    "Liney Locked": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liney Locked"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "插入照片"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liney 已锁定"
           }
         }
       }
     },
-    "Journal" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Journal"
+    "More": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多"
           }
         }
       }
     },
-    "Keep Entry Info" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keep Entry Info"
+    "New Entry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Entry"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "保留日记信息"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新建日记"
           }
         }
       }
     },
-    "Keep Liney open during import. Cancelling keeps saved entries. Import the zip again to continue or recover failed photos; existing text and edits are kept. Older imports without recovery information are skipped." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keep Liney open during import. Cancelling keeps saved entries. Import the zip again to continue or recover failed photos; existing text and edits are kept. Older imports without recovery information are skipped."
+    "No Day One entries were found in the selected zip.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Day One entries were found in the selected zip."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "导入时请保持 Liney 在前台。取消后会保留已保存的日记，再次导入 ZIP 可继续导入或补齐失败的照片，已有文字和修改不会被覆盖。旧版本导入的日记没有补齐记录，会被跳过。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选 ZIP 文件中未找到任何 Day One 日记。"
           }
         }
       }
     },
-    "Keep Liney open. Cancelling keeps saved entries." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keep Liney open. Cancelling keeps saved entries."
+    "No Entries": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Entries"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请保持 Liney 在前台。取消后会保留已保存的日记。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有日记"
           }
         }
       }
     },
-    "Liney does not collect analytics or advertising data." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Liney does not collect analytics or advertising data."
+    "No Entry Selected": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Entry Selected"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Liney 不收集分析或广告数据。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未选择日记"
           }
         }
       }
     },
-    "Liney does not require an account." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Liney does not require an account."
+    "No Results": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Results"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Liney 不需要账号。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无结果"
           }
         }
       }
     },
-    "Liney Locked" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Liney Locked"
+    "No supported text or readable photos were found. Export again with media included.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No supported text or readable photos were found. Export again with media included."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Liney 已锁定"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未找到支持的文字或可读取的照片。请在 Day One 中选择包含媒体后重新导出。"
           }
         }
       }
     },
-    "More" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "More"
+    "OK": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更多"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
           }
         }
       }
     },
-    "New Entry" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Entry"
+    "One selected photo could not be added.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One selected photo could not be added."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新建日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选照片中有一张无法添加。"
           }
         }
       }
     },
-    "No Day One entries were found in the selected zip." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Day One entries were found in the selected zip."
+    "Open Photo %lld of %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Photo %1$lld of %2$lld"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所选 ZIP 文件中未找到任何 Day One 日记。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开第 %1$lld 张照片，共 %2$lld 张"
           }
         }
       }
     },
-    "No Entries" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Entries"
+    "Photo": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "还没有日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片"
           }
         }
       }
     },
-    "No Entry Selected" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Entry Selected"
+    "Photo Actions": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Actions"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未选择日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片操作"
           }
         }
       }
     },
-    "No Results" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No Results"
+    "Photo Couldn’t Be Deleted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Couldn’t Be Deleted"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "没有结果"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法删除照片"
           }
         }
       }
     },
-    "No supported text or readable photos were found. Export again with media included." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No supported text or readable photos were found. Export again with media included."
+    "Photo Detail": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Detail"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未找到支持的文字或可读取的照片。请在 Day One 中选择包含媒体后重新导出。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片详情"
           }
         }
       }
     },
-    "OK" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OK"
+    "Photo Entry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo Entry"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "好"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片日记"
           }
         }
       }
     },
-    "One selected photo could not be added." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "One selected photo could not be added."
+    "Photo File Couldn’t Be Deleted": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo File Couldn’t Be Deleted"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "有一张所选照片无法添加。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法删除照片文件"
           }
         }
       }
     },
-    "Open Photo %lld of %lld" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open Photo %1$lld of %2$lld"
+    "Photo recovery information could not be read. Existing content was kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo recovery information could not be read. Existing content was kept."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "打开第 %1$lld 张照片，共 %2$lld 张"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法读取照片恢复记录，已保留现有内容。"
           }
         }
       }
     },
-    "Photo" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo"
+    "Photo unavailable": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo unavailable"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "照片"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片不可用"
           }
         }
       }
     },
-    "Photo Actions" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo Actions"
+    "Photos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "照片操作"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片"
           }
         }
       }
     },
-    "Photo Couldn’t Be Deleted" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo Couldn’t Be Deleted"
+    "Preparing Archive…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing Archive…"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法删除照片"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在准备导入文件…"
           }
         }
       }
     },
-    "Photo Detail" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo Detail"
+    "Privacy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "照片详情"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐私"
           }
         }
       }
     },
-    "Photo Entry" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo Entry"
+    "Recovered Photos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recovered Photos"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "照片日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已恢复的照片"
           }
         }
       }
     },
-    "Photo File Couldn’t Be Deleted" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo File Couldn’t Be Deleted"
+    "App Lock": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Lock"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法删除照片文件"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App 锁定"
           }
         }
       }
     },
-    "Photo Group" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo Group"
+    "Search Entries": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Search Entries"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "照片组"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索日记"
           }
         }
       }
     },
-    "Photo recovery information could not be read. Existing content was kept." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo recovery information could not be read. Existing content was kept."
+    "Settings": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法读取照片补齐记录，已有内容已保留。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设置"
           }
         }
       }
     },
-    "Photo unavailable" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photo unavailable"
+    "Skipped Duplicates": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skipped Duplicates"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "照片不可用"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已跳过重复项"
           }
         }
       }
     },
-    "Photos" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photos"
+    "Some photos could not be read. Export again with media included and import the zip to retry.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some photos could not be read. Export again with media included and import the zip to retry."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "照片"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分照片无法读取。请在 Day One 中选择包含媒体后重新导出，再导入 ZIP 补齐照片。"
           }
         }
       }
     },
-    "Photos you add are copied into Liney so entries keep working." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Photos you add are copied into Liney so entries keep working."
+    "Some Photos Couldn’t Be Added": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some Photos Couldn’t Be Added"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你添加的照片会复制到 Liney 中，确保日记持续可用。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分照片无法添加"
           }
         }
       }
     },
-    "Preparing Archive…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preparing Archive…"
+    "Some selected photos could not be added.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some selected photos could not be added."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在准备导入文件…"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分选中的照片无法添加。"
           }
         }
       }
     },
-    "Preparing Export" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preparing Export"
+    "The archive could not be read completely. Export again and retry; saved entries are kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The archive could not be read completely. Export again and retry; saved entries are kept."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在准备导出"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法完整读取导出包。请重新导出后重试，已保存的日记会保留。"
           }
         }
       }
     },
-    "Privacy" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Privacy"
+    "The original photo position was removed. Recovered photos were added at the end of the entry.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original photo position was removed. Recovered photos were added at the end of the entry."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隐私"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原照片位置已不存在，已将恢复的照片添加至日记末尾。"
           }
         }
       }
     },
-    "Recovered Photos" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recovered Photos"
+    "This entry and its photos will be permanently deleted.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This entry and its photos will be permanently deleted."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已补齐的照片"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这篇日记及其照片将被永久删除。"
           }
         }
       }
     },
-    "Repaired Entries" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Repaired Entries"
+    "This entry could not be saved. Check available storage and retry.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This entry could not be saved. Check available storage and retry."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已补齐照片的日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这篇日记未能保存。请检查可用存储空间后重试。"
           }
         }
       }
     },
-    "App Lock" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App Lock"
+    "This entry has an unreadable date. Check the Day One export.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This entry has an unreadable date. Check the Day One export."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "App 锁"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这篇日记的日期无法读取，请检查 Day One 导出文件。"
           }
         }
       }
     },
-    "Search Entries" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search Entries"
+    "This entry has no source ID. Check the Day One export.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This entry has no source ID. Check the Day One export."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "搜索日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这篇日记缺少来源 ID，请检查 Day One 导出文件。"
           }
         }
       }
     },
-    "Settings" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Settings"
+    "This photo will be removed from this entry.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This photo will be removed from this entry."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "设置"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此照片将从当前日记中移除。"
           }
         }
       }
     },
-    "Skipped Duplicates" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skipped Duplicates"
+    "Try deleting the photo again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try deleting the photo again."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已跳过重复项"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "请再次尝试删除这张照片。"
           }
         }
       }
     },
-    "Some copied photo files could not be deleted." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Some copied photo files could not be deleted."
+    "Unlock": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分复制的照片文件无法删除。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解锁"
           }
         }
       }
     },
-    "Some photos could not be read. Export again with media included and import the zip to retry." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Some photos could not be read. Export again with media included and import the zip to retry."
+    "Unlock Liney to view your journal.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock Liney to view your journal."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分照片无法读取。请在 Day One 中选择包含媒体后重新导出，再导入 ZIP 补齐照片。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解锁 Liney 以查看你的日记。"
           }
         }
       }
     },
-    "Some Photos Couldn’t Be Added" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Some Photos Couldn’t Be Added"
+    "Unsupported Media": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsupported Media"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分照片无法添加"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支持的媒体"
           }
         }
       }
     },
-    "Some selected photos could not be added." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Some selected photos could not be added."
+    "Untitled Entry": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Untitled Entry"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分所选照片无法添加。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无标题日记"
           }
         }
       }
     },
-    "Start your private journal or import an existing journal." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Start your private journal or import an existing journal."
+    "Use Face ID, Touch ID, or your device passcode to protect Liney.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Face ID, Touch ID, or your device passcode to protect Liney."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "开始写私人日记，或导入已有日记。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用面容 ID、触控 ID 或设备密码保护 Liney。"
           }
         }
       }
     },
-    "The archive could not be read completely. Export again and retry; saved entries are kept." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The archive could not be read completely. Export again and retry; saved entries are kept."
+    "Version": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法完整读取导出包。请重新导出后重试，已保存的日记会保留。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本"
           }
         }
       }
     },
-    "The original photo position was removed. Recovered photos were added at the end of the entry." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The original photo position was removed. Recovered photos were added at the end of the entry."
+    "Your changes could not be saved. Please try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your changes could not be saved. Please try again."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "原来的照片位置已被移除，补齐的照片已追加到日记末尾。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改未能保存，请重试。"
           }
         }
       }
     },
-    "The photo was removed from this entry, but its copied file could not be deleted." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The photo was removed from this entry, but its copied file could not be deleted."
+    "There isn’t enough storage on this device. Free up space and try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There isn’t enough storage on this device. Free up space and try again."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "照片已从日记中移除，但无法删除其副本文件。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台设备的存储空间不足。请释放空间后重试。"
           }
         }
       }
     },
-    "The selected file is not a readable Day One JSON zip." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The selected file is not a readable Day One JSON zip."
+    "The selected zip could not be opened. Please try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected zip could not be opened. Please try again."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所选文件不是可读取的 Day One JSON zip。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开所选的 ZIP 文件，请重试。"
           }
         }
       }
     },
-    "This entry and its photos will be permanently deleted." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This entry and its photos will be permanently deleted."
+    "The journal could not be exported. Please try again.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The journal could not be exported. Please try again."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这篇日记及其照片将被永久删除。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日记未能导出，请重试。"
           }
         }
       }
     },
-    "This entry could not be saved. Check available storage and retry." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This entry could not be saved. Check available storage and retry."
+    "Some photos could not be saved because this device is out of storage. Free up space and import the zip again to retry.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some photos could not be saved because this device is out of storage. Free up space and import the zip again to retry."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这篇日记未能保存。请检查可用存储空间后重试。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这台设备的存储空间不足，部分照片未能保存。请释放空间后再次导入 ZIP 补齐照片。"
           }
         }
       }
     },
-    "This entry has an unreadable date. Check the Day One export." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This entry has an unreadable date. Check the Day One export."
+    "Write something…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write something…"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这篇日记的日期无法读取，请检查 Day One 导出文件。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "记录此刻"
           }
         }
       }
     },
-    "This entry has no source ID. Check the Day One export." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This entry has no source ID. Check the Day One export."
+    "Start writing, or import an existing journal.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start writing, or import an existing journal."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这篇日记缺少来源 ID，请检查 Day One 导出文件。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "开始记录，或从现有日记导入。"
           }
         }
       }
     },
-    "This photo will be removed from this entry." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This photo will be removed from this entry."
+    "Select an entry from the timeline.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select an entry from the timeline."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这张照片将从这篇日记中移除。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "从时间线选择一篇日记。"
           }
         }
       }
     },
-    "Try deleting the photo again." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try deleting the photo again."
+    "Use Photo Date and Location?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Photo Date and Location?"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请再次尝试删除这张照片。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用照片的日期与地点？"
           }
         }
       }
     },
-    "Unlock" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock"
+    "Update this entry’s date and location to match this photo?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update this entry’s date and location to match this photo?"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解锁"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将日记的日期和地点更新为该照片的拍摄信息？"
           }
         }
       }
     },
-    "Unlock Liney to view your journal." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock Liney to view your journal."
+    "Use Photo Date & Location": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Photo Date & Location"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解锁 Liney 以查看你的日记。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用照片日期与地点"
           }
         }
       }
     },
-    "Unlock to view your private journal." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unlock to view your private journal."
+    "Keep Current": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Current"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解锁以查看你的私人日记。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留当前设置"
           }
         }
       }
     },
-    "Unsupported Media" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unsupported Media"
+    "Set as Entry Date & Location": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set as Entry Date & Location"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不支持的媒体"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设为日记日期与地点"
           }
         }
       }
     },
-    "Unsupported Metadata" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unsupported Metadata"
+    "Authenticate to turn on App Lock.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Authenticate to turn on App Lock."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不支持的附加信息"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "验证身份以开启 App 锁定。"
           }
         }
       }
     },
-    "Untitled Entry" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Untitled Entry"
+    "Authentication was not completed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Authentication was not completed."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未命名日记"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能完成身份验证。"
           }
         }
       }
     },
-    "Use as Entry Info" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use as Entry Info"
+    "Unlock to view your journal.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock to view your journal."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "用作日记信息"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解锁以查看日记。"
           }
         }
       }
     },
-    "Use Face ID, Touch ID, or your device passcode to protect Liney." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use Face ID, Touch ID, or your device passcode to protect Liney."
+    "A photo file is missing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A photo file is missing."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用面容 ID、触控 ID 或设备密码保护 Liney。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到日记照片文件。"
           }
         }
       }
     },
-    "Use Photo Info" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use Photo Info"
+    "The photo was removed from this entry, but the file could not be deleted from storage.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The photo was removed from this entry, but the file could not be deleted from storage."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用照片信息"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片已从日记中移除，但未能从设备存储中删除该文件。"
           }
         }
       }
     },
-    "Use Photo Info?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use Photo Info?"
+    "Some photo files could not be deleted from storage.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Some photo files could not be deleted from storage."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用照片信息？"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分照片文件未能从设备存储中删除。"
           }
         }
       }
     },
-    "Use this photo’s date and location for the entry?" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Use this photo’s date and location for the entry?"
+    "Text, photos, dates, and locations are imported into a single timeline. Titles and checklists are preserved; other rich text becomes plain text. Photos are optimized to save device storage.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Text, photos, dates, and locations are imported into a single timeline. Titles and checklists are preserved; other rich text becomes plain text. Photos are optimized to save device storage."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用这张照片的日期和位置作为日记信息？"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文字、照片、日期与地点将合并导入时间线。标题与待办清单会保留，其他排版格式转换为纯文本。照片会适度压缩以节省存储空间。"
           }
         }
       }
     },
-    "Version" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Version"
+    "Videos, audio, attachments, tags, and weather data are not imported. Multiple journals will be merged into one timeline. Timed entries use your current time zone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Videos, audio, attachments, tags, and weather data are not imported. Multiple journals will be merged into one timeline. Timed entries use your current time zone."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "版本"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视频、音频、PDF 等附件以及标签、天气等信息不会导入。多个日记本将合并为同一个时间线；记录时间按设备当前时区显示。"
           }
         }
       }
     },
-    "Videos, audio, PDFs, other attachments, tags, weather and other Day One metadata are not kept. Original journal divisions are not kept. Timed entries use your device’s time zone." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Videos, audio, PDFs, other attachments, tags, weather and other Day One metadata are not kept. Original journal divisions are not kept. Timed entries use your device’s time zone."
+    "Keep Liney open while importing. Cancelling keeps saved entries. You can re-import the ZIP at any time to resume or restore missing photos without overwriting your edits.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep Liney open while importing. Cancelling keeps saved entries. You can re-import the ZIP at any time to resume or restore missing photos without overwriting your edits."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "视频、音频、PDF、其他附件、标签、天气等 Day One 附加信息不会保留，原有日记本也会合并。含时间的日记按设备时区显示。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "导入期间请保持 Liney 处于打开状态。即使取消，已保存的日记依然保留。你可以随时重新导入该文件以继续或恢复缺失照片，不会覆盖已有的修改。"
           }
         }
       }
     },
-    "Write something..." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Write something..."
+    "The selected file is not a valid Day One JSON ZIP.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected file is not a valid Day One JSON ZIP."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "写点什么…"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所选文件不是有效的 Day One 压缩包。"
           }
         }
       }
     },
-    "Your changes could not be saved. Please try again." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your changes could not be saved. Please try again."
+    "Entries with Photos Restored": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entries with Photos Restored"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更改未能保存，请重试。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已恢复照片的日记"
           }
         }
       }
     },
-    "Your journal is stored on this device." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your journal is stored on this device."
+    "Ignored Metadata": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignored Metadata"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "你的日记存储在这台设备上。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未导入的附加信息"
           }
         }
       }
     },
-    "Text, photos, entry dates and available locations are imported into one timeline. Leading titles and checklist states are preserved; other formatting becomes plain text. Photos are saved as compressed JPEGs up to 2400 pixels on the long edge." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Text, photos, entry dates and available locations are imported into one timeline. Leading titles and checklist states are preserved; other formatting becomes plain text. Photos are saved as compressed JPEGs up to 2400 pixels on the long edge."
+    "Preparing Export…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing Export…"
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "文字、照片、日记日期和可用地点会导入同一条时间线。开头的标题和勾选状态会保留，其他文字格式会转换为纯文本；照片会保存为长边不超过 2400 像素的压缩 JPEG。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在准备导出…"
           }
         }
       }
     },
-    "There isn’t enough storage on this device. Free up space and try again." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "There isn’t enough storage on this device. Free up space and try again."
+    "Your journal is stored locally on this device.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your journal is stored locally on this device."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这台设备的存储空间不足。请释放空间后重试。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有日记仅保存在本设备上。"
           }
         }
       }
     },
-    "The selected zip could not be opened. Please try again." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The selected zip could not be opened. Please try again."
+    "Photos are saved directly in Liney, so your entries remain intact even if deleted from Photos.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photos are saved directly in Liney, so your entries remain intact even if deleted from Photos."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法打开所选的 ZIP 文件，请重试。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "添加的照片会单独保存在 Liney 中，即使系统相册删除照片也不影响日记。"
           }
         }
       }
     },
-    "The journal could not be exported. Please try again." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The journal could not be exported. Please try again."
+    "Data is only imported or exported when you choose to do so.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data is only imported or exported when you choose to do so."
           }
         },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "日记未能导出，请重试。"
-          }
-        }
-      }
-    },
-    "Some photos could not be saved because this device is out of storage. Free up space and import the zip again to retry." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Some photos could not be saved because this device is out of storage. Free up space and import the zip again to retry."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这台设备的存储空间不足，部分照片未能保存。请释放空间后再次导入 ZIP 补齐照片。"
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "仅在你主动操作时进行导入与导出，绝不会在后台自动上传。"
           }
         }
       }
     }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }
