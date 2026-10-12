@@ -117,9 +117,10 @@ actor TimelineRepository {
             let count = calendar.range(of: .day, in: .month, for: month)!.count
             let days = (0..<count).map { offset in
                 let date = calendar.date(byAdding: .day, value: offset, to: month)!
-                let entries = date > today ? [] : byDay[date] ?? []
+                // A future day with entries opens like any other day; an empty one stays dimmed.
+                let entries = byDay[date] ?? []
                 return CalendarDay(date: date, number: offset + 1,
-                                   state: date > today ? .future : entries.isEmpty ? .noEntries : .hasEntries,
+                                   state: !entries.isEmpty ? .hasEntries : date > today ? .future : .noEntries,
                                    isToday: date == today, entryIDs: entries.map(\.id),
                                    photoFileName: entries.lazy.compactMap(\.previewFiles.first).first)
             }

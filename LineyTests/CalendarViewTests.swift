@@ -72,6 +72,20 @@ struct MonthCalendarQueryTests {
         #expect(days.prefix(14).allSatisfy { $0.state != .future })
     }
 
+    @Test func futureDayWithEntriesInCurrentMonthOpensLikeAnyOtherDay() async throws {
+        let ahead = JournalEntry(title: "Ahead", entryDate: try date(2026, 7, 20, hour: 9))
+        let nextMonth = JournalEntry(title: "Next Month", entryDate: try date(2026, 8, 2, hour: 9))
+        let result = try await query([ahead, nextMonth], now: try date(2026, 7, 15, hour: 13))
+
+        #expect(result.months.map(\.start) == [try date(2026, 7, 1, hour: 0)])
+        let days = result.months[0].days
+        #expect(days[19].state == .hasEntries)
+        #expect(days[19].isTappable)
+        #expect(days[19].entryIDs == [ahead.id])
+        #expect(days[20].state == .future)
+        #expect(!days[20].isTappable)
+    }
+
     @Test func representativePhotoIsFirstPhotoOfFirstEntryWithPhotosInTimelineOrder() async throws {
         let container = try makeInMemoryContainer()
         let context = ModelContext(container)
