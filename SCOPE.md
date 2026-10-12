@@ -40,6 +40,7 @@ Read the feature document for the area a change touches.
 | Area | Feature document |
 |---|---|
 | Launch, timeline, search, entry deletion | [timeline-and-search.md](docs/features/timeline-and-search.md) |
+| Calendar View | [calendar-view.md](docs/features/calendar-view.md) |
 | Editor, photos, Photo Info, photo detail | [editor-and-photos.md](docs/features/editor-and-photos.md) |
 | Day One Import | [day-one-import.md](docs/features/day-one-import.md) |
 | Markdown Export | [markdown-export.md](docs/features/markdown-export.md) |

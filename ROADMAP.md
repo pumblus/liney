@@ -11,12 +11,8 @@ Before work on any item starts, the item gets its own design review, and any pro
 
 ## 1. Browsing & Recall
 
-### Calendar View — Next
-- **What**: A month calendar of the journal. Each day shows the first photo from that day's entries as a thumbnail; days without photos show only the date number; days without entries stay empty. Tapping a day lists that day's entries.
-- **Placement**: A List / Calendar switch at the top of the timeline. It moves to top-level navigation when Plans ships (see §5).
-- **Why**: Search finds text, but reaching a past date today means scrolling the timeline.
-- **Scope touches**: New browsing surface under Timeline, Writing & Search.
-- **Open**: Thumbnail choice when the first entry has no photo but a later one does; behavior for All-day Entries; how far back the calendar scrolls.
+### Calendar View — In scope
+- **Scope**: Approved; behavior in [docs/features/calendar-view.md](docs/features/calendar-view.md). It moves to top-level navigation when Plans ships (see §5).
 
 ### Timeline Row Redesign — Next
 - **What**: Denser timeline rows: a leading column with weekday and day number, a three-line text preview, one metadata line (time · place), and one large trailing thumbnail.

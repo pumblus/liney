@@ -27,6 +27,12 @@ Photos selected together and kept as one ordered visual group.
 **Photo**:
 A copied image with its own capture/place metadata.
 
+### Browsing
+
+**Calendar View**:
+A month-by-month way to browse the journal, where each day with entries is shown by one of its photos.
+_Avoid_: Month view, diary calendar
+
 ### Metadata
 
 **Entry Info**:
