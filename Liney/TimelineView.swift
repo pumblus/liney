@@ -21,6 +21,20 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     private let saveContext: (ModelContext) throws -> Void
     /// This scene's editors in the app-wide coordinator; fixtures without one skip the one-editor rule.
     let editors: SceneEditors?
+    enum Mode { case list, calendar }
+    private(set) var mode = Mode.list
+    /// The Calendar View, made the first time Calendar is chosen.
+    private(set) var calendarView: CalendarViewController?
+    /// Where the list was scrolled when Calendar was chosen, restored once List is shown again.
+    private var listOffset: CGPoint?
+    private lazy var modeControl: UISegmentedControl = {
+        let control = UISegmentedControl(items: [String(localized: "List"), String(localized: "Calendar")])
+        control.selectedSegmentIndex = 0
+        control.addAction(UIAction { [unowned self] _ in
+            self.setMode(self.modeControl.selectedSegmentIndex == 1 ? .calendar : .list)
+        }, for: .valueChanged)
+        return control
+    }()
 
     /// Fixtures replace `saveContext` to simulate a full disk; editors opened here inherit it.
     init(container: ModelContainer, appLock: AppLockModel, storage: PhotoStorage = PhotoStorage(),
@@ -57,6 +71,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         search.obscuresBackgroundDuringPresentation = false
         search.searchBar.placeholder = String(localized: "Search Entries")
         navigationItem.searchController = search
+        navigationItem.titleView = modeControl
         let new = UIBarButtonItem(image: UIImage(systemName: "square.and.pencil"), primaryAction: UIAction { [weak self] _ in self?.createEntry() })
         new.accessibilityLabel = String(localized: "New Entry")
         let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: nil)
@@ -90,9 +105,57 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
                 let result = try await repository.search(self.search.searchBar.text ?? "")
                 guard revision == self.revision else { return }
                 self.apply(result, animated: changedID != nil)
+                try await self.refreshCalendar(revision: revision)
             } catch is CancellationError { }
             catch { self?.showError(String(localized: "Could Not Load Journal"), message: error.localizedDescription) }
         }
+    }
+    /// Swaps the column between the timeline and the Calendar View; Calendar has no search.
+    func setMode(_ mode: Mode) {
+        guard mode != self.mode else { return }
+        self.mode = mode
+        modeControl.selectedSegmentIndex = mode == .calendar ? 1 : 0
+        if mode == .calendar {
+            search.isActive = false
+            navigationItem.searchController = nil
+            contentUnavailableConfiguration = nil
+            listOffset = tableView.contentOffset
+            dataSource.apply(NSDiffableDataSourceSnapshot(), animatingDifferences: false)
+            let calendarView = calendarView ?? embedCalendarView()
+            calendarView.view.isHidden = false
+            setContentScrollView(calendarView.collectionView, for: .top)
+            refresh(reload: false)
+        } else {
+            calendarView?.view.isHidden = true
+            navigationItem.searchController = search
+            setContentScrollView(tableView, for: .top)
+            refresh(reload: false)
+        }
+        // The calendar covers the table, which must not scroll or answer the status bar tap underneath it.
+        tableView.isScrollEnabled = mode == .list
+        tableView.scrollsToTop = mode == .list
+    }
+    /// The calendar fills the table's frame, over the column's own background.
+    private func embedCalendarView() -> CalendarViewController {
+        let calendarView = CalendarViewController()
+        addChild(calendarView)
+        calendarView.view.translatesAutoresizingMaskIntoConstraints = false
+        tableView.addSubview(calendarView.view)
+        NSLayoutConstraint.activate([
+            calendarView.view.leadingAnchor.constraint(equalTo: tableView.frameLayoutGuide.leadingAnchor),
+            calendarView.view.trailingAnchor.constraint(equalTo: tableView.frameLayoutGuide.trailingAnchor),
+            calendarView.view.topAnchor.constraint(equalTo: tableView.frameLayoutGuide.topAnchor),
+            calendarView.view.bottomAnchor.constraint(equalTo: tableView.frameLayoutGuide.bottomAnchor)
+        ])
+        calendarView.didMove(toParent: self)
+        self.calendarView = calendarView
+        return calendarView
+    }
+    private func refreshCalendar(revision: Int) async throws {
+        guard let calendarView else { return }
+        let calendar = try await repository.monthCalendar()
+        guard revision == self.revision else { return }
+        calendarView.apply(calendar)
     }
     func updateSearchResults(for searchController: UISearchController) {
         searchTask?.cancel()
@@ -106,17 +169,25 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         totalCount = result.totalCount
         entriesByID = Dictionary(result.days.flatMap(\.entries).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var snapshot = NSDiffableDataSourceSnapshot<Date, UUID>()
-        for day in result.days {
+        // Under the calendar the table lists nothing: system sidebar rows would draw through it.
+        for day in result.days where mode == .list {
             snapshot.appendSections([day.date])
             snapshot.appendItems(day.entries.map(\.id), toSection: day.date)
         }
         snapshot.reconfigureItems(snapshot.itemIdentifiers.filter { previous[$0].map { $0 != entriesByID[$0.id] } ?? false })
         dataSource.apply(snapshot, animatingDifferences: animated)
+        if mode == .list, let offset = listOffset {
+            listOffset = nil
+            tableView.layoutIfNeeded()
+            let maximum = max(tableView.contentSize.height + tableView.adjustedContentInset.bottom - tableView.bounds.height,
+                              -tableView.adjustedContentInset.top)
+            tableView.setContentOffset(CGPoint(x: offset.x, y: min(offset.y, maximum)), animated: false)
+        }
         // A restored entry opens before its row is listed; beside the timeline, its row is selected once listed.
         if root?.showsEntryColumn == true, tableView.indexPathForSelectedRow == nil, let open = root?.openEditor {
             selectRow(for: open.entry.id)
         }
-        if result.days.isEmpty {
+        if result.days.isEmpty, mode == .list {
             var configuration = UIContentUnavailableConfiguration.empty()
             configuration.image = UIImage(systemName: "book.closed")
             configuration.text = totalCount == 0 ? String(localized: "No Entries") : String(localized: "No Results")
