@@ -65,6 +65,7 @@ for device in "${devices[@]}"; do
     status=1; continue
   fi
   log=.build/agent-logs/test-$device-$stamp.log
+  started=$(mktemp)
   # Runs share one derived-data path, so they must stay serial.
   xcodebuild test -project Liney.xcodeproj -scheme Liney \
     -destination "platform=iOS Simulator,id=$id" -derivedDataPath .build/os27 \
@@ -75,6 +76,16 @@ for device in "${devices[@]}"; do
   grep -E "Executed [0-9]+ tests?, with" "$log" | tail -1
   grep -E "Test run with [0-9]+ tests?" "$log" | tail -1
   grep -E ": error: |error: -\[|✘" "$log" | sort -u | head -20
+  # A crashed test process prints no ✘; its crash report outlives the log, which goes
+  # with the worktree, so name both.
+  reports=$(find "$HOME/Library/Logs/DiagnosticReports" -name 'Liney-*.ips' -newer "$started")
+  if [[ -n "$reports" ]] || grep -q "Restarting after unexpected exit" "$log"; then
+    echo "$device: the test process crashed or timed out; crash reports from this run:" >&2
+    echo "${reports:-(none)}" >&2
+    grep -E "SWIFT TASK CONTINUATION MISUSE|Fatal error" "$log" | sort -u | head -5 >&2
+    [[ $code -eq 0 ]] && code=1
+  fi
+  rm -f "$started"
   # A filter that matches nothing would otherwise pass with 0 tests.
   if [[ $code -eq 0 && ${#only[@]} -gt 0 ]]; then
     ran=$(grep -hoE "Executed [0-9]+ tests?, with|Test run with [0-9]+ tests?" "$log" | grep -oE "[0-9]+" | paste -sd+ - | bc)
