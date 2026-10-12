@@ -14,6 +14,15 @@ if [[ -n "$copies" ]]; then
   status=1
 fi
 
+# An authenticator class runs on the main actor: App Lock awaits it from there, and a
+# nonisolated one mutates its state off the main thread while the test reads it (#56).
+offmain=$(awk '/class [A-Za-z]+: .*AppAuthenticating/ && prev !~ /@MainActor/ && $0 !~ /@MainActor/ { print FILENAME ":" FNR ": " $0 } { prev = $0 }' LineyTests/*.swift)
+if [[ -n "$offmain" ]]; then
+  echo "lint: mark these authenticator classes @MainActor:"
+  echo "$offmain"
+  status=1
+fi
+
 # Documentation: links resolve to published files, stories are numbered once, docs stay off Pages.
 python3 -I - <<'EOF' || status=1
 import os, re, subprocess, sys
