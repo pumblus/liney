@@ -21,6 +21,23 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
         }, for: .valueChanged)
         return control
     }()
+    /// Go to Month: the leading bar button in Calendar mode, titled with the month in view.
+    private lazy var goToMonthButton: UIButton = {
+        var configuration = UIButton.Configuration.plain()
+        configuration.image = UIImage(systemName: "chevron.down",
+                                      withConfiguration: UIImage.SymbolConfiguration(textStyle: .footnote, scale: .small))
+        configuration.imagePlacement = .trailing
+        configuration.imagePadding = 4
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer {
+            var attributes = $0
+            attributes.font = UIFont.preferredFont(forTextStyle: .headline)
+            return attributes
+        }
+        let button = UIButton(configuration: configuration, primaryAction: UIAction { [unowned self] _ in self.showGoToMonth() })
+        button.accessibilityHint = String(localized: "Changes the month shown in the calendar.")
+        return button
+    }()
+    private lazy var goToMonthItem = UIBarButtonItem(customView: goToMonthButton)
 
     /// Fixtures replace `saveContext` to simulate a full disk; editors opened here inherit it.
     init(container: ModelContainer, appLock: AppLockModel, storage: PhotoStorage = PhotoStorage(),
@@ -69,8 +86,12 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
             search.isActive = false
             navigationItem.searchController = nil
             listOffset = tableView.contentOffset
-            setContentScrollView((calendarView ?? embedCalendarView()).collectionView, for: .top)
+            let calendarView = calendarView ?? embedCalendarView()
+            setContentScrollView(calendarView.collectionView, for: .top)
+            showMonthInView(calendarView.monthInView ?? .now)
+            navigationItem.leftBarButtonItem = goToMonthItem
         } else {
+            navigationItem.leftBarButtonItem = nil
             navigationItem.searchController = search
             setContentScrollView(tableView, for: .top)
         }
@@ -93,8 +114,27 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
             calendarView.view.bottomAnchor.constraint(equalTo: tableView.frameLayoutGuide.bottomAnchor)
         ])
         calendarView.didMove(toParent: self)
+        calendarView.onMonthInViewChange = { [unowned self] in self.showMonthInView($0) }
         self.calendarView = calendarView
         return calendarView
+    }
+    private func showMonthInView(_ month: Date) {
+        let title = month.formatted(.dateTime.month(.wide).year())
+        goToMonthButton.configuration?.title = title
+        goToMonthButton.accessibilityLabel = title
+    }
+    /// Presents Go to Month as a popover on the Go to Month button, on iPhone too; the calendar moves only on Done or This Month.
+    private func showGoToMonth() {
+        guard let calendarView, let selected = calendarView.monthInView, presentedViewController == nil else { return }
+        let goToMonth = GoToMonthViewController(months: calendarView.monthStarts, selected: selected) { [weak calendarView] month in
+            calendarView?.scroll(toMonth: month)
+        }
+        let navigation = UINavigationController(rootViewController: goToMonth)
+        navigation.modalPresentationStyle = .popover
+        navigation.preferredContentSize = CGSize(width: 320, height: 260)
+        navigation.popoverPresentationController?.sourceItem = goToMonthItem
+        navigation.popoverPresentationController?.delegate = self
+        present(navigation, animated: true)
     }
     // Under the calendar the table lists nothing: system sidebar rows would draw through it.
     override var listsEntries: Bool { mode == .list }
@@ -332,6 +372,13 @@ class EntryListViewController: UITableViewController {
             options.requestingScene = self?.view.window?.windowScene
             return UIWindowScene.ActivationConfiguration(userActivity: activity, options: options)
         }])
+    }
+}
+
+extension TimelineViewController: UIPopoverPresentationControllerDelegate {
+    /// Go to Month stays a popover in compact width rather than becoming a sheet.
+    func adaptivePresentationStyle(for controller: UIPresentationController, traitCollection: UITraitCollection) -> UIModalPresentationStyle {
+        .none
     }
 }
 

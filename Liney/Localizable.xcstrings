@@ -51,6 +51,38 @@
         }
       }
     },
+    "Changes the month shown in the calendar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changes the month shown in the calendar."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改日历中显示的月份。"
+          }
+        }
+      }
+    },
+    "This Month": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This Month"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本月"
+          }
+        }
+      }
+    },
     "List": {
       "localizations": {
         "en": {

@@ -10,6 +10,14 @@ final class CalendarViewController: UICollectionViewController {
     private var months: [CalendarMonth] = []
     private var needsScrollToCurrentMonth = true
     private lazy var dataSource = makeDataSource()
+    /// The first moment of the month in view; nil until the calendar has months.
+    private(set) var monthInView: Date? {
+        didSet { if monthInView != oldValue, let monthInView { onMonthInViewChange?(monthInView) } }
+    }
+    /// Called whenever the month in view changes, by scrolling or by `scroll(toMonth:)`.
+    var onMonthInViewChange: ((Date) -> Void)?
+    /// The first moment of each month the calendar shows, oldest first.
+    var monthStarts: [Date] { months.map(\.start) }
 
     init() { super.init(collectionViewLayout: Self.layout()) }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -54,6 +62,40 @@ final class CalendarViewController: UICollectionViewController {
         collectionView.layoutIfNeeded()
         let bottom = collectionView.contentSize.height + collectionView.adjustedContentInset.bottom - collectionView.bounds.height
         collectionView.setContentOffset(CGPoint(x: 0, y: max(bottom, -collectionView.adjustedContentInset.top)), animated: false)
+        monthInView = months.last?.start
+    }
+
+    /// Scrolls `month`'s header to the top, as far as the content allows, and makes it the month in view.
+    func scroll(toMonth month: Date) {
+        guard let section = dataSource.index(for: month) else { return }
+        collectionView.layoutIfNeeded()
+        guard let header = collectionView.layoutAttributesForSupplementaryElement(
+            ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)) else { return }
+        let inset = collectionView.adjustedContentInset
+        let bottom = collectionView.contentSize.height + inset.bottom - collectionView.bounds.height
+        let y = max(min(header.frame.minY - inset.top, bottom), -inset.top)
+        collectionView.setContentOffset(CGPoint(x: 0, y: y), animated: false)
+        monthInView = month
+    }
+
+    override func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        // Only a writer's scroll changes the month in view; programmatic scrolls set it themselves.
+        guard scrollView.isTracking || scrollView.isDecelerating else { return }
+        updateMonthInView()
+    }
+
+    /// The month whose header last passed the top of the view; at the bottom, the current month.
+    private func updateMonthInView() {
+        guard !months.isEmpty else { return }
+        let inset = collectionView.adjustedContentInset
+        let bottom = collectionView.contentSize.height + inset.bottom - collectionView.bounds.height
+        if collectionView.contentOffset.y >= bottom - 1 { monthInView = months.last?.start; return }
+        let top = collectionView.contentOffset.y + inset.top + 1
+        let passed = months.indices.last { section in
+            collectionView.layoutAttributesForSupplementaryElement(
+                ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)).map { $0.frame.minY <= top } ?? false
+        }
+        monthInView = months[passed ?? 0].start
     }
 
     private func day(at indexPath: IndexPath) -> CalendarDay? {
