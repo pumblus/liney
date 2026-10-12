@@ -51,6 +51,8 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
         ])
         more.accessibilityLabel = String(localized: "More")
         navigationItem.rightBarButtonItems = [more, new]
+        // The load already in flight shows a restored Calendar once it lands.
+        if mode == .calendar { applyMode(refreshing: false) }
     }
     override var searchText: String { search.searchBar.text ?? "" }
     func updateSearchResults(for searchController: UISearchController) {
@@ -61,9 +63,13 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
         }
     }
     /// Swaps the column between the timeline and the Calendar View once the next refresh lands; Calendar has no search.
+    /// Before the view loads, as when a window restores, the mode is kept and shown once it does.
     func setMode(_ mode: Mode) {
         guard mode != self.mode else { return }
         self.mode = mode
+        if isViewLoaded { applyMode() }
+    }
+    private func applyMode(refreshing: Bool = true) {
         modeControl.selectedSegmentIndex = mode == .calendar ? 1 : 0
         if mode == .calendar {
             search.isActive = false
@@ -77,11 +83,14 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
         // The calendar covers the table, which must not scroll or answer the status bar tap underneath it.
         tableView.isScrollEnabled = mode == .list
         tableView.scrollsToTop = mode == .list
-        refresh(reload: false)
+        if refreshing { refresh(reload: false) }
     }
     /// The calendar fills the table's frame, over the column's own background.
     private func embedCalendarView() -> CalendarViewController {
         let calendarView = CalendarViewController(storage: storage)
+        calendarView.onSelectDay = { [unowned self] day in
+            self.navigationController?.pushViewController(self.dayList(for: day), animated: true)
+        }
         addChild(calendarView)
         calendarView.view.translatesAutoresizingMaskIntoConstraints = false
         calendarView.view.isHidden = true
@@ -194,6 +203,11 @@ class EntryListViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         clearsSelectionOnViewWillAppear = false
+        if let day {
+            title = day.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
+            // A full date is too long for a large title.
+            navigationItem.largeTitleDisplayMode = .never
+        }
         tableView.register(EntryCell.self, forCellReuseIdentifier: "entry")
         tableView.dataSource = dataSource
         tableView.dragDelegate = self
@@ -254,6 +268,23 @@ class EntryListViewController: UITableViewController {
             configuration.secondaryText = day != nil ? nil : totalCount == 0 ? String(localized: "Start writing, or import an existing journal.") : searchText
             contentUnavailableConfiguration = configuration
         } else { contentUnavailableConfiguration = nil }
+        if day != nil, days.isEmpty { leaveEmptyDay() }
+    }
+    /// A day list whose day has no entries left leaves the stack; an editor above it stays, so Back leads past it.
+    private func leaveEmptyDay() {
+        guard let navigation = navigationController, let index = navigation.viewControllers.firstIndex(of: self), index > 0 else { return }
+        let remove = { [weak self, weak navigation] in
+            guard let self, let navigation else { return }
+            if navigation.topViewController === self {
+                navigation.popViewController(animated: true)
+            } else {
+                navigation.setViewControllers(navigation.viewControllers.filter { $0 !== self }, animated: false)
+            }
+        }
+        // Closing an editor that deleted the entry may still be popping back here.
+        if let transition = navigation.transitionCoordinator {
+            transition.animate(alongsideTransition: nil) { _ in remove() }
+        } else { remove() }
     }
     override func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         guard let id = dataSource.itemIdentifier(for: indexPath) else { return nil }

@@ -304,6 +304,116 @@ struct CalendarViewTests {
         #expect(try day(.now, in: calendarView).cell.accessibilityValue == String(localized: "\(1) entries"))
     }
 
+    /// Taps `date` in the calendar and waits for the day list it pushes to list its rows.
+    func openDayList(_ date: Date, in root: JournalSplitViewController, window: UIWindow) async throws -> EntryListViewController {
+        let calendarView = try #require(root.timeline.calendarView)
+        let indexPath = try #require(calendarView.indexPath(for: calendar.startOfDay(for: date)))
+        calendarView.collectionView(calendarView.collectionView, didSelectItemAt: indexPath)
+        let list = try #require(root.timeline.navigationController?.topViewController as? EntryListViewController)
+        try #require(list !== root.timeline)
+        try await waitForRows(1, in: list)
+        try await waitForLayout(window)
+        return list
+    }
+
+    /// Waits until the timeline column shows the Calendar View again.
+    func waitForCalendar(in root: JournalSplitViewController) async throws {
+        let navigation = try #require(root.timeline.navigationController)
+        for _ in 0..<100 where navigation.topViewController !== root.timeline { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(navigation.viewControllers.count == 1)
+    }
+
+    /// A journal with two entries on one past day, mounted in a full window showing the calendar.
+    func mountDay(sizeClass: UIUserInterfaceSizeClass = .regular, width: CGFloat = 1100)
+        async throws -> (root: JournalSplitViewController, window: UIWindow, container: ModelContainer, day: Date, entries: [JournalEntry]) {
+        let container = try makeInMemoryContainer()
+        let context = ModelContext(container)
+        let day = calendar.date(byAdding: .day, value: -10, to: calendar.startOfDay(for: .now))!
+        let morning = JournalEntry(title: "Fixture morning", entryDate: day.addingTimeInterval(9 * 3600))
+        let evening = JournalEntry(title: "Fixture evening", entryDate: day.addingTimeInterval(18 * 3600))
+        [morning, evening].forEach { context.insert($0) }
+        try context.save()
+        let (root, window) = try await mountJournal(container, days: 1, sizeClass: sizeClass, width: width)
+        _ = try await showCalendar(in: root.timeline, months: months(since: day), window: window)
+        return (root, window, container, day, [evening, morning])
+    }
+
+    @Test func tappingADayPushesItsListTitledWithTheFullDate() async throws {
+        let (root, window, _, day, entries) = try await mountDay()
+        let list = try await openDayList(day, in: root, window: window)
+        #expect(list.title == day.formatted(.dateTime.weekday(.wide).month(.wide).day().year()))
+        #expect(list.tableView.numberOfRows(inSection: 0) == 2)
+        let first = list.tableView.cellForRow(at: IndexPath(row: 0, section: 0))
+        #expect(first.flatMap { descendants($0.contentView, as: UILabel.self).first?.text } == entries[0].title)
+        await unmount(window)
+    }
+
+    /// Moves `entry`'s Entry Date by `days` days and saves, as the editor's date picker does.
+    func redate(_ entry: JournalEntry, byDays days: Int, in container: ModelContainer) throws {
+        let context = ModelContext(container)
+        let stored = try #require(try context.entry(id: entry.id))
+        stored.entryDate = calendar.date(byAdding: .day, value: days, to: stored.entryDate)!
+        try context.save()
+        NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
+    }
+
+    @Test func deletingTheDaysLastEntryReturnsToTheCalendar() async throws {
+        let (root, window, _, day, entries) = try await mountDay()
+        let list = try await openDayList(day, in: root, window: window)
+        list.deleteEntry(id: entries[0].id)
+        for _ in 0..<100 where list.tableView.numberOfRows(inSection: 0) != 1 { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(root.timeline.navigationController?.topViewController === list)
+        list.deleteEntry(id: entries[1].id)
+        try await waitForCalendar(in: root)
+        await unmount(window)
+    }
+
+    @Test func movingTheDaysLastEntryToAnotherDayReturnsToTheCalendar() async throws {
+        let (root, window, container, day, entries) = try await mountDay()
+        let list = try await openDayList(day, in: root, window: window)
+        try redate(entries[0], byDays: -1, in: container)
+        for _ in 0..<100 where list.tableView.numberOfRows(inSection: 0) != 1 { try await Task.sleep(for: .milliseconds(20)) }
+        #expect(root.timeline.navigationController?.topViewController === list)
+        try redate(entries[1], byDays: 1, in: container)
+        try await waitForCalendar(in: root)
+        await unmount(window)
+    }
+
+    @Test func inOneStackMovingTheOpenEntryAwayLeavesItsEditorAboveTheCalendar() async throws {
+        let (root, window, container, day, entries) = try await mountDay(sizeClass: .compact, width: 400)
+        let list = try await openDayList(day, in: root, window: window)
+        list.deleteEntry(id: entries[0].id)
+        for _ in 0..<100 where list.tableView.numberOfRows(inSection: 0) != 1 { try await Task.sleep(for: .milliseconds(20)) }
+        list.tableView(list.tableView, didSelectRowAt: IndexPath(row: 0, section: 0))
+        try await waitForLayout(window)
+        let navigation = try #require(root.timeline.navigationController)
+        let editor = try #require(navigation.topViewController as? EntryEditorViewController)
+        try redate(entries[1], byDays: -1, in: container)
+        for _ in 0..<100 where navigation.viewControllers.contains(list) { try await Task.sleep(for: .milliseconds(20)) }
+        // Back from the editor leads to the calendar; the emptied day list is gone.
+        #expect(navigation.viewControllers.count == 2)
+        #expect(navigation.viewControllers.first === root.timeline)
+        #expect(navigation.topViewController === editor)
+        await unmount(window)
+    }
+
+    @Test func closingAnEntryOpenedFromTheDayListClearsItsSelectedRow() async throws {
+        let (root, window, _, day, entries) = try await mountDay()
+        let list = try await openDayList(day, in: root, window: window)
+        list.tableView.selectRow(at: IndexPath(row: 1, section: 0), animated: false, scrollPosition: .none)
+        list.tableView(list.tableView, didSelectRowAt: IndexPath(row: 1, section: 0))
+        try await waitForLayout(window)
+        let secondary = try #require(root.viewController(for: .secondary) as? UINavigationController)
+        let editor = try #require(secondary.topViewController as? EntryEditorViewController)
+        #expect(editor.entry.id == entries[1].id)
+        #expect(list.tableView.indexPathForSelectedRow == IndexPath(row: 1, section: 0))
+        try tapDone(in: editor)
+        try await waitForLayout(window)
+        #expect(list.tableView.indexPathForSelectedRow == nil)
+        #expect(root.timeline.navigationController?.topViewController === list)
+        await unmount(window)
+    }
+
     @Test func newEntryInCalendarOpensAnEditorAtTheCurrentTime() async throws {
         let (root, window) = try await mountJournal(try makeInMemoryContainer(), days: 0)
         defer { window.isHidden = true }

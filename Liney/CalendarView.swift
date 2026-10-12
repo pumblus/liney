@@ -10,6 +10,8 @@ final class CalendarViewController: UICollectionViewController {
     private var months: [CalendarMonth] = []
     private var needsScrollToCurrentMonth = true
     private let storage: PhotoStorage
+    /// Runs with the start of a tapped day that has entries.
+    var onSelectDay: ((Date) -> Void)?
     private lazy var dataSource = makeDataSource()
 
     init(storage: PhotoStorage) {
@@ -73,6 +75,8 @@ final class CalendarViewController: UICollectionViewController {
     }
     override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         collectionView.deselectItem(at: indexPath, animated: true)
+        guard let day = day(at: indexPath), day.state == .hasEntries else { return }
+        onSelectDay?(day.date)
     }
 
     private func makeDataSource() -> UICollectionViewDiffableDataSource<Date, Item> {
