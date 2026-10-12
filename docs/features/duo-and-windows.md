@@ -1,8 +1,8 @@
-# iPhone Duo, Multi-Window & Adaptive Layout Specification
+# iPhone Duo, Multi-Window & Adaptive Layout
 
-This specification owns screen adaptation, Split View responsiveness, iPhone Duo foldable behavior, iOS 27.1 fold avoidance, and multi-window scene coordination.
+This document owns screen adaptation, Split View responsiveness, iPhone Duo foldable behavior, iOS 27.1 fold avoidance, and multi-window scene coordination.
 
-- Parent Scope: [MVP.md](../../MVP.md)
+- Scope: [SCOPE.md](../../SCOPE.md)
 - Domain Terms: [GLOSSARY.md](../../GLOSSARY.md)
 - Code Mapping: `JournalSplitView.swift`, `EntryWindow.swift`, `EntryEditorCoordinator.swift`, `WindowRestoration.swift`, `EditorFoldRule.swift`, `PhotoDetailArrangement.swift` (see [architecture.md](../agents/architecture.md))
 

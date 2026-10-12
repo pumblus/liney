@@ -1,8 +1,8 @@
-# App Lock & Privacy Specification
+# App Lock & Privacy
 
-This specification owns biometric/passcode authentication, app-wide lock synchronization, app-switcher snapshot protection, export security gates, and the on-device privacy guarantee.
+This document owns biometric/passcode authentication, app-wide lock synchronization, app-switcher snapshot protection, export security gates, and the on-device privacy guarantee.
 
-- Parent Scope: [MVP.md](../../MVP.md)
+- Scope: [SCOPE.md](../../SCOPE.md)
 - Domain Terms: [GLOSSARY.md](../../GLOSSARY.md)
 - Code Mapping: `AppLock.swift`, `JournalExport.swift`, `SettingsViewController.swift` (see [architecture.md](../agents/architecture.md))
 
@@ -18,7 +18,7 @@ This specification owns biometric/passcode authentication, app-wide lock synchro
 ## 2. Implementation Decisions
 
 ### Authentication Architecture & State Machine
-- Powered by `LocalAuthentication` with system passcode fallback. No custom PIN/password or custom lock timeout in MVP.
+- Powered by `LocalAuthentication` with system passcode fallback. No custom PIN/password or custom lock timeout.
 - **App-Wide Lock State (`AppLockModel`)**:
   - App Lock state is global across all scenes.
   - Locks when the last foreground scene transitions to the background.

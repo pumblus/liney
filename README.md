@@ -11,7 +11,7 @@ A light journal for words and photos on iPhone and iPad. Everything stays on you
 
 ## Build
 
-Requires Xcode 26 or later; runs on iOS/iPadOS 17 and later. Open `Liney.xcodeproj`, select the `Liney` scheme, and run. The only dependency, [ZIPFoundation](https://github.com/weichsel/ZIPFoundation), is resolved by Swift Package Manager.
+Requires Xcode 27.1 or later; runs on iOS/iPadOS 17 and later. Open `Liney.xcodeproj`, select the `Liney` scheme, and run. The only dependency, [ZIPFoundation](https://github.com/weichsel/ZIPFoundation), is resolved by Swift Package Manager.
 
 To run the tests:
 

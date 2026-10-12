@@ -1,8 +1,8 @@
-# Editor and Photos Specification
+# Editor and Photos
 
-This specification owns the editor content model, text block interactions, photo selection, automatic grid layout, and photo metadata handling.
+This document owns the editor content model, text block interactions, photo selection, automatic grid layout, and photo metadata handling.
 
-- Parent Scope: [MVP.md](../../MVP.md)
+- Scope: [SCOPE.md](../../SCOPE.md)
 - Domain Terms: [GLOSSARY.md](../../GLOSSARY.md)
 - Code Mapping: `EntryEditorView.swift`, `PhotoStorage.swift`, `JournalModels.swift` (see [architecture.md](../agents/architecture.md))
 
@@ -81,7 +81,7 @@ This specification owns the editor content model, text block interactions, photo
   - Entry has no location while photo has GPS coordinates.
 - If multiple photos have conflicting locations, do not update entry location automatically.
 - Prompt options: *Use Photo Info*, *Keep Entry Info*, *Cancel*. Dismissing or choosing any option sets `hasShownPhotoInfoPrompt = true`.
-- **Privacy constraint**: Do not reverse-geocode GPS coordinates via Apple servers in MVP. GPS coordinates remain strictly local.
+- **Privacy constraint**: Do not reverse-geocode GPS coordinates via Apple servers. GPS coordinates remain strictly local.
 
 ### Deletion & Rollback
 - Row-level swipe deletion requires permanent deletion confirmation.

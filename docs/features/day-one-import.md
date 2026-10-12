@@ -1,8 +1,8 @@
-# Day One Import Specification
+# Day One Import
 
-This specification owns the Day One JSON ZIP import pipeline, archive preflight, deduplication, content mapping, media recovery, and error reporting.
+This document owns the Day One JSON ZIP import pipeline, archive preflight, deduplication, content mapping, media recovery, and error reporting.
 
-- Parent Scope: [MVP.md](../../MVP.md)
+- Scope: [SCOPE.md](../../SCOPE.md)
 - Domain Terms: [GLOSSARY.md](../../GLOSSARY.md)
 - Code Mapping: `DayOneImport.swift`, `ImportJournalView.swift` (see [architecture.md](../agents/architecture.md))
 
