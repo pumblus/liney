@@ -16,7 +16,7 @@ Load `/write-swift` for Swift work inside `/implement` and `/tdd`. A `/code-revi
 
 **Fixtures** are in-memory stores, temporary files, and fake authentication.
 
-- Run tests with `scripts/test` (`--help` for usage): the affected suites while iterating, `scripts/test --all` (iPhone, iPad, then iPhone Duo) before committing.
+- Run tests with `scripts/test` (`--help` for usage): the affected suites while iterating and before committing, and all suites on iPhone (`scripts/test`) after merging into a shared branch. The pre-push hook owns `scripts/test --all` (iPhone, iPad, then iPhone Duo).
 - Shared fixture helpers (photos, in-memory stores, authenticators, App Lock preferences, alerts, view lookup, mounted windows, typing into an editor) live in `LineyTests/TestSupport.swift`; `scripts/lint` rejects per-suite copies.
 - The pre-push hook runs `scripts/lint` and `scripts/test --all` on the checkout it runs in, so push a branch from its own clean checkout; it skips pushes that only delete branches. Enable it once per clone with `git config core.hooksPath .githooks`.
 - A test that branches by device or OS keeps an assertion on every branch, so no device passes by asserting nothing.

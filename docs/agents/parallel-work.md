@@ -6,11 +6,12 @@ For an orchestrator running subagents in worktrees (`/implement-spec`), and for 
 
 - Read the spec sections and user stories your ticket cites, not only the ticket. Where the code you build differs from the spec's wording, report it in your hand-back as an unmet acceptance criterion; the orchestrator or the user decides.
 - Run tests with your own simulator slot: `LINEY_SIM_SLOT=<n> scripts/test ...`, with `<n>` given by the orchestrator.
-- Run each `git` command as its own Bash call inside your worktree, and read other worktrees with the Read tool by absolute path. The worktree guard refuses compound commands that contain `git` or `cd` elsewhere.
+- Edit files with the Edit and Write tools, run each `git` command as its own Bash call inside your worktree, and read other worktrees with the Read tool by absolute path. The worktree guard refuses heredoc scripts (`python3 - <<EOF`, `cat > file <<EOF`) and compound commands that contain `git` or `cd` elsewhere.
 
 ## Merger
 
 - Before merging a ticket branch, review its diff against the spec's user stories for that ticket only. Send any gap back to the implementer instead of merging.
+- After merging, run all suites on iPhone with your slot: `LINEY_SIM_SLOT=<n> scripts/test`. A failure, or a hook that blocks a push, goes back to the orchestrator.
 
 ## Orchestrator
 
