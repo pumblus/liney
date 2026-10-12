@@ -30,7 +30,10 @@ import UIKit
         entryWindow = nil
         let journal = JournalSplitViewController(
             timeline: TimelineViewController(container: container, appLock: appLock, editors: editors))
-        if case .selectedEntry(let id) = restoration { journal.restoredEntryID = id }
+        if case .fullWindow(let mode, let id) = restoration {
+            journal.timeline.setMode(mode)
+            journal.restoredEntryID = id
+        }
         root = journal
     }
 
@@ -41,38 +44,55 @@ import UIKit
     }
 }
 
-/// What a window opens: an entry window, or a full window with an entry selected. Its user
-/// activity is saved as the scene's state-restoration activity, and an entry window's activity
-/// also requests a new window from Open in New Window or a dragged row. The payload is only the
-/// entry UUID, never journal text, photo contents, or locations, and the system never shares it.
+/// What a window opens: an entry window, or a full window in its timeline mode with an entry
+/// selected or none. Its user activity is saved as the scene's state-restoration activity, and an
+/// entry window's activity also requests a new window from Open in New Window or a dragged row.
+/// The payload is only the mode and an entry UUID, never journal text, photo contents, or
+/// locations, and the system never shares it.
 enum WindowRestoration: Equatable {
     /// An entry window on this entry.
     case entryWindow(UUID)
-    /// A full window with this entry selected.
-    case selectedEntry(UUID)
+    /// A full window showing the timeline in `mode`, with `selectedEntry` open.
+    case fullWindow(mode: TimelineViewController.Mode, selectedEntry: UUID?)
 
     /// Both listed in `NSUserActivityTypes`, so a dragged row can create a window and windows restore.
     private static let entryWindowType = "com.liney.app.entry"
-    private static let selectedEntryType = "com.liney.app.journal"
+    private static let fullWindowType = "com.liney.app.journal"
     private static let entryIDKey = "entryID"
+    /// Present only for Calendar; activities saved before the mode existed open in List.
+    private static let modeKey = "mode"
+    private static let calendarMode = "calendar"
 
-    /// Nil for any other activity, so the window opens on the timeline.
+    /// Nil for any other activity, so the window opens on the timeline in List.
     init?(_ activity: NSUserActivity) {
-        guard let id = (activity.userInfo?[Self.entryIDKey] as? String).flatMap(UUID.init(uuidString:)) else { return nil }
+        let entryID = activity.userInfo?[Self.entryIDKey]
+        let id = (entryID as? String).flatMap(UUID.init(uuidString:))
+        guard entryID == nil || id != nil else { return nil }
         switch activity.activityType {
-        case Self.entryWindowType: self = .entryWindow(id)
-        case Self.selectedEntryType: self = .selectedEntry(id)
+        case Self.entryWindowType:
+            guard let id else { return nil }
+            self = .entryWindow(id)
+        case Self.fullWindowType:
+            let mode: TimelineViewController.Mode = activity.userInfo?[Self.modeKey] as? String == Self.calendarMode ? .calendar : .list
+            guard id != nil || mode == .calendar else { return nil }
+            self = .fullWindow(mode: mode, selectedEntry: id)
         default: return nil
         }
     }
 
     var activity: NSUserActivity {
-        let (type, id) = switch self {
-        case .entryWindow(let id): (Self.entryWindowType, id)
-        case .selectedEntry(let id): (Self.selectedEntryType, id)
+        let activity: NSUserActivity
+        switch self {
+        case .entryWindow(let id):
+            activity = NSUserActivity(activityType: Self.entryWindowType)
+            activity.userInfo = [Self.entryIDKey: id.uuidString]
+        case .fullWindow(let mode, let id):
+            activity = NSUserActivity(activityType: Self.fullWindowType)
+            var userInfo: [String: String] = [:]
+            if let id { userInfo[Self.entryIDKey] = id.uuidString }
+            if mode == .calendar { userInfo[Self.modeKey] = Self.calendarMode }
+            activity.userInfo = userInfo
         }
-        let activity = NSUserActivity(activityType: type)
-        activity.userInfo = [Self.entryIDKey: id.uuidString]
         activity.isEligibleForHandoff = false
         activity.isEligibleForSearch = false
         activity.isEligibleForPrediction = false

@@ -51,6 +51,8 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
         ])
         more.accessibilityLabel = String(localized: "More")
         navigationItem.rightBarButtonItems = [more, new]
+        // The load already in flight shows a restored Calendar once it lands.
+        if mode == .calendar { applyMode(refreshing: false) }
     }
     override var searchText: String { search.searchBar.text ?? "" }
     func updateSearchResults(for searchController: UISearchController) {
@@ -61,9 +63,13 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
         }
     }
     /// Swaps the column between the timeline and the Calendar View once the next refresh lands; Calendar has no search.
+    /// Before the view loads, as when a window restores, the mode is kept and shown once it does.
     func setMode(_ mode: Mode) {
         guard mode != self.mode else { return }
         self.mode = mode
+        if isViewLoaded { applyMode() }
+    }
+    private func applyMode(refreshing: Bool = true) {
         modeControl.selectedSegmentIndex = mode == .calendar ? 1 : 0
         if mode == .calendar {
             search.isActive = false
@@ -77,7 +83,7 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
         // The calendar covers the table, which must not scroll or answer the status bar tap underneath it.
         tableView.isScrollEnabled = mode == .list
         tableView.scrollsToTop = mode == .list
-        refresh(reload: false)
+        if refreshing { refresh(reload: false) }
     }
     /// The calendar fills the table's frame, over the column's own background.
     private func embedCalendarView() -> CalendarViewController {

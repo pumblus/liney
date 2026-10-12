@@ -37,9 +37,12 @@ final class JournalSplitViewController: UISplitViewController {
             .lazy.compactMap { $0 as? EntryEditorViewController }.first
     }
 
-    /// What this window reopens after relaunch: its open entry, but never a new entry's draft.
+    /// What this window reopens after relaunch: its timeline mode and open entry, but never a new
+    /// entry's draft. Nil for List with no entry, which is how every window opens anyway.
     var restoration: WindowRestoration? {
-        openEditor.flatMap { $0.isNew ? nil : .selectedEntry($0.entry.id) }
+        let selected = openEditor.flatMap { $0.isNew ? nil : $0.entry.id }
+        guard selected != nil || timeline.mode == .calendar else { return nil }
+        return .fullWindow(mode: timeline.mode, selectedEntry: selected)
     }
 
     /// The current hierarchy shape: true while the entry column is in this window beside the
