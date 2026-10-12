@@ -146,9 +146,7 @@ struct WindowRestorationTests {
         let root = try #require(content.root as? JournalSplitViewController)
         let window = try mountInWindow(root, sizeClass: sizeClass)
         try await waitForLayout(window)
-        for _ in 0..<100 where root.timeline.tableView.numberOfSections != rows {
-            try await Task.sleep(for: .milliseconds(20))
-        }
+        try await waitUntil { root.timeline.tableView.numberOfSections == rows }
         try await Task.sleep(for: .milliseconds(100))
         return (root, window)
     }
@@ -179,9 +177,7 @@ struct WindowRestorationTests {
     /// Waits until `timeline`'s Calendar View shows its months.
     func waitForCalendar(in timeline: TimelineViewController) async throws -> CalendarViewController {
         let calendarView = try #require(timeline.calendarView)
-        for _ in 0..<100 where calendarView.view.isHidden || calendarView.collectionView.numberOfSections == 0 {
-            try await Task.sleep(for: .milliseconds(20))
-        }
+        try await waitUntil { !calendarView.view.isHidden && calendarView.collectionView.numberOfSections > 0 }
         return calendarView
     }
 

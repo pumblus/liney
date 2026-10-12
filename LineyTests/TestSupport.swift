@@ -156,12 +156,17 @@ func waitForLayout(_ window: UIWindow) async throws {
     try await Task.sleep(for: .milliseconds(400))
 }
 
+/// Polls `condition` every 20 ms until it holds or `timeout` passes; the caller asserts the outcome.
+@MainActor
+func waitUntil(timeout: Duration = .seconds(2), _ condition: () throws -> Bool) async throws {
+    let deadline = ContinuousClock.now + timeout
+    while try !condition(), ContinuousClock.now < deadline { try await Task.sleep(for: .milliseconds(20)) }
+}
+
 /// Waits until `list` lists `days` days of entries.
 @MainActor
 func waitForRows(_ days: Int, in list: EntryListViewController) async throws {
-    for _ in 0..<100 where list.tableView.numberOfSections != days {
-        try await Task.sleep(for: .milliseconds(20))
-    }
+    try await waitUntil { list.tableView.numberOfSections == days }
     try #require(list.tableView.numberOfSections == days)
 }
 

@@ -18,7 +18,7 @@ struct TimelineRefreshTests {
         window.rootViewController = UINavigationController(rootViewController: timeline)
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
-        for _ in 0..<100 where timeline.contentUnavailableConfiguration == nil { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { timeline.contentUnavailableConfiguration != nil }
         #expect(timeline.tableView.numberOfSections == 0)
 
         let context = ModelContext(container)
@@ -26,7 +26,7 @@ struct TimelineRefreshTests {
         context.insert(entry)
         try context.save()
         NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
-        for _ in 0..<100 where timeline.tableView.numberOfSections == 0 { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { timeline.tableView.numberOfSections != 0 }
         #expect(timeline.tableView.numberOfSections == 1)
         #expect(timeline.contentUnavailableConfiguration == nil)
     }
@@ -36,7 +36,7 @@ struct TimelineRefreshTests {
         let timeline = TimelineViewController(container: container, appLock: AppLockModel())
         let window = try mountInWindow(UINavigationController(rootViewController: timeline))
         defer { window.isHidden = true }
-        for _ in 0..<100 where timeline.contentUnavailableConfiguration == nil { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { timeline.contentUnavailableConfiguration != nil }
 
         let entryCount = 12
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -68,13 +68,13 @@ struct TimelineRefreshTests {
         defer { sheet.isHidden = true }
         sheet.layoutIfNeeded()
         try tapBarButton(String(localized: "Import"), in: importView)
-        for _ in 0..<250 where importView.title != String(localized: "Import Complete") { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil(timeout: .seconds(5)) { importView.title == String(localized: "Import Complete") }
         try #require(importView.title == String(localized: "Import Complete"))
 
         #expect(listedAtSave.count == entryCount)
         #expect((listedAtSave.last ?? 0) > 0, "the timeline lists entries before the import finishes")
         #expect(posts > 1 && posts < entryCount, "refreshes are coalesced: \(posts) posts for \(entryCount) entries")
-        for _ in 0..<100 where timeline.tableView.numberOfSections != entryCount { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { timeline.tableView.numberOfSections == entryCount }
         #expect(timeline.tableView.numberOfSections == entryCount)
     }
 
@@ -103,7 +103,7 @@ struct TimelineRefreshTests {
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
         let table = timeline.tableView!
-        for _ in 0..<100 where table.numberOfSections == 0 { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { table.numberOfSections != 0 }
         let first = IndexPath(row: 0, section: 0)
         func thumbnails(at indexPath: IndexPath) -> [StoredPhotoView] {
             func images(in view: UIView) -> [StoredPhotoView] {
@@ -112,9 +112,7 @@ struct TimelineRefreshTests {
             return table.cellForRow(at: indexPath).map { images(in: $0).filter { !$0.isHidden } } ?? []
         }
         func expectLoadedThumbnails() async throws {
-            for _ in 0..<100 where thumbnails(at: first).contains(where: { $0.image == nil }) {
-                try await Task.sleep(for: .milliseconds(20))
-            }
+            try await waitUntil { !thumbnails(at: first).contains(where: { $0.image == nil }) }
             #expect(thumbnails(at: first).count == 3)
             #expect(thumbnails(at: first).allSatisfy { $0.image != nil })
         }
