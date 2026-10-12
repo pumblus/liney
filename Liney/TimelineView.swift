@@ -7,6 +7,20 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
     private var searchTask: Task<Void, Never>?
     private let search = UISearchController(searchResultsController: nil)
     private var exportFlow: ExportJournalFlow?
+    enum Mode { case list, calendar }
+    private(set) var mode = Mode.list
+    /// The Calendar View, made the first time Calendar is chosen.
+    private(set) var calendarView: CalendarViewController?
+    /// Where the list was scrolled when Calendar was chosen, restored once List is shown again.
+    private var listOffset: CGPoint?
+    private lazy var modeControl: UISegmentedControl = {
+        let control = UISegmentedControl(items: [String(localized: "List"), String(localized: "Calendar")])
+        control.selectedSegmentIndex = 0
+        control.addAction(UIAction { [unowned self] _ in
+            self.setMode(self.modeControl.selectedSegmentIndex == 1 ? .calendar : .list)
+        }, for: .valueChanged)
+        return control
+    }()
 
     /// Fixtures replace `saveContext` to simulate a full disk; editors opened here inherit it.
     init(container: ModelContainer, appLock: AppLockModel, storage: PhotoStorage = PhotoStorage(),
@@ -23,6 +37,7 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
         search.obscuresBackgroundDuringPresentation = false
         search.searchBar.placeholder = String(localized: "Search Entries")
         navigationItem.searchController = search
+        navigationItem.titleView = modeControl
         let new = UIBarButtonItem(image: UIImage(systemName: "square.and.pencil"), primaryAction: UIAction { [weak self] _ in self?.createEntry() })
         new.accessibilityLabel = String(localized: "New Entry")
         let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: nil)
@@ -44,6 +59,62 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
             do { try await Task.sleep(for: .milliseconds(200)) } catch { return }
             self?.refresh(reload: false)
         }
+    }
+    /// Swaps the column between the timeline and the Calendar View once the next refresh lands; Calendar has no search.
+    func setMode(_ mode: Mode) {
+        guard mode != self.mode else { return }
+        self.mode = mode
+        modeControl.selectedSegmentIndex = mode == .calendar ? 1 : 0
+        if mode == .calendar {
+            search.isActive = false
+            navigationItem.searchController = nil
+            listOffset = tableView.contentOffset
+            setContentScrollView((calendarView ?? embedCalendarView()).collectionView, for: .top)
+        } else {
+            navigationItem.searchController = search
+            setContentScrollView(tableView, for: .top)
+        }
+        // The calendar covers the table, which must not scroll or answer the status bar tap underneath it.
+        tableView.isScrollEnabled = mode == .list
+        tableView.scrollsToTop = mode == .list
+        refresh(reload: false)
+    }
+    /// The calendar fills the table's frame, over the column's own background.
+    private func embedCalendarView() -> CalendarViewController {
+        let calendarView = CalendarViewController()
+        addChild(calendarView)
+        calendarView.view.translatesAutoresizingMaskIntoConstraints = false
+        calendarView.view.isHidden = true
+        tableView.addSubview(calendarView.view)
+        NSLayoutConstraint.activate([
+            calendarView.view.leadingAnchor.constraint(equalTo: tableView.frameLayoutGuide.leadingAnchor),
+            calendarView.view.trailingAnchor.constraint(equalTo: tableView.frameLayoutGuide.trailingAnchor),
+            calendarView.view.topAnchor.constraint(equalTo: tableView.frameLayoutGuide.topAnchor),
+            calendarView.view.bottomAnchor.constraint(equalTo: tableView.frameLayoutGuide.bottomAnchor)
+        ])
+        calendarView.didMove(toParent: self)
+        self.calendarView = calendarView
+        return calendarView
+    }
+    // Under the calendar the table lists nothing: system sidebar rows would draw through it.
+    override var listsEntries: Bool { mode == .list }
+    override func didRefresh(_ repository: TimelineRepository, isCurrent: @escaping () -> Bool) async throws {
+        guard let calendarView else { return }
+        guard mode == .calendar else {
+            calendarView.view.isHidden = true
+            if let offset = listOffset {
+                listOffset = nil
+                tableView.layoutIfNeeded()
+                let maximum = max(tableView.contentSize.height + tableView.adjustedContentInset.bottom - tableView.bounds.height,
+                                  -tableView.adjustedContentInset.top)
+                tableView.setContentOffset(CGPoint(x: offset.x, y: min(offset.y, maximum)), animated: false)
+            }
+            return
+        }
+        let calendar = try await repository.monthCalendar()
+        guard isCurrent(), mode == .calendar else { return }
+        calendarView.apply(calendar)
+        calendarView.view.isHidden = false
     }
     /// The timeline's rows and row actions limited to the entries of `day`'s calendar day.
     func dayList(for day: Date) -> EntryListViewController {
@@ -151,17 +222,22 @@ class EntryListViewController: UITableViewController {
                 let result = try await repository.search(self.searchText)
                 guard revision == self.revision else { return }
                 self.apply(result, animated: changedID != nil)
+                try await self.didRefresh(repository) { [weak self] in revision == self?.revision }
             } catch is CancellationError { }
             catch { self?.showError(String(localized: "Could Not Load Journal"), message: error.localizedDescription) }
         }
     }
+    /// Whether the table shows its rows; the timeline lists none while the Calendar View covers it.
+    var listsEntries: Bool { true }
+    /// Runs right after each refresh applies its rows; `isCurrent` turns false once a newer refresh starts.
+    func didRefresh(_ repository: TimelineRepository, isCurrent: @escaping () -> Bool) async throws { }
     private func apply(_ result: TimelineResult, animated: Bool) {
         let days = day.map { day in result.days.filter { Calendar.current.isDate($0.date, inSameDayAs: day) } } ?? result.days
         let previous = entriesByID
         totalCount = result.totalCount
         entriesByID = Dictionary(days.flatMap(\.entries).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var snapshot = NSDiffableDataSourceSnapshot<Date, UUID>()
-        for day in days {
+        for day in days where listsEntries {
             snapshot.appendSections([day.date])
             snapshot.appendItems(day.entries.map(\.id), toSection: day.date)
         }
@@ -171,7 +247,7 @@ class EntryListViewController: UITableViewController {
         if root?.showsEntryColumn == true, tableView.indexPathForSelectedRow == nil, let open = root?.openEditor {
             selectRow(for: open.entry.id)
         }
-        if days.isEmpty {
+        if days.isEmpty, listsEntries {
             var configuration = UIContentUnavailableConfiguration.empty()
             configuration.image = UIImage(systemName: "book.closed")
             configuration.text = totalCount == 0 || day != nil ? String(localized: "No Entries") : String(localized: "No Results")
