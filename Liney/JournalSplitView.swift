@@ -74,8 +74,13 @@ final class JournalSplitViewController: UISplitViewController {
             timelineNavigation.popToViewController(timelineNavigation.viewControllers[index - 1], animated: true)
         } else if entryNavigation.viewControllers.contains(editor) {
             entryNavigation.setViewControllers([Self.noEntrySelected()], animated: false)
-            timeline.selectRow(for: nil)
+            entryLists.forEach { $0.selectRow(for: nil) }
         }
+    }
+
+    /// The timeline and any day list pushed above it.
+    private var entryLists: [EntryListViewController] {
+        timelineNavigation.viewControllers.compactMap { $0 as? EntryListViewController }
     }
 
     /// What expanding moves to the secondary column: the first editor pushed while collapsed and anything above it.
@@ -123,6 +128,6 @@ extension JournalSplitViewController: UISplitViewControllerDelegate {
         guard let editor = entry.first as? EntryEditorViewController else { return }
         timelineNavigation.setViewControllers(Array(timelineNavigation.viewControllers[..<entry.startIndex]), animated: false)
         entryNavigation.setViewControllers(Array(entry), animated: false)
-        timeline.selectRow(for: editor.entry.id)
+        entryLists.forEach { $0.selectRow(for: editor.entry.id) }
     }
 }

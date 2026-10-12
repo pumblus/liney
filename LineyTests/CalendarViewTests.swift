@@ -312,6 +312,23 @@ struct CalendarViewTests {
         await unmount(window)
     }
 
+    @Test func closingAnEntryOpenedFromTheDayListClearsItsSelectedRow() async throws {
+        let (root, window, _, day, entries) = try await mountDay()
+        let list = try await openDayList(day, in: root, window: window)
+        list.tableView.selectRow(at: IndexPath(row: 1, section: 0), animated: false, scrollPosition: .none)
+        list.tableView(list.tableView, didSelectRowAt: IndexPath(row: 1, section: 0))
+        try await waitForLayout(window)
+        let secondary = try #require(root.viewController(for: .secondary) as? UINavigationController)
+        let editor = try #require(secondary.topViewController as? EntryEditorViewController)
+        #expect(editor.entry.id == entries[1].id)
+        #expect(list.tableView.indexPathForSelectedRow == IndexPath(row: 1, section: 0))
+        try tapDone(in: editor)
+        try await waitForLayout(window)
+        #expect(list.tableView.indexPathForSelectedRow == nil)
+        #expect(root.timeline.navigationController?.topViewController === list)
+        await unmount(window)
+    }
+
     @Test func newEntryInCalendarOpensAnEditorAtTheCurrentTime() async throws {
         let (root, window) = try await mountJournal(try makeInMemoryContainer(), days: 0)
         defer { window.isHidden = true }
