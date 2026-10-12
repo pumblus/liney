@@ -156,13 +156,13 @@ func waitForLayout(_ window: UIWindow) async throws {
     try await Task.sleep(for: .milliseconds(400))
 }
 
-/// Waits until `timeline` lists `days` days of entries.
+/// Waits until `list` lists `days` days of entries.
 @MainActor
-func waitForRows(_ days: Int, in timeline: TimelineViewController) async throws {
-    for _ in 0..<100 where timeline.tableView.numberOfSections != days {
+func waitForRows(_ days: Int, in list: EntryListViewController) async throws {
+    for _ in 0..<100 where list.tableView.numberOfSections != days {
         try await Task.sleep(for: .milliseconds(20))
     }
-    try #require(timeline.tableView.numberOfSections == days)
+    try #require(list.tableView.numberOfSections == days)
 }
 
 /// A full window, the scene root and its timeline, mounted once `days` days of entries are listed.
@@ -216,3 +216,14 @@ func tapDone(in editor: EntryEditorViewController) throws { try tapBarButton(Str
 /// Taps the timeline's New Entry button.
 @MainActor
 func tapNewEntry(in timeline: TimelineViewController) throws { try tapBarButton(String(localized: "New Entry"), in: timeline) }
+
+/// Stands in for the drag the system starts when a row is lifted.
+final class FakeDragSession: NSObject, UIDragSession {
+    var localContext: Any?
+    var items: [UIDragItem] = []
+    var allowsMoveOperation: Bool { false }
+    var isRestrictedToDraggingApplication: Bool { false }
+    func location(in view: UIView) -> CGPoint { .zero }
+    func hasItemsConforming(toTypeIdentifiers typeIdentifiers: [String]) -> Bool { false }
+    func canLoadObjects(ofClass aClass: any NSItemProviderReading.Type) -> Bool { false }
+}

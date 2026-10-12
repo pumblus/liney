@@ -256,14 +256,3 @@ struct EntryWindowTests {
         await close(window)
     }
 }
-
-/// Stands in for the drag the system starts when a row is lifted.
-private final class FakeDragSession: NSObject, UIDragSession {
-    var localContext: Any?
-    var items: [UIDragItem] = []
-    var allowsMoveOperation: Bool { false }
-    var isRestrictedToDraggingApplication: Bool { false }
-    func location(in view: UIView) -> CGPoint { .zero }
-    func hasItemsConforming(toTypeIdentifiers typeIdentifiers: [String]) -> Bool { false }
-    func canLoadObjects(ofClass aClass: any NSItemProviderReading.Type) -> Bool { false }
-}
