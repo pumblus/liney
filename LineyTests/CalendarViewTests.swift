@@ -72,6 +72,35 @@ struct MonthCalendarQueryTests {
         #expect(days.prefix(14).allSatisfy { $0.state != .future })
     }
 
+    @Test func representativePhotoIsFirstPhotoOfFirstEntryWithPhotosInTimelineOrder() async throws {
+        let container = try makeInMemoryContainer()
+        let context = ModelContext(container)
+        func entry(_ title: String, _ date: Date, isAllDay: Bool = false, photos: [String] = []) {
+            let entry = JournalEntry(title: title, entryDate: date, isAllDay: isAllDay)
+            context.insert(entry)
+            if !photos.isEmpty { _ = entry.insertPhotoGroup(fileNames: photos, in: context) }
+        }
+        // July 3: the latest timed entry has no photos, so the earlier timed entry's first photo wins over All-day.
+        entry("Evening text", try date(2026, 7, 3, hour: 20))
+        entry("Afternoon", try date(2026, 7, 3, hour: 15), photos: ["afternoon-1.jpg", "afternoon-2.jpg"])
+        entry("Morning", try date(2026, 7, 3, hour: 8), photos: ["morning.jpg"])
+        entry("All day", try date(2026, 7, 3), isAllDay: true, photos: ["all-day.jpg"])
+        // July 4: only the All-day Entry has photos.
+        entry("Timed text", try date(2026, 7, 4, hour: 9))
+        entry("All day", try date(2026, 7, 4), isAllDay: true, photos: ["all-day-only.jpg"])
+        // July 5: no photos at all.
+        entry("Text only", try date(2026, 7, 5, hour: 9))
+        try context.save()
+        let repository = TimelineRepository(container: container)
+        try await repository.reload()
+        let days = try #require(try await repository.monthCalendar(calendar: calendar, now: try date(2026, 7, 15)).months.last).days
+
+        #expect(days[2].photoFileName == "afternoon-1.jpg")
+        #expect(days[3].photoFileName == "all-day-only.jpg")
+        #expect(days[4].photoFileName == nil)
+        #expect(days[5].photoFileName == nil)
+    }
+
     @Test func emptyTodayIsNotFuture() async throws {
         let result = try await query([], now: try date(2026, 7, 15, hour: 23))
         let today = try #require(result.months.last?.days[14])
@@ -200,6 +229,62 @@ struct CalendarViewTests {
             // On the last day of a month the calendar ends today.
             #expect(calendarView.indexPath(for: calendar.startOfDay(for: tomorrow)) == nil)
         }
+    }
+
+    /// The photo `cell` shows, waiting for it to load; nil when the cell shows its date number only.
+    func shownPhoto(in cell: UICollectionViewCell) async throws -> UIImage? {
+        let photo = try #require(descendants(cell, as: StoredPhotoView.self).first)
+        for _ in 0..<100 where !photo.isHidden && photo.image == nil { try await Task.sleep(for: .milliseconds(20)) }
+        return photo.isHidden ? nil : photo.image
+    }
+
+    @Test func daysShowTheirRepresentativePhotoOrTheirDateNumber() async throws {
+        let (storage, directory) = makeTemporaryPhotoStorage()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let stored = try storage.saveJPEG(from: makeJPEGData())
+        let container = try makeInMemoryContainer()
+        let context = ModelContext(container)
+        let photoDay = calendar.date(byAdding: .day, value: -40, to: .now)!
+        let missingDay = calendar.date(byAdding: .day, value: -39, to: .now)!
+        let textDay = calendar.date(byAdding: .day, value: -38, to: .now)!
+        let withPhoto = JournalEntry(title: "Fixture photo", entryDate: photoDay)
+        context.insert(withPhoto)
+        _ = withPhoto.insertPhotoGroup(fileNames: [stored.fileName], in: context)
+        context.insert(JournalEntry(title: "Fixture text", entryDate: photoDay, isAllDay: true))
+        let missing = JournalEntry(title: "Fixture missing", entryDate: missingDay)
+        context.insert(missing)
+        _ = missing.insertPhotoGroup(fileNames: ["synthetic-missing.jpg"], in: context)
+        context.insert(JournalEntry(title: "Fixture text only", entryDate: textDay))
+        try context.save()
+        let (root, window) = try await mountJournal(container, days: 3, storage: storage)
+        defer { window.isHidden = true }
+        let calendarView = try await showCalendar(in: root.timeline, months: months(since: photoDay), window: window)
+
+        let photo = try day(photoDay, in: calendarView).cell
+        #expect(try await shownPhoto(in: photo) != nil)
+        #expect(photo.accessibilityValue == String(localized: "\(2) entries, with photos"))
+
+        let unloadable = try day(missingDay, in: calendarView).cell
+        #expect(try await shownPhoto(in: unloadable) == nil)
+        #expect(unloadable.accessibilityValue == String(localized: "\(1) entries, with photos"))
+
+        let text = try day(textDay, in: calendarView).cell
+        #expect(try await shownPhoto(in: text) == nil)
+        #expect(text.accessibilityValue == String(localized: "\(1) entries"))
+
+        // When the day's cell is reconfigured, the loaded photo stays rather than flashing empty.
+        let added = JournalEntry(title: "Fixture added", entryDate: photoDay, isAllDay: true)
+        context.insert(added)
+        try context.save()
+        NotificationCenter.default.post(name: .journalDidChange, object: added.id)
+        let updatedValue = String(localized: "\(3) entries, with photos")
+        for _ in 0..<100 where try day(photoDay, in: calendarView).cell.accessibilityValue != updatedValue {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let reloaded = try day(photoDay, in: calendarView).cell
+        #expect(reloaded.accessibilityValue == updatedValue)
+        let reloadedPhoto = try #require(descendants(reloaded, as: StoredPhotoView.self).first)
+        #expect(!reloadedPhoto.isHidden && reloadedPhoto.image != nil)
     }
 
     @Test func calendarUpdatesAfterJournalChange() async throws {

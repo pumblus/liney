@@ -35,6 +35,40 @@
         }
       }
     },
+    "%lld entries, with photos": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld entry, with photos"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld entries, with photos"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hans": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 篇日记，含照片"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "Calendar": {
       "localizations": {
         "en": {

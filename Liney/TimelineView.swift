@@ -108,7 +108,7 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
     }
     /// The calendar fills the table's frame, over the column's own background.
     private func embedCalendarView() -> CalendarViewController {
-        let calendarView = CalendarViewController()
+        let calendarView = CalendarViewController(storage: storage)
         calendarView.onSelectDay = { [unowned self] day in
             self.navigationController?.pushViewController(self.dayList(for: day), animated: true)
         }
