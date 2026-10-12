@@ -44,6 +44,13 @@ func actionButton(_ title: String, action: @escaping () -> Void) -> UIButton {
     return button
 }
 
+extension UIScrollView {
+    /// The vertical content offset that shows the end of the content, or the top when the content is shorter than the view.
+    var bottomContentOffsetY: CGFloat {
+        max(contentSize.height + adjustedContentInset.bottom - bounds.height, -adjustedContentInset.top)
+    }
+}
+
 extension UIViewController {
     func installStack(_ children: [UIView], centered: Bool = false) {
         view.backgroundColor = .systemBackground

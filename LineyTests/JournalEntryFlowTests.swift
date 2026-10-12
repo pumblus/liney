@@ -560,13 +560,18 @@ final class JournalEntryFlowTests: XCTestCase {
             }
             let localizations = value["localizations"] as? [String: Any]
             for locale in ["en", "zh-Hans"] {
-                guard let localizedValue = localizations?[locale] as? [String: Any],
-                      let stringUnit = localizedValue["stringUnit"] as? [String: Any],
-                      stringUnit["state"] as? String == "translated",
-                      let text = stringUnit["value"] as? String,
-                      !text.isEmpty else {
+                // A plural string is translated when every plural case is.
+                let localizedValue = localizations?[locale] as? [String: Any]
+                let plural = (localizedValue?["variations"] as? [String: Any])?["plural"] as? [String: Any]
+                let units = plural.map { $0.values.map { ($0 as? [String: Any])?["stringUnit"] } }
+                    ?? [localizedValue?["stringUnit"]]
+                let translated = units.allSatisfy { unit in
+                    guard let unit = unit as? [String: Any], unit["state"] as? String == "translated",
+                          let text = unit["value"] as? String else { return false }
+                    return !text.isEmpty
+                }
+                if !translated || plural?.isEmpty == true || (plural != nil && plural?["other"] == nil) {
                     failures.append("\(key): missing \(locale)")
-                    continue
                 }
             }
         }

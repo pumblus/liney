@@ -3,12 +3,14 @@ import Testing
 import UIKit
 @testable import Liney
 
-/// What a window saves for the next launch, and what requests an entry window: only an entry
-/// UUID, never journal text.
+/// What a window saves for the next launch, and what requests an entry window: only the
+/// timeline mode and an entry UUID, never journal text.
 @Suite struct WindowRestorationActivityTests {
     static let id = UUID(uuidString: "6F9619FF-8B86-D011-B42D-00C04FC964FF")!
 
-    @Test(arguments: [WindowRestoration.entryWindow(id), .selectedEntry(id)])
+    static let selected = WindowRestoration.fullWindow(mode: .list, selectedEntry: id)
+
+    @Test(arguments: [WindowRestoration.entryWindow(id), selected])
     func theActivityCarriesOnlyTheEntryUUID(restoration: WindowRestoration) throws {
         let activity = restoration.activity
 
@@ -27,8 +29,30 @@ import UIKit
 
         #expect(activity.activityType == "com.liney.app.entry")
         #expect(WindowRestoration.entryWindowID(of: activity) == Self.id)
-        #expect(WindowRestoration.selectedEntry(Self.id).activity.activityType == "com.liney.app.journal")
-        #expect(WindowRestoration.entryWindowID(of: WindowRestoration.selectedEntry(Self.id).activity) == nil)
+        #expect(Self.selected.activity.activityType == "com.liney.app.journal")
+        #expect(WindowRestoration.entryWindowID(of: Self.selected.activity) == nil)
+    }
+
+    @Test(arguments: [nil, id])
+    func aCalendarWindowsActivityCarriesOnlyTheModeAndTheEntryUUID(selectedEntry: UUID?) {
+        let restoration = WindowRestoration.fullWindow(mode: .calendar, selectedEntry: selectedEntry)
+        let activity = restoration.activity
+
+        #expect(activity.activityType == "com.liney.app.journal")
+        #expect(activity.userInfo?.count == (selectedEntry == nil ? 1 : 2))
+        #expect(activity.userInfo?["mode"] as? String == "calendar")
+        #expect(activity.userInfo?["entryID"] as? String == selectedEntry?.uuidString)
+        #expect(activity.title == nil && activity.keywords.isEmpty && activity.webpageURL == nil)
+        #expect(!activity.isEligibleForHandoff && !activity.isEligibleForSearch && !activity.isEligibleForPrediction)
+        #expect(WindowRestoration(activity) == restoration)
+        #expect(WindowRestoration.entryWindowID(of: activity) == nil)
+    }
+
+    @Test func anActivitySavedBeforeCalendarModeRestoresList() {
+        let saved = NSUserActivity(activityType: "com.liney.app.journal")
+        saved.userInfo = ["entryID": Self.id.uuidString]
+
+        #expect(WindowRestoration(saved) == .fullWindow(mode: .list, selectedEntry: Self.id))
     }
 
     @Test func theAppDeclaresItsActivitiesSoADraggedRowCanCreateAWindowAndWindowsRestore() throws {
@@ -39,7 +63,7 @@ import UIKit
         #expect(info["NSFaceIDUsageDescription"] != nil)
     }
 
-    @Test(arguments: [WindowRestoration.entryWindow(id), .selectedEntry(id)])
+    @Test(arguments: [WindowRestoration.entryWindow(id), selected])
     func unknownOrMalformedActivitiesRestoreNothing(restoration: WindowRestoration) {
         let other = NSUserActivity(activityType: "com.liney.app.other")
         other.userInfo = ["entryID": Self.id.uuidString]
@@ -122,16 +146,14 @@ struct WindowRestorationTests {
         let root = try #require(content.root as? JournalSplitViewController)
         let window = try mountInWindow(root, sizeClass: sizeClass)
         try await waitForLayout(window)
-        for _ in 0..<100 where root.timeline.tableView.numberOfSections != rows {
-            try await Task.sleep(for: .milliseconds(20))
-        }
+        try await waitUntil { root.timeline.tableView.numberOfSections == rows }
         try await Task.sleep(for: .milliseconds(100))
         return (root, window)
     }
 
     @Test(arguments: [UIUserInterfaceSizeClass.regular, .compact])
     func aFullWindowReopensWithItsSelectedEntry(sizeClass: UIUserInterfaceSizeClass) async throws {
-        let content = connect(restoring: WindowRestoration.selectedEntry(entry.id).activity)
+        let content = connect(restoring: WindowRestoration.fullWindow(mode: .list, selectedEntry: entry.id).activity)
         let (root, window) = try await mountJournalRoot(of: content, sizeClass)
 
         let editor = try #require(root.openEditor)
@@ -144,7 +166,7 @@ struct WindowRestorationTests {
             #expect(root.timeline.tableView.indexPathForSelectedRow == IndexPath(row: 0, section: 0))
         }
         #expect(coordinator.scene(editing: entry.id) === content.editors)
-        #expect(content.restoration == .selectedEntry(entry.id))
+        #expect(content.restoration == .fullWindow(mode: .list, selectedEntry: entry.id))
 
         try tapDone(in: editor)
         try await Task.sleep(for: .milliseconds(400))
@@ -152,11 +174,78 @@ struct WindowRestorationTests {
         await close(window)
     }
 
+    /// Waits until `timeline`'s Calendar View shows its months.
+    func waitForCalendar(in timeline: TimelineViewController) async throws -> CalendarViewController {
+        let calendarView = try #require(timeline.calendarView)
+        try await waitUntil { !calendarView.view.isHidden && calendarView.collectionView.numberOfSections > 0 }
+        return calendarView
+    }
+
+    @Test(arguments: [UIUserInterfaceSizeClass.regular, .compact])
+    func aFullWindowInCalendarModeReopensInCalendarMode(sizeClass: UIUserInterfaceSizeClass) async throws {
+        let content = connect(restoring: WindowRestoration.fullWindow(mode: .calendar, selectedEntry: nil).activity)
+        let (root, window) = try await mountJournalRoot(of: content, sizeClass, rows: 0)
+
+        let calendarView = try await waitForCalendar(in: root.timeline)
+        #expect(root.timeline.mode == .calendar)
+        #expect(calendarView.view.window != nil && !calendarView.view.isHidden)
+        #expect((root.timeline.navigationItem.titleView as? UISegmentedControl)?.selectedSegmentIndex == 1)
+        #expect(root.timeline.navigationItem.searchController == nil)
+        #expect(root.openEditor == nil)
+        #expect(content.restoration == .fullWindow(mode: .calendar, selectedEntry: nil))
+
+        root.timeline.setMode(.list)
+        #expect(content.restoration == nil)
+        await close(window)
+    }
+
+    @Test(arguments: [UIUserInterfaceSizeClass.regular, .compact])
+    func aFullWindowInCalendarModeReopensWithItsSelectedEntry(sizeClass: UIUserInterfaceSizeClass) async throws {
+        let content = connect(restoring: WindowRestoration.fullWindow(mode: .calendar, selectedEntry: entry.id).activity)
+        let (root, window) = try await mountJournalRoot(of: content, sizeClass, rows: 0)
+
+        _ = try await waitForCalendar(in: root.timeline)
+        #expect(root.timeline.mode == .calendar)
+        let editor = try #require(root.openEditor)
+        #expect(editor.entry.id == entry.id)
+        #expect(content.restoration == .fullWindow(mode: .calendar, selectedEntry: entry.id))
+
+        try tapDone(in: editor)
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(content.restoration == .fullWindow(mode: .calendar, selectedEntry: nil))
+        await close(window)
+    }
+
+    @Test func choosingCalendarIsSavedForTheNextLaunch() async throws {
+        let content = connect(restoring: nil)
+        let (root, window) = try await mountJournalRoot(of: content)
+        #expect(root.timeline.mode == .list)
+        #expect(content.restoration == nil)
+
+        root.timeline.setMode(.calendar)
+
+        #expect(content.restoration == .fullWindow(mode: .calendar, selectedEntry: nil))
+        await close(window)
+    }
+
+    @Test func anActivitySavedBeforeCalendarModeReopensInList() async throws {
+        let saved = NSUserActivity(activityType: "com.liney.app.journal")
+        saved.userInfo = ["entryID": entry.id.uuidString]
+
+        let content = connect(restoring: saved)
+        let (root, window) = try await mountJournalRoot(of: content)
+
+        #expect(root.timeline.mode == .list)
+        #expect(root.timeline.navigationItem.searchController != nil)
+        #expect(root.openEditor?.entry.id == entry.id)
+        await close(window)
+    }
+
     @Test func aFullWindowWhoseSelectedEntryWasDeletedShowsTheTimelineOnly() async throws {
         try deleteEntry()
         let scene = FakeScene()
 
-        let content = connect(restoring: WindowRestoration.selectedEntry(entry.id).activity, scene: scene)
+        let content = connect(restoring: WindowRestoration.fullWindow(mode: .list, selectedEntry: entry.id).activity, scene: scene)
         let (root, window) = try await mountJournalRoot(of: content, rows: 0)
 
         #expect(root.openEditor == nil)
@@ -169,7 +258,7 @@ struct WindowRestorationTests {
         let holder = FakeScene()
         let held = connect(restoring: WindowRestoration.entryWindow(entry.id).activity, scene: holder)
 
-        let content = connect(restoring: WindowRestoration.selectedEntry(entry.id).activity)
+        let content = connect(restoring: WindowRestoration.fullWindow(mode: .list, selectedEntry: entry.id).activity)
         let (root, window) = try await mountJournalRoot(of: content)
 
         #expect(root.openEditor == nil)

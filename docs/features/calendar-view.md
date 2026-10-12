@@ -11,7 +11,7 @@ This document owns the Calendar View: the List / Calendar switch, the month grid
 - **Story 79**: Switch the timeline column between List and Calendar with a segmented control in the navigation bar title. Each window remembers its last mode across launches.
 - **Story 80**: Show the journal as vertically scrolling months, from the month of the earliest entry to the current month, opening at the current month. No future months.
 - **Story 81**: Show each day that has entries with one representative photo; show days without photos as the date number only.
-- **Story 82**: Leave days without entries and future days of the current month not tappable; emphasize today.
+- **Story 82**: Leave days without entries not tappable, including future days of the current month; emphasize today.
 - **Story 83**: Tapping a day pushes a day list of that day's entries in standard timeline rows.
 - **Story 84**: Return to the calendar when the day list becomes empty.
 - **Story 85**: Keep the calendar current while entries are written, edited, deleted, or imported.
@@ -42,7 +42,7 @@ This document owns the Calendar View: the List / Calendar switch, the month grid
 - **Has entries**: tappable; shows the representative photo or the date number.
 - **No entries**: date number only; not tappable.
 - **Today**: date number tinted with Liney Aqua.
-- **Future days of the current month**: dimmed date number; not tappable.
+- **Future days of the current month**: dimmed date number; not tappable. A future day with entries shows and opens like any other day with entries.
 - Tapping an empty day does not create an entry.
 
 ### Day List

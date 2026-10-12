@@ -37,9 +37,12 @@ final class JournalSplitViewController: UISplitViewController {
             .lazy.compactMap { $0 as? EntryEditorViewController }.first
     }
 
-    /// What this window reopens after relaunch: its open entry, but never a new entry's draft.
+    /// What this window reopens after relaunch: its timeline mode and open entry, but never a new
+    /// entry's draft. Nil for List with no entry, which is how every window opens anyway.
     var restoration: WindowRestoration? {
-        openEditor.flatMap { $0.isNew ? nil : .selectedEntry($0.entry.id) }
+        let selected = openEditor.flatMap { $0.isNew ? nil : $0.entry.id }
+        guard selected != nil || timeline.mode == .calendar else { return nil }
+        return .fullWindow(mode: timeline.mode, selectedEntry: selected)
     }
 
     /// The current hierarchy shape: true while the entry column is in this window beside the
@@ -74,8 +77,13 @@ final class JournalSplitViewController: UISplitViewController {
             timelineNavigation.popToViewController(timelineNavigation.viewControllers[index - 1], animated: true)
         } else if entryNavigation.viewControllers.contains(editor) {
             entryNavigation.setViewControllers([Self.noEntrySelected()], animated: false)
-            timeline.selectRow(for: nil)
+            entryLists.forEach { $0.selectRow(for: nil) }
         }
+    }
+
+    /// The timeline and any day list pushed above it.
+    private var entryLists: [EntryListViewController] {
+        timelineNavigation.viewControllers.compactMap { $0 as? EntryListViewController }
     }
 
     /// What expanding moves to the secondary column: the first editor pushed while collapsed and anything above it.
@@ -123,6 +131,6 @@ extension JournalSplitViewController: UISplitViewControllerDelegate {
         guard let editor = entry.first as? EntryEditorViewController else { return }
         timelineNavigation.setViewControllers(Array(timelineNavigation.viewControllers[..<entry.startIndex]), animated: false)
         entryNavigation.setViewControllers(Array(entry), animated: false)
-        timeline.selectRow(for: editor.entry.id)
+        entryLists.forEach { $0.selectRow(for: editor.entry.id) }
     }
 }

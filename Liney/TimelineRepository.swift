@@ -40,6 +40,35 @@ struct TimelineResult: Sendable {
     let days: [TimelineDay]
 }
 
+/// The Calendar View's months, oldest first, from the month of the earliest Entry Date to the current month.
+struct MonthCalendar: Sendable, Equatable {
+    let months: [CalendarMonth]
+}
+
+struct CalendarMonth: Sendable, Equatable {
+    /// The first moment of the month.
+    let start: Date
+    /// Grid cells before day 1, counted from the calendar's first weekday.
+    let leadingEmptyDays: Int
+    let days: [CalendarDay]
+}
+
+struct CalendarDay: Sendable, Equatable {
+    enum State: Sendable { case hasEntries, noEntries, future }
+    /// The first moment of the day.
+    let date: Date
+    let number: Int
+    let state: State
+    let isToday: Bool
+    /// The day's entries in timeline order.
+    let entryIDs: [UUID]
+    /// The first photo of the first entry with any photo, in timeline order; nil when no entry has one.
+    let photoFileName: String?
+    var entryCount: Int { entryIDs.count }
+    /// Only a day with entries opens a Day List.
+    var isTappable: Bool { state == .hasEntries }
+}
+
 /// SwiftData objects stay on this actor. Only immutable display values cross to UIKit.
 actor TimelineRepository {
     private let container: ModelContainer
@@ -72,7 +101,39 @@ actor TimelineRepository {
             try Task.checkCancellation()
             return query.isEmpty || entry.searchableTitle.localizedCaseInsensitiveContains(query) || entry.searchableBody.localizedCaseInsensitiveContains(query)
         }
-        let days = Dictionary(grouping: matches) { calendar.startOfDay(for: $0.entryDate) }
+        let days = Self.days(of: matches, calendar: calendar).sorted { $0.date > $1.date }
+        return TimelineResult(totalCount: entries.count, days: days)
+    }
+
+    func monthCalendar(calendar: Calendar = .current, now: Date = .now) throws -> MonthCalendar {
+        let byDay = Dictionary(uniqueKeysWithValues: Self.days(of: entries, calendar: calendar).map { ($0.date, $0.entries) })
+        let today = calendar.startOfDay(for: now)
+        let current = calendar.dateInterval(of: .month, for: now)!.start
+        let earliest = entries.map(\.entryDate).min().map { calendar.dateInterval(of: .month, for: $0)!.start }
+        var months: [CalendarMonth] = []
+        var month = min(earliest ?? current, current)
+        while month <= current {
+            try Task.checkCancellation()
+            let count = calendar.range(of: .day, in: .month, for: month)!.count
+            let days = (0..<count).map { offset in
+                let date = calendar.date(byAdding: .day, value: offset, to: month)!
+                // A future day with entries opens like any other day; an empty one stays dimmed.
+                let entries = byDay[date] ?? []
+                return CalendarDay(date: date, number: offset + 1,
+                                   state: !entries.isEmpty ? .hasEntries : date > today ? .future : .noEntries,
+                                   isToday: date == today, entryIDs: entries.map(\.id),
+                                   photoFileName: entries.lazy.compactMap(\.previewFiles.first).first)
+            }
+            let leading = (calendar.component(.weekday, from: month) - calendar.firstWeekday + 7) % 7
+            months.append(CalendarMonth(start: month, leadingEmptyDays: leading, days: days))
+            month = calendar.date(byAdding: .month, value: 1, to: month)!
+        }
+        return MonthCalendar(months: months)
+    }
+
+    /// Groups entries by day in timeline order: timed entries latest first, then All-day Entries latest created first.
+    private static func days(of entries: [TimelineEntry], calendar: Calendar) -> [TimelineDay] {
+        Dictionary(grouping: entries) { calendar.startOfDay(for: $0.entryDate) }
             .map { day, values in
                 TimelineDay(date: day, entries: values.sorted {
                     if $0.isAllDay != $1.isAllDay { return !$0.isAllDay }
@@ -82,7 +143,6 @@ actor TimelineRepository {
                     }
                     return $0.entryDate > $1.entryDate
                 })
-            }.sorted { $0.date > $1.date }
-        return TimelineResult(totalCount: entries.count, days: days)
+            }
     }
 }

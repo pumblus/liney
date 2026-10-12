@@ -33,6 +33,21 @@ A copied image with its own capture/place metadata.
 A month-by-month way to browse the journal, where each day with entries is shown by one of its photos.
 _Avoid_: Month view, diary calendar
 
+**Representative Photo**:
+The one photo that shows a day in the Calendar View: the first photo of the day's first entry with any photo, in timeline order.
+_Avoid_: Cover photo, day thumbnail
+
+**Day List**:
+The entries of one calendar day in timeline rows, opened by tapping that day in the Calendar View.
+_Avoid_: Day view, day detail
+
+**Month in View**:
+The Calendar View month whose header last passed the top of the view, or the current month when scrolled to the end.
+
+**Go to Month**:
+The popover, opened from the Month in View button, that scrolls the Calendar View to a chosen year and month.
+_Avoid_: Month picker, jump to date
+
 ### Metadata
 
 **Entry Info**:

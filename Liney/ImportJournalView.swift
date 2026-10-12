@@ -8,6 +8,7 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
     private var plan: DayOneImportPlan?
     private var summary: DayOneImportSummary?
     private var task: Task<Void, Never>?
+    private var pendingRefresh: Task<Void, Never>?
     private var busy = false
     private var progress = DayOneImportProgress(processedEntries: 0, totalEntries: 0)
     private struct Row {
@@ -143,10 +144,22 @@ final class ImportJournalViewController: UITableViewController, UIDocumentPicker
         task = Task {
             summary = await importer.importPreparedArchive(plan, into: context) { [weak self] value in
                 self?.progress = value; self?.render()
+                if value.processedEntries > 0 { self?.refreshJournalSoon() }
             }
             busy = false; task = nil
+            pendingRefresh?.cancel(); pendingRefresh = nil
             NotificationCenter.default.post(name: .journalDidChange, object: nil)
             render()
+        }
+    }
+    /// Lets the timeline and calendar fill in as entries are saved, reloading at most four times a second.
+    private func refreshJournalSoon() {
+        guard pendingRefresh == nil else { return }
+        pendingRefresh = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard let self, !Task.isCancelled else { return }
+            pendingRefresh = nil
+            NotificationCenter.default.post(name: .journalDidChange, object: nil)
         }
     }
     private func cancel() {
