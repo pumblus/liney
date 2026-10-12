@@ -7,7 +7,8 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
     private var searchTask: Task<Void, Never>?
     private let search = UISearchController(searchResultsController: nil)
     private var exportFlow: ExportJournalFlow?
-    enum Mode { case list, calendar }
+    /// The raw value is saved with window restoration.
+    enum Mode: String { case list, calendar }
     private(set) var mode = Mode.list
     /// The Calendar View, made the first time Calendar is chosen.
     private(set) var calendarView: CalendarViewController?
@@ -154,9 +155,7 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
             if let offset = listOffset {
                 listOffset = nil
                 tableView.layoutIfNeeded()
-                let maximum = max(tableView.contentSize.height + tableView.adjustedContentInset.bottom - tableView.bounds.height,
-                                  -tableView.adjustedContentInset.top)
-                tableView.setContentOffset(CGPoint(x: offset.x, y: min(offset.y, maximum)), animated: false)
+                tableView.setContentOffset(CGPoint(x: offset.x, y: min(offset.y, tableView.bottomContentOffsetY)), animated: false)
             }
             return
         }

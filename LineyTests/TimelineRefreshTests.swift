@@ -4,6 +4,7 @@ import Testing
 import UIKit
 import UniformTypeIdentifiers
 import XCTest
+import ZIPFoundation
 @testable import Liney
 
 @Suite(.serialized)
@@ -17,7 +18,7 @@ struct TimelineRefreshTests {
         window.rootViewController = UINavigationController(rootViewController: timeline)
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
-        for _ in 0..<100 where timeline.contentUnavailableConfiguration == nil { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { timeline.contentUnavailableConfiguration != nil }
         #expect(timeline.tableView.numberOfSections == 0)
 
         let context = ModelContext(container)
@@ -25,9 +26,56 @@ struct TimelineRefreshTests {
         context.insert(entry)
         try context.save()
         NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
-        for _ in 0..<100 where timeline.tableView.numberOfSections == 0 { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { timeline.tableView.numberOfSections != 0 }
         #expect(timeline.tableView.numberOfSections == 1)
         #expect(timeline.contentUnavailableConfiguration == nil)
+    }
+
+    @Test func importedEntriesFillInTheTimelineWhileTheImportRuns() async throws {
+        let container = try makeInMemoryContainer()
+        let timeline = TimelineViewController(container: container, appLock: AppLockModel())
+        let window = try mountInWindow(UINavigationController(rootViewController: timeline))
+        defer { window.isHidden = true }
+        try await waitUntil { timeline.contentUnavailableConfiguration != nil }
+
+        let entryCount = 12
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let archiveURL = directory.appendingPathComponent("synthetic-day-one.zip")
+        let archive = try Archive(url: archiveURL, accessMode: .create, pathEncoding: nil)
+        let entries: [[String: Any]] = (1...entryCount).map { n in
+            ["uuid": "synthetic-\(n)", "creationDate": "2026-01-\(String(format: "%02d", n))T12:00:00Z", "text": "Synthetic body \(n)"]
+        }
+        let json = try JSONSerialization.data(withJSONObject: ["entries": entries])
+        try archive.addEntry(with: "Journal.json", type: .file, uncompressedSize: Int64(json.count)) { position, size in
+            json.subdata(in: Int(position)..<(Int(position) + size))
+        }
+
+        // Each save records the rows the timeline lists at that moment, and takes long enough for a refresh to land.
+        var listedAtSave: [Int] = []
+        let importer = DayOneImporter(importRootURL: directory.appendingPathComponent("imports"), saveContext: { context in
+            try context.save()
+            listedAtSave.append((0..<timeline.tableView.numberOfSections).reduce(0) { $0 + timeline.tableView.numberOfRows(inSection: $1) })
+            Thread.sleep(forTimeInterval: 0.06)
+        })
+        var posts = 0
+        let observer = NotificationCenter.default.addObserver(forName: .journalDidChange, object: nil, queue: .main) { _ in posts += 1 }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        let importView = ImportJournalViewController(container: container, importer: importer,
+                                                     plan: try importer.prepareImport(from: archiveURL))
+        let sheet = try mountInWindow(UINavigationController(rootViewController: importView))
+        defer { sheet.isHidden = true }
+        sheet.layoutIfNeeded()
+        try tapBarButton(String(localized: "Import"), in: importView)
+        try await waitUntil(timeout: .seconds(5)) { importView.title == String(localized: "Import Complete") }
+        try #require(importView.title == String(localized: "Import Complete"))
+
+        #expect(listedAtSave.count == entryCount)
+        #expect((listedAtSave.last ?? 0) > 0, "the timeline lists entries before the import finishes")
+        #expect(posts > 1 && posts < entryCount, "refreshes are coalesced: \(posts) posts for \(entryCount) entries")
+        try await waitUntil { timeline.tableView.numberOfSections == entryCount }
+        #expect(timeline.tableView.numberOfSections == entryCount)
     }
 
     @Test func thumbnailsStayLoadedWhenRowsRedisplay() async throws {
@@ -55,7 +103,7 @@ struct TimelineRefreshTests {
         window.makeKeyAndVisible()
         defer { window.isHidden = true }
         let table = timeline.tableView!
-        for _ in 0..<100 where table.numberOfSections == 0 { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { table.numberOfSections != 0 }
         let first = IndexPath(row: 0, section: 0)
         func thumbnails(at indexPath: IndexPath) -> [StoredPhotoView] {
             func images(in view: UIView) -> [StoredPhotoView] {
@@ -64,9 +112,7 @@ struct TimelineRefreshTests {
             return table.cellForRow(at: indexPath).map { images(in: $0).filter { !$0.isHidden } } ?? []
         }
         func expectLoadedThumbnails() async throws {
-            for _ in 0..<100 where thumbnails(at: first).contains(where: { $0.image == nil }) {
-                try await Task.sleep(for: .milliseconds(20))
-            }
+            try await waitUntil { !thumbnails(at: first).contains(where: { $0.image == nil }) }
             #expect(thumbnails(at: first).count == 3)
             #expect(thumbnails(at: first).allSatisfy { $0.image != nil })
         }

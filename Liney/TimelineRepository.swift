@@ -65,6 +65,8 @@ struct CalendarDay: Sendable, Equatable {
     /// The first photo of the first entry with any photo, in timeline order; nil when no entry has one.
     let photoFileName: String?
     var entryCount: Int { entryIDs.count }
+    /// Only a day with entries opens a Day List.
+    var isTappable: Bool { state == .hasEntries }
 }
 
 /// SwiftData objects stay on this actor. Only immutable display values cross to UIKit.

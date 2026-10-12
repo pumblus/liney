@@ -82,7 +82,7 @@ struct EntryListTests {
         action.handler(action, list.tableView) { _ in }
         let confirmation = try await waitForAlert(from: list)
         try await perform(String(localized: "Delete Entry"), in: confirmation)
-        for _ in 0..<100 where list.tableView.numberOfRows(inSection: 0) != 2 { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { list.tableView.numberOfRows(inSection: 0) == 2 }
         #expect(titles(in: list) == ["Synthetic morning", "Synthetic all-day"])
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<JournalEntry>()) == 3)
         await unmount(window)

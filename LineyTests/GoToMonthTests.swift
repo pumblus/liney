@@ -23,7 +23,7 @@ extension CalendarViewTests {
 
     /// Waits until the popover over `timeline` has closed.
     func waitForDismissal(of timeline: TimelineViewController, window: UIWindow) async throws {
-        for _ in 0..<100 where timeline.presentedViewController != nil { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { timeline.presentedViewController == nil }
         try await waitForLayout(window)
     }
 

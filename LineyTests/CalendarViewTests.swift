@@ -143,9 +143,7 @@ struct CalendarViewTests {
     func showCalendar(in timeline: TimelineViewController, months: Int, window: UIWindow) async throws -> CalendarViewController {
         try select(String(localized: "Calendar"), in: timeline)
         let calendarView = try #require(timeline.calendarView)
-        for _ in 0..<100 where calendarView.collectionView.numberOfSections != months {
-            try await Task.sleep(for: .milliseconds(20))
-        }
+        try await waitUntil { calendarView.collectionView.numberOfSections == months }
         try #require(calendarView.collectionView.numberOfSections == months)
         try await waitForLayout(window)
         return calendarView
@@ -234,7 +232,7 @@ struct CalendarViewTests {
     /// The photo `cell` shows, waiting for it to load; nil when the cell shows its date number only.
     func shownPhoto(in cell: UICollectionViewCell) async throws -> UIImage? {
         let photo = try #require(descendants(cell, as: StoredPhotoView.self).first)
-        for _ in 0..<100 where !photo.isHidden && photo.image == nil { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { photo.isHidden || photo.image != nil }
         return photo.isHidden ? nil : photo.image
     }
 
@@ -278,9 +276,7 @@ struct CalendarViewTests {
         try context.save()
         NotificationCenter.default.post(name: .journalDidChange, object: added.id)
         let updatedValue = String(localized: "\(3) entries, with photos")
-        for _ in 0..<100 where try day(photoDay, in: calendarView).cell.accessibilityValue != updatedValue {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        try await waitUntil { try day(photoDay, in: calendarView).cell.accessibilityValue == updatedValue }
         let reloaded = try day(photoDay, in: calendarView).cell
         #expect(reloaded.accessibilityValue == updatedValue)
         let reloadedPhoto = try #require(descendants(reloaded, as: StoredPhotoView.self).first)
@@ -299,7 +295,7 @@ struct CalendarViewTests {
         context.insert(entry)
         try context.save()
         NotificationCenter.default.post(name: .journalDidChange, object: entry.id)
-        for _ in 0..<100 where try !day(.now, in: calendarView).tappable { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { try day(.now, in: calendarView).tappable }
         #expect(try day(.now, in: calendarView).tappable)
         #expect(try day(.now, in: calendarView).cell.accessibilityValue == String(localized: "\(1) entries"))
     }
@@ -319,7 +315,7 @@ struct CalendarViewTests {
     /// Waits until the timeline column shows the Calendar View again.
     func waitForCalendar(in root: JournalSplitViewController) async throws {
         let navigation = try #require(root.timeline.navigationController)
-        for _ in 0..<100 where navigation.topViewController !== root.timeline { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { navigation.topViewController === root.timeline }
         #expect(navigation.viewControllers.count == 1)
     }
 
@@ -361,7 +357,7 @@ struct CalendarViewTests {
         let (root, window, _, day, entries) = try await mountDay()
         let list = try await openDayList(day, in: root, window: window)
         list.deleteEntry(id: entries[0].id)
-        for _ in 0..<100 where list.tableView.numberOfRows(inSection: 0) != 1 { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { list.tableView.numberOfRows(inSection: 0) == 1 }
         #expect(root.timeline.navigationController?.topViewController === list)
         list.deleteEntry(id: entries[1].id)
         try await waitForCalendar(in: root)
@@ -372,7 +368,7 @@ struct CalendarViewTests {
         let (root, window, container, day, entries) = try await mountDay()
         let list = try await openDayList(day, in: root, window: window)
         try redate(entries[0], byDays: -1, in: container)
-        for _ in 0..<100 where list.tableView.numberOfRows(inSection: 0) != 1 { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { list.tableView.numberOfRows(inSection: 0) == 1 }
         #expect(root.timeline.navigationController?.topViewController === list)
         try redate(entries[1], byDays: 1, in: container)
         try await waitForCalendar(in: root)
@@ -383,13 +379,13 @@ struct CalendarViewTests {
         let (root, window, container, day, entries) = try await mountDay(sizeClass: .compact, width: 400)
         let list = try await openDayList(day, in: root, window: window)
         list.deleteEntry(id: entries[0].id)
-        for _ in 0..<100 where list.tableView.numberOfRows(inSection: 0) != 1 { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { list.tableView.numberOfRows(inSection: 0) == 1 }
         list.tableView(list.tableView, didSelectRowAt: IndexPath(row: 0, section: 0))
         try await waitForLayout(window)
         let navigation = try #require(root.timeline.navigationController)
         let editor = try #require(navigation.topViewController as? EntryEditorViewController)
         try redate(entries[1], byDays: -1, in: container)
-        for _ in 0..<100 where navigation.viewControllers.contains(list) { try await Task.sleep(for: .milliseconds(20)) }
+        try await waitUntil { !navigation.viewControllers.contains(list) }
         // Back from the editor leads to the calendar; the emptied day list is gone.
         #expect(navigation.viewControllers.count == 2)
         #expect(navigation.viewControllers.first === root.timeline)

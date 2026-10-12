@@ -61,7 +61,6 @@ enum WindowRestoration: Equatable {
     private static let entryIDKey = "entryID"
     /// Present only for Calendar; activities saved before the mode existed open in List.
     private static let modeKey = "mode"
-    private static let calendarMode = "calendar"
 
     /// Nil for any other activity, so the window opens on the timeline in List.
     init?(_ activity: NSUserActivity) {
@@ -73,7 +72,7 @@ enum WindowRestoration: Equatable {
             guard let id else { return nil }
             self = .entryWindow(id)
         case Self.fullWindowType:
-            let mode: TimelineViewController.Mode = activity.userInfo?[Self.modeKey] as? String == Self.calendarMode ? .calendar : .list
+            let mode = (activity.userInfo?[Self.modeKey] as? String).flatMap(TimelineViewController.Mode.init(rawValue:)) ?? .list
             guard id != nil || mode == .calendar else { return nil }
             self = .fullWindow(mode: mode, selectedEntry: id)
         default: return nil
@@ -90,7 +89,7 @@ enum WindowRestoration: Equatable {
             activity = NSUserActivity(activityType: Self.fullWindowType)
             var userInfo: [String: String] = [:]
             if let id { userInfo[Self.entryIDKey] = id.uuidString }
-            if mode == .calendar { userInfo[Self.modeKey] = Self.calendarMode }
+            if mode != .list { userInfo[Self.modeKey] = mode.rawValue }
             activity.userInfo = userInfo
         }
         activity.isEligibleForHandoff = false

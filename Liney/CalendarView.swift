@@ -66,8 +66,7 @@ final class CalendarViewController: UICollectionViewController {
         guard needsScrollToCurrentMonth, !months.isEmpty, collectionView.bounds.height > 0 else { return }
         needsScrollToCurrentMonth = false
         collectionView.layoutIfNeeded()
-        let bottom = collectionView.contentSize.height + collectionView.adjustedContentInset.bottom - collectionView.bounds.height
-        collectionView.setContentOffset(CGPoint(x: 0, y: max(bottom, -collectionView.adjustedContentInset.top)), animated: false)
+        collectionView.setContentOffset(CGPoint(x: 0, y: collectionView.bottomContentOffsetY), animated: false)
         monthInView = months.last?.start
     }
 
@@ -77,9 +76,8 @@ final class CalendarViewController: UICollectionViewController {
         collectionView.layoutIfNeeded()
         guard let header = collectionView.layoutAttributesForSupplementaryElement(
             ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)) else { return }
-        let inset = collectionView.adjustedContentInset
-        let bottom = collectionView.contentSize.height + inset.bottom - collectionView.bounds.height
-        let y = max(min(header.frame.minY - inset.top, bottom), -inset.top)
+        let top = collectionView.adjustedContentInset.top
+        let y = max(min(header.frame.minY - top, collectionView.bottomContentOffsetY), -top)
         collectionView.setContentOffset(CGPoint(x: 0, y: y), animated: false)
         monthInView = month
     }
@@ -93,10 +91,8 @@ final class CalendarViewController: UICollectionViewController {
     /// The month whose header last passed the top of the view; at the bottom, the current month.
     private func updateMonthInView() {
         guard !months.isEmpty else { return }
-        let inset = collectionView.adjustedContentInset
-        let bottom = collectionView.contentSize.height + inset.bottom - collectionView.bounds.height
-        if collectionView.contentOffset.y >= bottom - 1 { monthInView = months.last?.start; return }
-        let top = collectionView.contentOffset.y + inset.top + 1
+        if collectionView.contentOffset.y >= collectionView.bottomContentOffsetY - 1 { monthInView = months.last?.start; return }
+        let top = collectionView.contentOffset.y + collectionView.adjustedContentInset.top + 1
         let passed = months.indices.last { section in
             collectionView.layoutAttributesForSupplementaryElement(
                 ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)).map { $0.frame.minY <= top } ?? false
@@ -110,14 +106,14 @@ final class CalendarViewController: UICollectionViewController {
     }
 
     override func collectionView(_ collectionView: UICollectionView, shouldHighlightItemAt indexPath: IndexPath) -> Bool {
-        day(at: indexPath)?.state == .hasEntries
+        day(at: indexPath)?.isTappable ?? false
     }
     override func collectionView(_ collectionView: UICollectionView, shouldSelectItemAt indexPath: IndexPath) -> Bool {
-        day(at: indexPath)?.state == .hasEntries
+        day(at: indexPath)?.isTappable ?? false
     }
     override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         collectionView.deselectItem(at: indexPath, animated: true)
-        guard let day = day(at: indexPath), day.state == .hasEntries else { return }
+        guard let day = day(at: indexPath), day.isTappable else { return }
         onSelectDay?(day.date)
     }
 
@@ -248,7 +244,7 @@ private final class CalendarDayCell: UICollectionViewCell {
             return
         }
         number.text = day.number.formatted()
-        let style: UIFont.Weight = day.state == .hasEntries ? .semibold : .regular
+        let style: UIFont.Weight = day.isTappable ? .semibold : .regular
         number.font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 17, weight: style))
         styleNumber()
         isAccessibilityElement = true
@@ -258,7 +254,7 @@ private final class CalendarDayCell: UICollectionViewCell {
         case .hasEntries: String(localized: "\(day.entryCount) entries")
         case .noEntries, .future: String(localized: "No entries")
         }
-        accessibilityTraits = day.state == .hasEntries ? .button : .none
+        accessibilityTraits = day.isTappable ? .button : .none
     }
 
     /// Loads off the main actor; a file that cannot be loaded hides the photo, leaving the date number.
