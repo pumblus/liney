@@ -62,6 +62,8 @@ struct CalendarDay: Sendable, Equatable {
     let isToday: Bool
     /// The day's entries in timeline order.
     let entryIDs: [UUID]
+    /// The first photo of the first entry with any photo, in timeline order; nil when no entry has one.
+    let photoFileName: String?
     var entryCount: Int { entryIDs.count }
 }
 
@@ -113,10 +115,11 @@ actor TimelineRepository {
             let count = calendar.range(of: .day, in: .month, for: month)!.count
             let days = (0..<count).map { offset in
                 let date = calendar.date(byAdding: .day, value: offset, to: month)!
-                let ids = date > today ? [] : byDay[date]?.map(\.id) ?? []
+                let entries = date > today ? [] : byDay[date] ?? []
                 return CalendarDay(date: date, number: offset + 1,
-                                   state: date > today ? .future : ids.isEmpty ? .noEntries : .hasEntries,
-                                   isToday: date == today, entryIDs: ids)
+                                   state: date > today ? .future : entries.isEmpty ? .noEntries : .hasEntries,
+                                   isToday: date == today, entryIDs: entries.map(\.id),
+                                   photoFileName: entries.lazy.compactMap(\.previewFiles.first).first)
             }
             let leading = (calendar.component(.weekday, from: month) - calendar.firstWeekday + 7) % 7
             months.append(CalendarMonth(start: month, leadingEmptyDays: leading, days: days))
