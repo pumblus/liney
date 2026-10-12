@@ -5,5 +5,22 @@ cd "$(git rev-parse --show-toplevel)"
 # A push from a linked worktree sets an absolute GIT_DIR, which SwiftPM's git
 # would inherit and use to check out packages from this repo's objects.
 unset $(git rev-parse --local-env-vars)
+# The checks run on this checkout, so every pushed commit must be its clean HEAD.
+# A push that only deletes remote refs has nothing to check.
+head=$(git rev-parse HEAD)
+checks=0
+while read -r _ local_sha _ _; do
+  [[ $local_sha =~ ^0+$ ]] && continue
+  if [[ $(git rev-parse "$local_sha^{commit}") != "$head" ]]; then
+    echo "pre-push: pushing ${local_sha:0:7}, but this checkout is at ${head:0:7}; push from a checkout of that commit" >&2
+    exit 1
+  fi
+  checks=1
+done
+[[ $checks -eq 1 ]] || exit 0
+if ! git diff --quiet HEAD; then
+  echo "pre-push: this checkout has uncommitted changes the checks would test; commit or stash them first" >&2
+  exit 1
+fi
 scripts/lint
 scripts/test --all
