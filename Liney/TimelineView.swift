@@ -81,7 +81,7 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
     }
     /// The calendar fills the table's frame, over the column's own background.
     private func embedCalendarView() -> CalendarViewController {
-        let calendarView = CalendarViewController()
+        let calendarView = CalendarViewController(storage: storage)
         addChild(calendarView)
         calendarView.view.translatesAutoresizingMaskIntoConstraints = false
         calendarView.view.isHidden = true

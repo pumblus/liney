@@ -9,9 +9,13 @@ final class CalendarViewController: UICollectionViewController {
     private var days: [Date: CalendarDay] = [:]
     private var months: [CalendarMonth] = []
     private var needsScrollToCurrentMonth = true
+    private let storage: PhotoStorage
     private lazy var dataSource = makeDataSource()
 
-    init() { super.init(collectionViewLayout: Self.layout()) }
+    init(storage: PhotoStorage) {
+        self.storage = storage
+        super.init(collectionViewLayout: Self.layout())
+    }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func viewDidLoad() {
@@ -73,8 +77,8 @@ final class CalendarViewController: UICollectionViewController {
 
     private func makeDataSource() -> UICollectionViewDiffableDataSource<Date, Item> {
         let cells = UICollectionView.CellRegistration<CalendarDayCell, Item> { [unowned self] cell, _, item in
-            guard case .day(let date) = item else { cell.configure(nil); return }
-            cell.configure(self.days[date])
+            guard case .day(let date) = item else { cell.configure(nil, storage: self.storage); return }
+            cell.configure(self.days[date], storage: self.storage)
         }
         let headers = UICollectionView.SupplementaryRegistration<CalendarMonthHeader>(
             elementKind: UICollectionView.elementKindSectionHeader) { [unowned self] header, _, indexPath in
@@ -148,12 +152,29 @@ private final class CalendarMonthHeader: UICollectionReusableView {
     }
 }
 
-/// One day's date number; a leading cell before day 1 shows nothing.
+/// One day's date number, over the day's representative photo when it has one and it loads;
+/// a leading cell before day 1 shows nothing.
 private final class CalendarDayCell: UICollectionViewCell {
     private let number = bodyLabel("")
+    private let photo = StoredPhotoView()
+    private var day: CalendarDay?
+    /// The photo file shown or loading, so reconfiguring the same day keeps it instead of reloading.
+    private var photoFileName: String?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
+        photo.isAccessibilityElement = false
+        photo.isHidden = true
+        photo.layer.cornerRadius = 6
+        photo.translatesAutoresizingMaskIntoConstraints = false
+        photo.onAvailabilityChange = { [unowned self] available in
+            self.photo.isHidden = !available
+            self.styleNumber()
+        }
+        contentView.addSubview(photo)
+        number.layer.shadowColor = UIColor.black.cgColor
+        number.layer.shadowOffset = .zero
+        number.layer.shadowRadius = 2
         number.textAlignment = .center
         number.numberOfLines = 1
         number.adjustsFontSizeToFitWidth = true
@@ -161,6 +182,10 @@ private final class CalendarDayCell: UICollectionViewCell {
         number.translatesAutoresizingMaskIntoConstraints = false
         contentView.addSubview(number)
         NSLayoutConstraint.activate([
+            photo.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 2),
+            photo.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -2),
+            photo.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 2),
+            photo.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -2),
             number.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 2),
             number.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -2),
             number.centerYAnchor.constraint(equalTo: contentView.centerYAnchor)
@@ -168,7 +193,9 @@ private final class CalendarDayCell: UICollectionViewCell {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(_ day: CalendarDay?) {
+    func configure(_ day: CalendarDay?, storage: PhotoStorage) {
+        self.day = day
+        showPhoto(day?.photoFileName, storage: storage)
         guard let day else {
             number.text = nil
             isAccessibilityElement = false
@@ -177,16 +204,45 @@ private final class CalendarDayCell: UICollectionViewCell {
         number.text = day.number.formatted()
         let style: UIFont.Weight = day.state == .hasEntries ? .semibold : .regular
         number.font = UIFontMetrics(forTextStyle: .body).scaledFont(for: .systemFont(ofSize: 17, weight: style))
+        styleNumber()
+        isAccessibilityElement = true
+        accessibilityLabel = day.date.formatted(.dateTime.month(.wide).day())
+        accessibilityValue = switch day.state {
+        case .hasEntries where day.photoFileName != nil: String(localized: "\(day.entryCount) entries, with photos")
+        case .hasEntries: String(localized: "\(day.entryCount) entries")
+        case .noEntries, .future: String(localized: "No entries")
+        }
+        accessibilityTraits = day.state == .hasEntries ? .button : .none
+    }
+
+    /// Loads off the main actor; a file that cannot be loaded hides the photo, leaving the date number.
+    private func showPhoto(_ fileName: String?, storage: PhotoStorage) {
+        guard fileName != photoFileName else { return }
+        photoFileName = fileName
+        photo.cancel()
+        photo.isHidden = true
+        if let fileName { photo.load(fileName, storage: storage, pixels: 300) }
+    }
+
+    /// The date number reads in white over a photo; today keeps Liney Aqua.
+    private func styleNumber() {
+        guard let day else { return }
+        let onPhoto = !photo.isHidden
+        number.layer.shadowOpacity = onPhoto ? 0.6 : 0
         number.textColor = switch day.state {
         case .future: .tertiaryLabel
         case _ where day.isToday: UIColor(named: "LineyAqua") ?? .tintColor
+        case _ where onPhoto: .white
         case .hasEntries: .label
         case .noEntries: .secondaryLabel
         }
-        isAccessibilityElement = true
-        accessibilityLabel = day.date.formatted(.dateTime.month(.wide).day())
-        accessibilityValue = day.state == .hasEntries ? String(localized: "\(day.entryCount) entries") : String(localized: "No entries")
-        accessibilityTraits = day.state == .hasEntries ? .button : .none
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        photo.cancel()
+        photo.isHidden = true
+        photoFileName = nil
     }
 
     override var isHighlighted: Bool {
