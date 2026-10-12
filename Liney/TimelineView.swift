@@ -82,6 +82,9 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
     /// The calendar fills the table's frame, over the column's own background.
     private func embedCalendarView() -> CalendarViewController {
         let calendarView = CalendarViewController()
+        calendarView.onSelectDay = { [unowned self] day in
+            self.navigationController?.pushViewController(self.dayList(for: day), animated: true)
+        }
         addChild(calendarView)
         calendarView.view.translatesAutoresizingMaskIntoConstraints = false
         calendarView.view.isHidden = true
@@ -194,6 +197,11 @@ class EntryListViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         clearsSelectionOnViewWillAppear = false
+        if let day {
+            title = day.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
+            // A full date is too long for a large title.
+            navigationItem.largeTitleDisplayMode = .never
+        }
         tableView.register(EntryCell.self, forCellReuseIdentifier: "entry")
         tableView.dataSource = dataSource
         tableView.dragDelegate = self
@@ -254,6 +262,23 @@ class EntryListViewController: UITableViewController {
             configuration.secondaryText = day != nil ? nil : totalCount == 0 ? String(localized: "Start writing, or import an existing journal.") : searchText
             contentUnavailableConfiguration = configuration
         } else { contentUnavailableConfiguration = nil }
+        if day != nil, days.isEmpty { leaveEmptyDay() }
+    }
+    /// A day list whose day has no entries left leaves the stack; an editor above it stays, so Back leads past it.
+    private func leaveEmptyDay() {
+        guard let navigation = navigationController, let index = navigation.viewControllers.firstIndex(of: self), index > 0 else { return }
+        let remove = { [weak self, weak navigation] in
+            guard let self, let navigation else { return }
+            if navigation.topViewController === self {
+                navigation.popViewController(animated: true)
+            } else {
+                navigation.setViewControllers(navigation.viewControllers.filter { $0 !== self }, animated: false)
+            }
+        }
+        // Closing an editor that deleted the entry may still be popping back here.
+        if let transition = navigation.transitionCoordinator {
+            transition.animate(alongsideTransition: nil) { _ in remove() }
+        } else { remove() }
     }
     override func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
         guard let id = dataSource.itemIdentifier(for: indexPath) else { return nil }
