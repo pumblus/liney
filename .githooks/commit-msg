@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Enabled with: git config core.hooksPath .githooks
+# Commits carry their author only: no co-author or session trailers.
+set -u
+trailers=$(grep -inE '^(co-authored-by|[a-z]+-session):' "$1")
+if [[ -n "$trailers" ]]; then
+  echo "commit-msg: remove these trailers; commits list their author only:"
+  echo "$trailers"
+  exit 1
+fi

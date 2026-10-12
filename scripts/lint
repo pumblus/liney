@@ -14,4 +14,49 @@ if [[ -n "$copies" ]]; then
   status=1
 fi
 
+# Documentation: links resolve to published files, stories are numbered once, docs stay off Pages.
+python3 -I - <<'EOF' || status=1
+import os, re, subprocess, sys
+from pathlib import Path
+
+published = set(subprocess.run(["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+                               capture_output=True, text=True, check=True).stdout.splitlines())
+published_dirs = {str(parent) for path in published for parent in Path(path).parents}
+problems = []
+
+# Relative links must reach a file that is published; local-only files such as release.md are named as plain paths.
+for doc in sorted(p for p in published if p.endswith(".md")):
+    text = re.sub(r"```.*?```", "", Path(doc).read_text(encoding="utf-8"), flags=re.S)
+    for target in re.findall(r"\]\(([^)\s]+)\)", text):
+        if re.match(r"[a-z]+:|#", target):
+            continue
+        path = os.path.normpath(os.path.join(os.path.dirname(doc), target.split("#")[0]))
+        if path not in published and path not in published_dirs:
+            problems.append(f"{doc}: link to {target} does not reach a published file")
+
+# Each feature document owns its stories; story numbers are unique and run from 1 without gaps.
+stories = {}
+for doc in sorted(Path("docs/features").glob("*.md")):
+    for number in map(int, re.findall(r"\*\*Story (\d+)\*\*", doc.read_text(encoding="utf-8"))):
+        stories.setdefault(number, []).append(str(doc))
+for number, docs in sorted(stories.items()):
+    if len(docs) > 1:
+        problems.append(f"story {number} appears more than once: {', '.join(docs)}")
+missing = sorted(set(range(1, max(stories, default=0) + 1)) - stories.keys())
+if missing:
+    problems.append(f"stories missing from docs/features: {', '.join(map(str, missing))}")
+
+# GitHub Pages publishes docs/; every tracked subdirectory there is agent or product documentation.
+config = Path("docs/_config.yml").read_text(encoding="utf-8")
+excluded = set(re.findall(r"^\s*-\s*(\S+)\s*$", config, flags=re.M))
+for directory in sorted({p.split("/")[1] for p in published if p.startswith("docs/") and p.count("/") > 1}):
+    if directory not in excluded:
+        problems.append(f"docs/{directory}/ is published to GitHub Pages; add it to exclude in docs/_config.yml")
+
+if problems:
+    print("lint: documentation:")
+    print("\n".join(problems))
+    sys.exit(1)
+EOF
+
 exit $status
