@@ -1,26 +1,12 @@
 import SwiftData
 import UIKit
 
-final class TimelineViewController: UITableViewController, UISearchResultsUpdating {
-    let container: ModelContainer
+/// The journal's timeline: every entry in an entry list, with search, New Entry, and the More menu.
+final class TimelineViewController: EntryListViewController, UISearchResultsUpdating {
     let appLock: AppLockModel
-    private var totalCount = 0
-    private var entriesByID: [UUID: TimelineEntry] = [:]
-    private lazy var dataSource = TimelineDataSource(tableView: tableView) { [unowned self] tableView, indexPath, id in
-        let cell = tableView.dequeueReusableCell(withIdentifier: "entry", for: indexPath) as! EntryCell
-        if let entry = self.entriesByID[id] { cell.configure(entry, storage: self.storage) }
-        return cell
-    }
-    private let repository: TimelineRepository
-    private var loadTask: Task<Void, Never>?
-    private var revision = 0
     private var searchTask: Task<Void, Never>?
     private let search = UISearchController(searchResultsController: nil)
     private var exportFlow: ExportJournalFlow?
-    private let storage: PhotoStorage
-    private let saveContext: (ModelContext) throws -> Void
-    /// This scene's editors in the app-wide coordinator; fixtures without one skip the one-editor rule.
-    let editors: SceneEditors?
     enum Mode { case list, calendar }
     private(set) var mode = Mode.list
     /// The Calendar View, made the first time Calendar is chosen.
@@ -40,33 +26,13 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     init(container: ModelContainer, appLock: AppLockModel, storage: PhotoStorage = PhotoStorage(),
          editors: SceneEditors? = nil,
          saveContext: @escaping (ModelContext) throws -> Void = { try $0.save() }) {
-        self.container = container; self.appLock = appLock
-        self.storage = storage; self.editors = editors; self.saveContext = saveContext
-        repository = TimelineRepository(container: container)
-        super.init(style: .insetGrouped)
+        self.appLock = appLock
+        super.init(container: container, storage: storage, editors: editors, saveContext: saveContext)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
-    /// The scene root; fixtures that mount the timeline in a bare stack have none.
-    private var root: JournalSplitViewController? { splitViewController as? JournalSplitViewController }
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        // Beside an open entry its row stays selected; in one stack, returning from an entry clears it.
-        if root?.showsEntryColumn != true, let selected = tableView.indexPathForSelectedRow {
-            tableView.deselectRow(at: selected, animated: animated)
-        }
-    }
     override func viewDidLoad() {
         super.viewDidLoad()
-        clearsSelectionOnViewWillAppear = false
         title = String(localized: "Journal")
-        tableView.register(EntryCell.self, forCellReuseIdentifier: "entry")
-        tableView.dataSource = dataSource
-        tableView.dragDelegate = self
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: TimelineViewController, _: UITraitCollection) in
-            var snapshot = controller.dataSource.snapshot()
-            snapshot.reconfigureItems(snapshot.itemIdentifiers)
-            controller.dataSource.apply(snapshot, animatingDifferences: false)
-        }
         search.searchResultsUpdater = self
         search.obscuresBackgroundDuringPresentation = false
         search.searchBar.placeholder = String(localized: "Search Entries")
@@ -85,32 +51,16 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         ])
         more.accessibilityLabel = String(localized: "More")
         navigationItem.rightBarButtonItems = [more, new]
-        NotificationCenter.default.addObserver(self, selector: #selector(journalChanged(_:)), name: .journalDidChange, object: nil)
-        // Load once; every journal mutation posts journalDidChange, so returning here needs no refetch.
-        reloadEntries()
     }
-    func reloadEntries() { refresh(reload: true) }
-    @objc private func journalChanged(_ notification: Notification) {
-        refresh(reload: notification.object as? UUID == nil, changedID: notification.object as? UUID)
-    }
-    private func refresh(reload: Bool, changedID: UUID? = nil) {
-        revision += 1
-        let revision = revision
-        // Do not cancel incremental updates; every saved entry must reach the snapshot.
-        loadTask = Task { [weak self, repository] in
-            do {
-                if reload { try await repository.reload() }
-                else if let changedID { try await repository.update(id: changedID) }
-                guard let self, revision == self.revision else { return }
-                let result = try await repository.search(self.search.searchBar.text ?? "")
-                guard revision == self.revision else { return }
-                self.apply(result, animated: changedID != nil)
-                try await self.refreshCalendar(revision: revision)
-            } catch is CancellationError { }
-            catch { self?.showError(String(localized: "Could Not Load Journal"), message: error.localizedDescription) }
+    override var searchText: String { search.searchBar.text ?? "" }
+    func updateSearchResults(for searchController: UISearchController) {
+        searchTask?.cancel()
+        searchTask = Task { [weak self] in
+            do { try await Task.sleep(for: .milliseconds(200)) } catch { return }
+            self?.refresh(reload: false)
         }
     }
-    /// Swaps the column between the timeline and the Calendar View; Calendar has no search.
+    /// Swaps the column between the timeline and the Calendar View once the next refresh lands; Calendar has no search.
     func setMode(_ mode: Mode) {
         guard mode != self.mode else { return }
         self.mode = mode
@@ -118,28 +68,23 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         if mode == .calendar {
             search.isActive = false
             navigationItem.searchController = nil
-            contentUnavailableConfiguration = nil
             listOffset = tableView.contentOffset
-            dataSource.apply(NSDiffableDataSourceSnapshot(), animatingDifferences: false)
-            let calendarView = calendarView ?? embedCalendarView()
-            calendarView.view.isHidden = false
-            setContentScrollView(calendarView.collectionView, for: .top)
-            refresh(reload: false)
+            setContentScrollView((calendarView ?? embedCalendarView()).collectionView, for: .top)
         } else {
-            calendarView?.view.isHidden = true
             navigationItem.searchController = search
             setContentScrollView(tableView, for: .top)
-            refresh(reload: false)
         }
         // The calendar covers the table, which must not scroll or answer the status bar tap underneath it.
         tableView.isScrollEnabled = mode == .list
         tableView.scrollsToTop = mode == .list
+        refresh(reload: false)
     }
     /// The calendar fills the table's frame, over the column's own background.
     private func embedCalendarView() -> CalendarViewController {
         let calendarView = CalendarViewController()
         addChild(calendarView)
         calendarView.view.translatesAutoresizingMaskIntoConstraints = false
+        calendarView.view.isHidden = true
         tableView.addSubview(calendarView.view)
         NSLayoutConstraint.activate([
             calendarView.view.leadingAnchor.constraint(equalTo: tableView.frameLayoutGuide.leadingAnchor),
@@ -151,47 +96,162 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         self.calendarView = calendarView
         return calendarView
     }
-    private func refreshCalendar(revision: Int) async throws {
+    // Under the calendar the table lists nothing: system sidebar rows would draw through it.
+    override var listsEntries: Bool { mode == .list }
+    override func didRefresh(_ repository: TimelineRepository, isCurrent: @escaping () -> Bool) async throws {
         guard let calendarView else { return }
+        guard mode == .calendar else {
+            calendarView.view.isHidden = true
+            if let offset = listOffset {
+                listOffset = nil
+                tableView.layoutIfNeeded()
+                let maximum = max(tableView.contentSize.height + tableView.adjustedContentInset.bottom - tableView.bounds.height,
+                                  -tableView.adjustedContentInset.top)
+                tableView.setContentOffset(CGPoint(x: offset.x, y: min(offset.y, maximum)), animated: false)
+            }
+            return
+        }
         let calendar = try await repository.monthCalendar()
-        guard revision == self.revision else { return }
+        guard isCurrent(), mode == .calendar else { return }
         calendarView.apply(calendar)
+        calendarView.view.isHidden = false
     }
-    func updateSearchResults(for searchController: UISearchController) {
-        searchTask?.cancel()
-        searchTask = Task { [weak self] in
-            do { try await Task.sleep(for: .milliseconds(200)) } catch { return }
-            self?.refresh(reload: false)
+    /// The timeline's rows and row actions limited to the entries of `day`'s calendar day.
+    func dayList(for day: Date) -> EntryListViewController {
+        EntryListViewController(container: container, storage: storage, editors: editors, saveContext: saveContext, day: day)
+    }
+    /// Reopens the entry this window had selected before relaunch, unless it was deleted or another window has it.
+    func restoreEntry(_ id: UUID) {
+        guard editors?.isOpenAnywhere(id) != true else { return }
+        let context = ModelContext(container)
+        guard let entry = try? context.entry(id: id) else { return }
+        show(entry, in: context, animated: false)
+        if root?.showsEntryColumn == true { selectRow(for: id) }
+    }
+    /// The New Entry action.
+    private func createEntry() {
+        let context = ModelContext(container)
+        context.autosaveEnabled = false
+        let entry = JournalEntry()
+        context.insert(entry)
+        let editor = EntryEditorViewController(entry: entry, isNew: true, context: context, storage: storage,
+                                               editors: editors, saveContext: saveContext)
+        if let root { root.showNewEntry(editor) } else { navigationController?.pushViewController(editor, animated: true) }
+    }
+    private func importJournal() {
+        present(UINavigationController(rootViewController: ImportJournalViewController(container: container)), animated: true)
+    }
+    private func exportJournal(sourceBarButtonItem: UIBarButtonItem?) {
+        guard exportFlow == nil else { return }
+        let flow = ExportJournalFlow(presenter: self, container: container, appLock: appLock,
+                                     sourceBarButtonItem: sourceBarButtonItem)
+        exportFlow = flow
+        flow.onFinished = { [weak self] in self?.exportFlow = nil }
+        flow.start()
+    }
+}
+
+/// Entry rows grouped by day, with their row actions: open, swipe to delete with confirmation,
+/// Open in New Window from the row menu, and row drag. Lists every day, or only `day`'s entries.
+class EntryListViewController: UITableViewController {
+    let container: ModelContainer
+    /// The calendar day this list is limited to; nil lists every day.
+    let day: Date?
+    let storage: PhotoStorage
+    let saveContext: (ModelContext) throws -> Void
+    /// This scene's editors in the app-wide coordinator; fixtures without one skip the one-editor rule.
+    let editors: SceneEditors?
+    private var totalCount = 0
+    private var entriesByID: [UUID: TimelineEntry] = [:]
+    private lazy var dataSource = TimelineDataSource(tableView: tableView) { [unowned self] tableView, indexPath, id in
+        let cell = tableView.dequeueReusableCell(withIdentifier: "entry", for: indexPath) as! EntryCell
+        if let entry = self.entriesByID[id] { cell.configure(entry, storage: self.storage) }
+        return cell
+    }
+    private let repository: TimelineRepository
+    private var loadTask: Task<Void, Never>?
+    private var revision = 0
+
+    init(container: ModelContainer, storage: PhotoStorage, editors: SceneEditors?,
+         saveContext: @escaping (ModelContext) throws -> Void, day: Date? = nil) {
+        self.container = container; self.day = day
+        self.storage = storage; self.editors = editors; self.saveContext = saveContext
+        repository = TimelineRepository(container: container)
+        super.init(style: .insetGrouped)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    /// The scene root; fixtures that mount the list in a bare stack have none.
+    var root: JournalSplitViewController? { splitViewController as? JournalSplitViewController }
+    /// The text rows are filtered by; only the timeline searches.
+    var searchText: String { "" }
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // Beside an open entry its row stays selected; in one stack, returning from an entry clears it.
+        if root?.showsEntryColumn != true, let selected = tableView.indexPathForSelectedRow {
+            tableView.deselectRow(at: selected, animated: animated)
         }
     }
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        clearsSelectionOnViewWillAppear = false
+        tableView.register(EntryCell.self, forCellReuseIdentifier: "entry")
+        tableView.dataSource = dataSource
+        tableView.dragDelegate = self
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: EntryListViewController, _: UITraitCollection) in
+            var snapshot = controller.dataSource.snapshot()
+            snapshot.reconfigureItems(snapshot.itemIdentifiers)
+            controller.dataSource.apply(snapshot, animatingDifferences: false)
+        }
+        NotificationCenter.default.addObserver(self, selector: #selector(journalChanged(_:)), name: .journalDidChange, object: nil)
+        // Load once; every journal mutation posts journalDidChange, so returning here needs no refetch.
+        reloadEntries()
+    }
+    func reloadEntries() { refresh(reload: true) }
+    @objc private func journalChanged(_ notification: Notification) {
+        refresh(reload: notification.object as? UUID == nil, changedID: notification.object as? UUID)
+    }
+    fileprivate func refresh(reload: Bool, changedID: UUID? = nil) {
+        revision += 1
+        let revision = revision
+        // Do not cancel incremental updates; every saved entry must reach the snapshot.
+        loadTask = Task { [weak self, repository] in
+            do {
+                if reload { try await repository.reload() }
+                else if let changedID { try await repository.update(id: changedID) }
+                guard let self, revision == self.revision else { return }
+                let result = try await repository.search(self.searchText)
+                guard revision == self.revision else { return }
+                self.apply(result, animated: changedID != nil)
+                try await self.didRefresh(repository) { [weak self] in revision == self?.revision }
+            } catch is CancellationError { }
+            catch { self?.showError(String(localized: "Could Not Load Journal"), message: error.localizedDescription) }
+        }
+    }
+    /// Whether the table shows its rows; the timeline lists none while the Calendar View covers it.
+    var listsEntries: Bool { true }
+    /// Runs right after each refresh applies its rows; `isCurrent` turns false once a newer refresh starts.
+    func didRefresh(_ repository: TimelineRepository, isCurrent: @escaping () -> Bool) async throws { }
     private func apply(_ result: TimelineResult, animated: Bool) {
+        let days = day.map { day in result.days.filter { Calendar.current.isDate($0.date, inSameDayAs: day) } } ?? result.days
         let previous = entriesByID
         totalCount = result.totalCount
-        entriesByID = Dictionary(result.days.flatMap(\.entries).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        entriesByID = Dictionary(days.flatMap(\.entries).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var snapshot = NSDiffableDataSourceSnapshot<Date, UUID>()
-        // Under the calendar the table lists nothing: system sidebar rows would draw through it.
-        for day in result.days where mode == .list {
+        for day in days where listsEntries {
             snapshot.appendSections([day.date])
             snapshot.appendItems(day.entries.map(\.id), toSection: day.date)
         }
         snapshot.reconfigureItems(snapshot.itemIdentifiers.filter { previous[$0].map { $0 != entriesByID[$0.id] } ?? false })
         dataSource.apply(snapshot, animatingDifferences: animated)
-        if mode == .list, let offset = listOffset {
-            listOffset = nil
-            tableView.layoutIfNeeded()
-            let maximum = max(tableView.contentSize.height + tableView.adjustedContentInset.bottom - tableView.bounds.height,
-                              -tableView.adjustedContentInset.top)
-            tableView.setContentOffset(CGPoint(x: offset.x, y: min(offset.y, maximum)), animated: false)
-        }
-        // A restored entry opens before its row is listed; beside the timeline, its row is selected once listed.
+        // A restored entry opens before its row is listed; beside the list, its row is selected once listed.
         if root?.showsEntryColumn == true, tableView.indexPathForSelectedRow == nil, let open = root?.openEditor {
             selectRow(for: open.entry.id)
         }
-        if result.days.isEmpty, mode == .list {
+        if days.isEmpty, listsEntries {
             var configuration = UIContentUnavailableConfiguration.empty()
             configuration.image = UIImage(systemName: "book.closed")
-            configuration.text = totalCount == 0 ? String(localized: "No Entries") : String(localized: "No Results")
-            configuration.secondaryText = totalCount == 0 ? String(localized: "Start writing, or import an existing journal.") : search.searchBar.text
+            configuration.text = totalCount == 0 || day != nil ? String(localized: "No Entries") : String(localized: "No Results")
+            configuration.secondaryText = day != nil ? nil : totalCount == 0 ? String(localized: "Start writing, or import an existing journal.") : searchText
             contentUnavailableConfiguration = configuration
         } else { contentUnavailableConfiguration = nil }
     }
@@ -248,50 +308,21 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
         guard let editable = context.model(for: entry.persistentModelID) as? JournalEntry else { return }
         show(editable, in: context)
     }
-    /// Reopens the entry this window had selected before relaunch, unless it was deleted or another window has it.
-    func restoreEntry(_ id: UUID) {
-        guard editors?.isOpenAnywhere(id) != true else { return }
-        let context = ModelContext(container)
-        guard let entry = try? context.entry(id: id) else { return }
-        show(entry, in: context, animated: false)
-        if root?.showsEntryColumn == true { selectRow(for: id) }
-    }
-    private func show(_ entry: JournalEntry, in context: ModelContext, animated: Bool = true) {
+    fileprivate func show(_ entry: JournalEntry, in context: ModelContext, animated: Bool = true) {
         let editor = EntryEditorViewController(entry: entry, isNew: false, context: context, storage: storage,
                                                editors: editors, saveContext: saveContext)
         if let root { root.showEntry(editor, animated: animated) } else { navigationController?.pushViewController(editor, animated: animated) }
     }
-    /// Marks the row of the entry open beside the timeline; nil, or an entry not yet listed, selects nothing.
+    /// Marks the row of the entry open beside the list; nil, or an entry not yet listed, selects nothing.
     func selectRow(for id: UUID?) {
         tableView.selectRow(at: id.flatMap { dataSource.indexPath(for: $0) }, animated: false, scrollPosition: .none)
-    }
-    /// The New Entry action.
-    private func createEntry() {
-        let context = ModelContext(container)
-        context.autosaveEnabled = false
-        let entry = JournalEntry()
-        context.insert(entry)
-        let editor = EntryEditorViewController(entry: entry, isNew: true, context: context, storage: storage,
-                                               editors: editors, saveContext: saveContext)
-        if let root { root.showNewEntry(editor) } else { navigationController?.pushViewController(editor, animated: true) }
-    }
-    private func importJournal() {
-        present(UINavigationController(rootViewController: ImportJournalViewController(container: container)), animated: true)
-    }
-    private func exportJournal(sourceBarButtonItem: UIBarButtonItem?) {
-        guard exportFlow == nil else { return }
-        let flow = ExportJournalFlow(presenter: self, container: container, appLock: appLock,
-                                     sourceBarButtonItem: sourceBarButtonItem)
-        exportFlow = flow
-        flow.onFinished = { [weak self] in self?.exportFlow = nil }
-        flow.start()
     }
     override func tableView(_ tableView: UITableView, contextMenuConfigurationForRowAt indexPath: IndexPath,
                             point: CGPoint) -> UIContextMenuConfiguration? {
         guard let menu = rowMenu(at: indexPath) else { return nil }
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in menu }
     }
-    /// A timeline or search-result row's menu: only Open in New Window, which the system hides where new windows are unavailable.
+    /// A row's menu: only Open in New Window, which the system hides where new windows are unavailable.
     func rowMenu(at indexPath: IndexPath) -> UIMenu? {
         guard let editors, let id = dataSource.itemIdentifier(for: indexPath) else { return nil }
         // A nil title is the system's Open in New Window; with no alternate, it hides where windows are unavailable.
@@ -304,7 +335,7 @@ final class TimelineViewController: UITableViewController, UISearchResultsUpdati
     }
 }
 
-extension TimelineViewController: UITableViewDragDelegate {
+extension EntryListViewController: UITableViewDragDelegate {
     /// Dragging a row out creates a window for that entry; the system creates none where new windows are unavailable.
     func tableView(_ tableView: UITableView, itemsForBeginning session: any UIDragSession,
                    at indexPath: IndexPath) -> [UIDragItem] {

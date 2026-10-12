@@ -23,7 +23,7 @@ JournalSceneDelegate.scene(_:willConnectTo:)
 |---|---|
 | `LineyApp.swift` | App delegate, launch sweeps, the scene delegate and its lifecycle forwarding |
 | `JournalSplitView.swift` | `JournalSplitViewController`: the root of every full window; routing (`showEntry`, `showNewEntry`, `closeEntry`) and moving the same editor across collapse and expand |
-| `TimelineView.swift` | `TimelineViewController`: timeline, search, row menu with Open in New Window, row drag |
+| `TimelineView.swift` | `TimelineViewController`: timeline, search, New Entry, More menu; `EntryListViewController`: entry rows and row actions (open, swipe to delete, Open in New Window, row drag), for every day or one day (`dayList(for:)`) |
 | `TimelineRepository.swift` | `TimelineRepository` actor: timeline and search queries off the main actor |
 | `EntryEditorView.swift` | `EntryEditorViewController` (autosave, flush, close), `BlockTextView`, `PhotoGroupView`, `EntryDateViewController`, `PhotoDetailViewController` |
 | `EntryEditorCoordinator.swift` | `EntryEditorCoordinator` (one editor per entry, app-wide), `SceneEditors` (one scene's editors; callers use only its surface), `SceneHandle` |
