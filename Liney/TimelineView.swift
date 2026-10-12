@@ -7,7 +7,8 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
     private var searchTask: Task<Void, Never>?
     private let search = UISearchController(searchResultsController: nil)
     private var exportFlow: ExportJournalFlow?
-    enum Mode { case list, calendar }
+    /// The raw value is saved with window restoration.
+    enum Mode: String { case list, calendar }
     private(set) var mode = Mode.list
     /// The Calendar View, made the first time Calendar is chosen.
     private(set) var calendarView: CalendarViewController?
