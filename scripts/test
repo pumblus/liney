@@ -2,7 +2,8 @@
 # Run LineyTests on the QA simulators, logging to .build/agent-logs/.
 #
 #   scripts/test                      all suites, iPhone
-#   scripts/test StorageFullTests ... named suites (or Suite/testName), iPhone
+#   scripts/test StorageFullTests ... named suites (or Suite/testName; Swift Testing
+#                                     names end in "()"), iPhone; fails if none ran
 #   scripts/test --all                all suites, iPhone, iPad, then iPhone Duo
 #   scripts/test --duo [suites ...]   all or named suites, iPhone Duo (iOS 27.1)
 #   scripts/test --remove-slots       delete every slot clone
@@ -25,7 +26,7 @@ for arg in "$@"; do
       xcrun simctl list devices | grep -F 'Liney Agent ' | grep -oE '[0-9A-F-]{36}' |
         while read -r id; do xcrun simctl delete "$id"; done
       exit 0 ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $arg" >&2; exit 2 ;;
     *) only+=("-only-testing:LineyTests/$arg") ;;
   esac
@@ -74,6 +75,14 @@ for device in "${devices[@]}"; do
   grep -E "Executed [0-9]+ tests?, with" "$log" | tail -1
   grep -E "Test run with [0-9]+ tests?" "$log" | tail -1
   grep -E ": error: |error: -\[|✘" "$log" | sort -u | head -20
+  # A filter that matches nothing would otherwise pass with 0 tests.
+  if [[ $code -eq 0 && ${#only[@]} -gt 0 ]]; then
+    ran=$(grep -hoE "Executed [0-9]+ tests?, with|Test run with [0-9]+ tests?" "$log" | grep -oE "[0-9]+" | paste -sd+ - | bc)
+    if [[ ${ran:-0} -eq 0 ]]; then
+      echo "$device: no test matched; Swift Testing names end in \"()\"" >&2
+      code=1
+    fi
+  fi
   # A failure on one device is enough to report; skip the remaining runs.
   [[ $code -eq 0 ]] || { status=$code; break; }
 done
