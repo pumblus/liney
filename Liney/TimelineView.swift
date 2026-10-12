@@ -154,9 +154,7 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
             if let offset = listOffset {
                 listOffset = nil
                 tableView.layoutIfNeeded()
-                let maximum = max(tableView.contentSize.height + tableView.adjustedContentInset.bottom - tableView.bounds.height,
-                                  -tableView.adjustedContentInset.top)
-                tableView.setContentOffset(CGPoint(x: offset.x, y: min(offset.y, maximum)), animated: false)
+                tableView.setContentOffset(CGPoint(x: offset.x, y: min(offset.y, tableView.bottomContentOffsetY)), animated: false)
             }
             return
         }
