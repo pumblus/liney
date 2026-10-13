@@ -30,4 +30,5 @@ Facts about the iOS SDK and simulators that no header, warning, or config file c
 - `root.traitOverrides.horizontalSizeClass` on a mounted `JournalSplitViewController` drives collapse and expand; `mountInWindow(_:sizeClass:)` and `mountJournal` in `LineyTests/TestSupport.swift` set it.
 - `xcodebuild -test-iterations` runs a Swift Testing test once. To repeat one, add a temporary `@Test(.serialized, arguments: 0..<N)` that calls its body.
 - `print` output is buffered and lost when the test process crashes; a debug probe writes with `fputs(_:stderr)`.
+- After `removePersistentDomain(forName:)`, cfprefsd writes the emptied plist back about 3 s or more later, at no predictable time, and `synchronize()` does not wait for that write. A test store that must leave no file keeps its values in memory, as `PreferenceSuite` does (#57).
 - In Swift 5 mode a nonisolated `async` method runs on a background thread even when a `@MainActor` caller awaits it, so a test double with state is `@MainActor` (#56).

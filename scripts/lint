@@ -14,6 +14,15 @@ if [[ -n "$copies" ]]; then
   status=1
 fi
 
+# Tests take preferences from PreferenceSuite, whose values stay in memory: an on-disk suite
+# leaves a plist in the test host's container that cfprefsd writes back after removal (#57).
+ondisk=$(grep -nE 'UserDefaults(\(suiteName:|\.standard)' LineyTests/*.swift | grep -v '^LineyTests/TestSupport.swift:')
+if [[ -n "$ondisk" ]]; then
+  echo "lint: take defaults from PreferenceSuite in LineyTests/TestSupport.swift:"
+  echo "$ondisk"
+  status=1
+fi
+
 # An authenticator class runs on the main actor: App Lock awaits it from there, and a
 # nonisolated one mutates its state off the main thread while the test reads it (#56).
 offmain=$(awk '/class [A-Za-z]+: .*AppAuthenticating/ && prev !~ /@MainActor/ && $0 !~ /@MainActor/ { print FILENAME ":" FNR ": " $0 } { prev = $0 }' LineyTests/*.swift)
