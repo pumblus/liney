@@ -41,12 +41,12 @@ _Avoid_: Cover photo, day thumbnail
 The entries of one calendar day in timeline rows, opened by tapping that day in the Calendar View.
 _Avoid_: Day view, day detail
 
-**Month in View**:
-The Calendar View month whose header last passed the top of the view, or the current month when scrolled to the end.
+**Month Header**:
+The month name above each month of the Calendar View; tapping it opens Go to Month.
 
 **Go to Month**:
-The popover, opened from the Month in View button, that scrolls the Calendar View to a chosen year and month.
-_Avoid_: Month picker, jump to date
+The year and month picker, opened from a Month Header, that scrolls the Calendar View to a chosen year and month.
+_Avoid_: Month picker, jump to date, Month in View
 
 ### Metadata
 

@@ -15,13 +15,15 @@ This document owns the Calendar View: the List / Calendar switch, the month grid
 - **Story 83**: Tapping a day pushes a day list of that day's entries in standard timeline rows.
 - **Story 84**: Return to the calendar when the day list becomes empty.
 - **Story 85**: Keep the calendar current while entries are written, edited, deleted, or imported.
-- **Story 86**: Jump to a year and month from a Go to Month popover, confirmed with Done.
+- **Story 86**: Jump to a year and month from Go to Month, opened by tapping a Month Header and confirmed with Done.
 - **Story 87**: Give every day cell a VoiceOver label with its date, entry count, and whether it has photos.
 
 ## 2. Implementation Decisions
 
 ### Placement & Mode
-- The List / Calendar `UISegmentedControl` is the `titleView` of the timeline's navigation bar. The More and New Entry bar buttons stay in both modes.
+- The List / Calendar `UISegmentedControl` is the `titleView` of the timeline's navigation bar. Its segments are the `list.bullet` and `calendar` symbols, read by VoiceOver as "List" / "列表" and "Calendar" / "日历", so the control fits the narrowest sidebar in every language.
+- The navigation bar is the same in both modes: the List / Calendar control, New Entry, and More. Calendar mode adds no bar button.
+- Calendar mode keeps the large title "Journal". It collapses while the calendar is scrolled away from its top and never covers a Month Header.
 - Calendar mode hides the search bar. Text search is available only in List mode.
 - The mode is stored per window through the existing window state restoration. A new window starts in List.
 - The Calendar View replaces the timeline in the same column. On iPad, in Split View, and on iPhone Duo it stays in the primary column; entries still open in the secondary column. There is no separate wide layout.
@@ -51,13 +53,14 @@ This document owns the Calendar View: the List / Calendar switch, the month grid
 - When the last entry leaves the day (deleted, or its Entry Date moved to another day), the day list pops back to the calendar.
 
 ### Go to Month
-- In Calendar mode, the leading bar button shows the month currently in view (for example "October 2026 ⌄" / "2026年10月 ⌄").
-- Tapping it shows a popover anchored to the button. The popover stays a popover on iPhone too (no sheet adaptation).
-- The popover has a top bar with **This Month** (leading) and **Done** (trailing, bold), above a two-column `UIPickerView` for year and month.
-- The picker starts at the month in view. Its range matches the calendar range; in the current year the month column ends at the current month. Months without entries can be chosen.
-- **Done** scrolls the calendar to the chosen month and closes the popover. **This Month** scrolls to the current month and closes the popover. Tapping outside closes the popover without moving the calendar.
+- Each Month Header is a button: the month name (for example "October 2026" / "2026年10月") followed by a chevron (⌄) in Liney Aqua. Tapping it opens Go to Month at that month.
+- In a regular-width window, Go to Month is a popover anchored to the tapped Month Header. In a compact-width window (iPhone, narrow iPad Split View, the iPhone Duo outer display) it is a short sheet without a grabber.
+- Go to Month has a navigation bar with **This Month** (leading), the title "Go to Month" / 「前往月份」, and the system **Done** checkmark (trailing), above the year and month wheels.
+- On iOS 17.4 and later the wheels are the system `UIDatePicker` in year-and-month mode. Its range runs from the first calendar month to the current month; the system dims months outside the range and springs back from them. On iOS 17.0–17.3 the wheels are Liney's own two-column picker over the same range.
+- The wheels start at the tapped month. Months without entries can be chosen.
+- **Done** scrolls the calendar to the chosen month and closes Go to Month. **This Month** scrolls to the current month and closes it. Tapping outside or swiping the sheet down closes it without moving the calendar.
 - Go to Month picks a month only, not a day.
-- Copy: "Done" / "完成", "This Month" / "本月".
+- Copy: "Go to Month" / 「前往月份」, "This Month" / 「本月」; Done uses the system checkmark.
 
 ### Updates & Privacy
 - The calendar derives its days from the same `TimelineRepository` data as the timeline and refreshes when the timeline does, including during Day One Import.
@@ -65,7 +68,7 @@ This document owns the Calendar View: the List / Calendar switch, the month grid
 
 ### Accessibility
 - A day with entries reads like "October 12, 3 entries, with photos". An empty day reads like "October 12, no entries" and is not activatable.
-- The Go to Month button reads as the month in view with a hint that it changes the month.
+- A Month Header reads as a button named after its month, with a hint that it changes the month shown, and keeps the header trait so the VoiceOver rotor still moves month by month.
 
 ## 3. Out of Scope
 
