@@ -11,7 +11,7 @@ This document owns native UI rules, accessibility, localization, and distributio
 - **Story 64**: Support VoiceOver across writing, browsing, import, export, and App Lock.
 - **Story 65**: Adapt the interface to Dynamic Type.
 - **Story 66**: Follow system dark mode.
-- **Story 67**: Localize the app in English and Simplified Chinese.
+- **Story 67**: Localize the app in English, Simplified Chinese, and Traditional Chinese (general and Hong Kong).
 - **Story 68**: Release free, without in-app purchases, subscriptions, or ads.
 
 ## 2. Implementation Decisions
@@ -24,9 +24,12 @@ This document owns native UI rules, accessibility, localization, and distributio
 - Check release-facing UI, privacy, and metadata against the current App Store Review Guidelines before submission.
 
 ### Localization
-- UI copy ships in English and Simplified Chinese (`zh-Hans`). Imported user content is not translated.
+- UI copy ships in English, Simplified Chinese (`zh-Hans`), Traditional Chinese (`zh-Hant`, written for Taiwan and used as general Traditional Chinese), and Traditional Chinese (Hong Kong) (`zh-HK`). Imported user content is not translated.
+- `zh-HK` carries every string, because a string missing from `zh-HK` falls back to English rather than `zh-Hant`. It starts from `zh-Hant` and changes only Hong Kong wording (for example 相片, 日曆, 私隱).
+- English stays the development and fallback language, so unsupported system languages show English.
+- Chinese copy follows Apple's terms for each locale: 面容 ID and App 锁 in `zh-Hans`; Face ID and Touch ID stay untranslated in `zh-Hant` and `zh-HK`.
 - Dates and place names follow the system locale.
-- App Store metadata is prepared in both languages; approved drafts live in `release.md`.
+- The App Store listing's primary language is Simplified Chinese, with English (`en-US`) and Traditional Chinese (`zh-Hant`) listings; App Store Connect has no separate Hong Kong listing. Each listing has its own screenshots and links to a support and privacy page in its language. Approved drafts live in `release.md`.
 
 ### Distribution
 - Free, with no in-app purchases, subscriptions, ads, analytics, tracking SDK, account system, or backend.
