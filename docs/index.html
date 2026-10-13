@@ -3,18 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Liney 支持 / Support</title>
+<title>Liney 支持 / Support / 支援</title>
 <style>
   :root { color-scheme: light dark; }
   body { font: 17px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", system-ui, sans-serif; max-width: 680px; margin: 0 auto; padding: 32px 20px 64px; }
   h1 { font-size: 28px; line-height: 1.2; letter-spacing: -0.01em; }
   h2 { font-size: 20px; margin-top: 2em; }
   hr { margin: 48px 0; border: none; border-top: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
+  .langs { font-size: 15px; }
+  :lang(zh-Hant) { font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", system-ui, sans-serif; }
 </style>
 </head>
 <body>
 
-<h1>Liney 支持</h1>
+<p class="langs"><a href="#zh-Hans">简体中文</a> · <a href="#en">English</a> · <a href="#zh-Hant">繁體中文</a></p>
+
+<h1 id="zh-Hans">Liney 支持</h1>
 <p>Liney 是一款记录文字和照片的轻量日记 App。所有内容只保存在你的设备上。</p>
 
 <h2>常见问题</h2>
@@ -30,7 +34,7 @@
 
 <hr>
 
-<div lang="en">
+<div lang="en" id="en">
 <h1>Liney Support</h1>
 <p>Liney is a light journal for words and photos. Everything stays on your device.</p>
 
@@ -43,7 +47,25 @@
 
 <h2>Contact</h2>
 <p>For questions or feedback, open an issue on <a href="https://github.com/pumblus/liney/issues">GitHub</a>. Please don't include journal content or other private information.</p>
-<p><a href="privacy.html">Privacy Policy</a></p>
+<p><a href="privacy.html#en">Privacy Policy</a></p>
+</div>
+
+<hr>
+
+<div lang="zh-Hant" id="zh-Hant">
+<h1>Liney 支援</h1>
+<p>Liney 是一款記錄文字和照片的輕巧日記 App。所有內容只儲存在你的裝置上。</p>
+
+<h2>常見問題</h2>
+<p><strong>我的日記會上傳到雲端嗎？</strong><br>不會。Liney 不連網，也不需要帳號。如果你開啟了 iCloud 備份，iOS 會依系統設定把資料包含在裝置備份中。</p>
+<p><strong>換手機後如何搬移日記？</strong><br>請使用 iOS 的「快速開始」、iCloud 備份或電腦備份搬移整部裝置，Liney 的日記會隨裝置資料一起搬移。</p>
+<p><strong>可以匯出日記嗎？</strong><br>可以。在時間軸右上角的「…」選單中選擇「匯出日記」，會產生包含 Markdown 文字和照片的 ZIP 檔案，可以用其他 App 打開或長期保存。</p>
+<p><strong>可以從 Day One 匯入嗎？</strong><br>可以。在 Day One 中匯出包含媒體的 JSON 格式 ZIP 檔案，然後在 Liney 時間軸右上角的「…」選單中選擇匯入。</p>
+<p><strong>忘記裝置密碼，打不開 App 鎖定怎麼辦？</strong><br>App 鎖定使用系統的 Face ID 或裝置密碼驗證，Liney 不另設密碼。只要能解鎖裝置，就能解鎖 Liney。</p>
+
+<h2>聯絡我們</h2>
+<p>遇到問題或有建議，歡迎在 <a href="https://github.com/pumblus/liney/issues">GitHub Issues</a> 中留言。請不要在留言中附上日記內容或其他隱私資訊。</p>
+<p><a href="privacy.html#zh-Hant">隱私權政策</a></p>
 </div>
 
 </body>
