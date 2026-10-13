@@ -45,7 +45,7 @@ _Avoid_: Day view, day detail
 The month name above each month of the Calendar View; tapping it opens Go to Month.
 
 **Go to Month**:
-The year and month picker, opened from a Month Header, that scrolls the Calendar View to a chosen year and month.
+The year and month wheels, opened from a Month Header, that scroll the Calendar View to a chosen year and month.
 _Avoid_: Month picker, jump to date, Month in View
 
 ### Metadata

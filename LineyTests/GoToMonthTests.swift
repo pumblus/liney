@@ -100,6 +100,7 @@ extension CalendarViewTests {
         await unmount(window)
     }
 
+    @available(iOS 17.4, *)
     @Test func doneMovesToTheChosenMonthAndThisMonthMovesBack() async throws {
         let (timeline, calendarView, window, earliest) = try await mountLongCalendar()
         let chosen = calendar.date(byAdding: .month, value: 2, to: earliest)!
@@ -116,6 +117,7 @@ extension CalendarViewTests {
         await unmount(window)
     }
 
+    @available(iOS 17.4, *)
     @Test func dismissingOutsideLeavesTheCalendarWhereItWas() async throws {
         let (timeline, calendarView, window, earliest) = try await mountLongCalendar()
         let goToMonth = try await openGoToMonth(from: .now, in: timeline, window: window)

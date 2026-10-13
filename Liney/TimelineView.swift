@@ -16,10 +16,11 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
     private var listOffset: CGPoint?
     private lazy var modeControl: UISegmentedControl = {
         // Symbols fit the narrowest sidebar in every language; VoiceOver reads the mode names.
-        let list = UIImage(systemName: "list.bullet")!, calendar = UIImage(systemName: "calendar")!
-        list.accessibilityLabel = String(localized: "List")
-        calendar.accessibilityLabel = String(localized: "Calendar")
-        let control = UISegmentedControl(items: [list, calendar])
+        // System symbols always exist.
+        let listSymbol = UIImage(systemName: "list.bullet")!, calendarSymbol = UIImage(systemName: "calendar")!
+        listSymbol.accessibilityLabel = String(localized: "List")
+        calendarSymbol.accessibilityLabel = String(localized: "Calendar")
+        let control = UISegmentedControl(items: [listSymbol, calendarSymbol])
         control.selectedSegmentIndex = 0
         control.addAction(UIAction { [unowned self] _ in
             self.setMode(self.modeControl.selectedSegmentIndex == 1 ? .calendar : .list)
@@ -119,14 +120,21 @@ final class TimelineViewController: EntryListViewController, UISearchResultsUpda
             calendarView?.scroll(toMonth: month)
         }
         let navigation = UINavigationController(rootViewController: goToMonth)
-        if view.window?.rootViewController?.traitCollection.horizontalSizeClass == .regular {
+        let shortSheet = UISheetPresentationController.Detent.custom { _ in 300 }
+        if isInRegularWidthWindow {
             navigation.modalPresentationStyle = .popover
             navigation.preferredContentSize = CGSize(width: 340, height: 280)
             navigation.popoverPresentationController?.sourceItem = header
-        } else if let sheet = navigation.sheetPresentationController {
-            sheet.detents = [.custom { _ in 300 }]
+            // If the window narrows while it shows, the popover becomes the same short sheet.
+            navigation.popoverPresentationController?.adaptiveSheetPresentationController.detents = [shortSheet]
+        } else {
+            navigation.sheetPresentationController?.detents = [shortSheet]
         }
         present(navigation, animated: true)
+    }
+    /// Whether the window is regular width; the timeline's own column can be compact inside it.
+    private var isInRegularWidthWindow: Bool {
+        view.window?.rootViewController?.traitCollection.horizontalSizeClass == .regular
     }
     // Under the calendar the table lists nothing: system sidebar rows would draw through it.
     override var listsEntries: Bool { mode == .list }

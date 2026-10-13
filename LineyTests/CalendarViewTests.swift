@@ -230,6 +230,13 @@ struct CalendarViewTests {
             .map { $0.convert($0.bounds, to: window).minY }
         #expect(!headerTops.isEmpty && headerTops.allSatisfy { $0 >= barBottom - 0.5 })
         #expect(try showsFirstDay(of: .now, in: calendarView))
+
+        // Back to the first month: the title expands again and still clears its Month Header.
+        calendarView.scroll(toMonth: monthStart(earliest))
+        try await waitForLayout(window)
+        let firstHeaderTop = try #require(calendarView.collectionView.supplementaryView(
+            forElementKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: 0))).convert(CGPoint.zero, to: window).y
+        #expect(firstHeaderTop >= bar.convert(bar.bounds, to: window).maxY - 0.5)
     }
 
     @Test func emptyJournalShowsCurrentMonth() async throws {

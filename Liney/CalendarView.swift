@@ -62,30 +62,31 @@ final class CalendarViewController: UICollectionViewController {
         guard needsScrollToCurrentMonth, !months.isEmpty, collectionView.bounds.height > 0 else { return }
         needsScrollToCurrentMonth = false
         collectionView.layoutIfNeeded()
-        scroll(to: collectionView.bottomContentOffsetY)
+        guard !headerShowsFromTop(section: months.count - 1) else { return }
+        collectionView.setContentOffset(CGPoint(x: 0, y: collectionView.bottomContentOffsetY), animated: false)
     }
 
     /// Scrolls `month`'s header to the top, as far as the content allows.
     func scroll(toMonth month: Date) {
         guard let section = dataSource.index(for: month) else { return }
         collectionView.layoutIfNeeded()
-        guard let header = collectionView.layoutAttributesForSupplementaryElement(
-            ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)) else { return }
+        guard !headerShowsFromTop(section: section),
+              let header = collectionView.layoutAttributesForSupplementaryElement(
+                ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)) else { return }
         let top = collectionView.adjustedContentInset.top
-        scroll(to: max(min(header.frame.minY - top, collectionView.bottomContentOffsetY), -top))
+        let y = max(min(header.frame.minY - top, collectionView.bottomContentOffsetY), -top)
+        collectionView.setContentOffset(CGPoint(x: 0, y: y), animated: false)
     }
 
-    /// Scrolls to `y`, unless that leaves the expanded large title over the first month: a scroll from the top
-    /// shorter than the title does not collapse it, so the calendar stays at the top instead.
-    private func scroll(to y: CGFloat) {
-        let top = collectionView.adjustedContentInset.top
-        let fromTop = collectionView.contentOffset.y <= -top + 0.5
-        collectionView.setContentOffset(CGPoint(x: 0, y: y), animated: false)
-        // Only a collapsed split view, one stack as on iPhone, shows the timeline's large title.
-        guard fromTop, y > -top, splitViewController?.isCollapsed ?? true else { return }
-        // The navigation bar collapses its large title in this layout pass when the scroll is long enough.
-        view.window?.layoutIfNeeded()
-        if collectionView.adjustedContentInset.top >= top { collectionView.setContentOffset(CGPoint(x: 0, y: -top), animated: false) }
+    /// Whether the calendar is at its top with `section`'s Month Header already in view, so it need not scroll.
+    /// A scroll from the top shorter than the expanded large title leaves the title over the first month; staying put
+    /// avoids it, and any other scroll from the top passes a whole month and collapses the title.
+    private func headerShowsFromTop(section: Int) -> Bool {
+        let insets = collectionView.adjustedContentInset
+        guard collectionView.contentOffset.y <= -insets.top + 0.5,
+              let header = collectionView.layoutAttributesForSupplementaryElement(
+                ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)) else { return false }
+        return header.frame.maxY <= collectionView.bounds.height - insets.top - insets.bottom
     }
 
     private func day(at indexPath: IndexPath) -> CalendarDay? {
@@ -146,7 +147,7 @@ final class CalendarViewController: UICollectionViewController {
 
 /// A Month Header: the month's name as a button that opens Go to Month, above the weekday names in the system calendar's order.
 private final class CalendarMonthHeader: UICollectionReusableView {
-    private let title: UIButton = {
+    private let nameButton: UIButton = {
         var configuration = UIButton.Configuration.plain()
         configuration.contentInsets = .zero
         configuration.baseForegroundColor = .label
@@ -163,8 +164,8 @@ private final class CalendarMonthHeader: UICollectionReusableView {
         let button = UIButton(configuration: configuration)
         button.contentHorizontalAlignment = .leading
         button.accessibilityHint = String(localized: "Changes the month shown in the calendar.")
-        // The VoiceOver rotor still moves month by month.
-        button.accessibilityTraits.insert(.header)
+        // A button that keeps the header trait, so the VoiceOver rotor still moves month by month.
+        button.accessibilityTraits = [.button, .header]
         return button
     }()
     var onTap: ((UIView) -> Void)?
@@ -172,7 +173,7 @@ private final class CalendarMonthHeader: UICollectionReusableView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        title.addAction(UIAction { [unowned self] _ in self.onTap?(self.title) }, for: .primaryActionTriggered)
+        nameButton.addAction(UIAction { [unowned self] _ in self.onTap?(self.nameButton) }, for: .primaryActionTriggered)
         weekdays.distribution = .fillEqually
         let calendar = Calendar.current
         let shift = calendar.firstWeekday - 1
@@ -185,7 +186,7 @@ private final class CalendarMonthHeader: UICollectionReusableView {
             label.accessibilityLabel = full
             weekdays.addArrangedSubview(label)
         }
-        let stack = UIStackView(arrangedSubviews: [title, weekdays])
+        let stack = UIStackView(arrangedSubviews: [nameButton, weekdays])
         stack.axis = .vertical
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -201,8 +202,8 @@ private final class CalendarMonthHeader: UICollectionReusableView {
 
     func configure(month: Date) {
         let name = month.formatted(.dateTime.month(.wide).year())
-        title.configuration?.title = name
-        title.accessibilityLabel = name
+        nameButton.configuration?.title = name
+        nameButton.accessibilityLabel = name
     }
 }
 
