@@ -128,19 +128,18 @@ struct PreferenceSuite {
         defaults.set(enabled, forKey: "liney.requiresAppLock")
         return AppLockModel(authenticator: authenticator, defaults: defaults)
     }
-
 }
 
 /// Defaults that keep the values App Lock reads and writes in memory, never reaching cfprefsd.
+/// Any other accessor falls through to an empty suite of its own, never the standard defaults.
 private final class InMemoryDefaults: UserDefaults, @unchecked Sendable {
     private let lock = NSLock()
     private var values: [String: Any] = [:]
 
-    init() { super.init(suiteName: nil)! }
+    init() { super.init(suiteName: "LineyTests.\(UUID().uuidString)")! }
 
     override func object(forKey defaultName: String) -> Any? { lock.withLock { values[defaultName] } }
     override func set(_ value: Any?, forKey defaultName: String) { lock.withLock { values[defaultName] = value } }
-    override func removeObject(forKey defaultName: String) { set(nil, forKey: defaultName) }
     override func bool(forKey defaultName: String) -> Bool { object(forKey: defaultName) as? Bool ?? false }
     override func set(_ value: Bool, forKey defaultName: String) { set(value as Any, forKey: defaultName) }
 }
