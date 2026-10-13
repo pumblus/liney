@@ -687,6 +687,7 @@ final class AppWideAppLockTests {
     }
 }
 
+@MainActor
 private final class FakeAuthenticator: AppAuthenticating {
     private var results: [Bool]
     private(set) var callCount = 0
@@ -716,6 +717,7 @@ private final class MountProbeViewController: UIViewController {
     override func viewDidDisappear(_ animated: Bool) { super.viewDidDisappear(animated); probe.disappearances += 1 }
 }
 
+@MainActor
 private final class SuspendedAuthenticator: AppAuthenticating {
     var completion: CheckedContinuation<Bool, Never>?
     private(set) var callCount = 0
@@ -725,7 +727,6 @@ private final class SuspendedAuthenticator: AppAuthenticating {
     }
 
     /// Waits until a request is in flight, then answers it.
-    @MainActor
     func reply(_ success: Bool) async {
         while completion == nil { await Task.yield() }
         completion?.resume(returning: success)
