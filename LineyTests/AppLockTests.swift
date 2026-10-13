@@ -333,9 +333,7 @@ final class AppLockTests: XCTestCase {
     }
 
     private func makeLock(_ authenticator: some AppAuthenticating, enabled: Bool = true) -> AppLockModel {
-        let suite = PreferenceSuite()
-        addTeardownBlock { suite.remove() }
-        return suite.makeLock(authenticator, enabled: enabled)
+        PreferenceSuite().makeLock(authenticator, enabled: enabled)
     }
 
     private func flushUIKitUpdates() async {
@@ -347,7 +345,6 @@ final class AppLockTests: XCTestCase {
 @MainActor
 final class AppLockCopyTests {
     private let suite = PreferenceSuite()
-    deinit { suite.remove() }
 
     @Test
     func disablingNeedsNoAuthenticationAndClearsTheLock() async {
@@ -487,7 +484,6 @@ final class AppLockCopyTests {
 @MainActor
 final class AppWideAppLockTests {
     private let suite = PreferenceSuite()
-    deinit { suite.remove() }
 
     @Test
     func oneAuthenticationUnlocksEveryScene() async {

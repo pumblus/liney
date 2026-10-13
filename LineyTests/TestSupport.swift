@@ -117,12 +117,10 @@ func perform(_ title: String, in alert: UIAlertController) async throws {
 }
 
 /// An isolated preference store, so App Lock fixtures never read or write the app's standard
-/// defaults. Call `remove()` when the test ends.
+/// defaults. Its values live in memory: a suite on disk leaves a plist in the test host's
+/// container, which cfprefsd writes back seconds after the suite is removed (#57).
 struct PreferenceSuite {
-    let name = "LineyTests.\(UUID().uuidString)"
-    let defaults: UserDefaults
-
-    init() { defaults = UserDefaults(suiteName: name)! }
+    let defaults: UserDefaults = InMemoryDefaults()
 
     /// App Lock with its preference `enabled`, starting locked as at launch.
     @MainActor
@@ -131,7 +129,20 @@ struct PreferenceSuite {
         return AppLockModel(authenticator: authenticator, defaults: defaults)
     }
 
-    func remove() { defaults.removePersistentDomain(forName: name) }
+}
+
+/// Defaults that keep the values App Lock reads and writes in memory, never reaching cfprefsd.
+private final class InMemoryDefaults: UserDefaults, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String: Any] = [:]
+
+    init() { super.init(suiteName: nil)! }
+
+    override func object(forKey defaultName: String) -> Any? { lock.withLock { values[defaultName] } }
+    override func set(_ value: Any?, forKey defaultName: String) { lock.withLock { values[defaultName] = value } }
+    override func removeObject(forKey defaultName: String) { set(nil, forKey: defaultName) }
+    override func bool(forKey defaultName: String) -> Bool { object(forKey: defaultName) as? Bool ?? false }
+    override func set(_ value: Bool, forKey defaultName: String) { set(value as Any, forKey: defaultName) }
 }
 
 // Mounted windows. Fixtures cannot connect scenes, so they show roots on the live app scene.

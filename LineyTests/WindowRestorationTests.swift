@@ -106,7 +106,6 @@ struct WindowRestorationTests {
 
     func close(_ window: UIWindow) async {
         await unmount(window)
-        preferences.remove()
     }
 
     func deleteEntry() throws {
