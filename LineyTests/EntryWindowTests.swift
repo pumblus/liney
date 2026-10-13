@@ -37,7 +37,6 @@ struct EntryWindowTests {
 
     func close(_ windows: UIWindow...) async {
         for window in windows { await unmount(window) }
-        preferences.remove()
     }
 
     @Test func anEntryWindowHoldsOnlyThatEntrysEditorTitledWithItsEntryDate() async throws {
