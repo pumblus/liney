@@ -21,6 +21,18 @@
             }
           }
         },
+        "zh-HK": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 篇日記"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans": {
           "variations": {
             "plural": {
@@ -28,6 +40,18 @@
                 "stringUnit": {
                   "state": "translated",
                   "value": "%lld 篇日记"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 篇日記"
                 }
               }
             }
@@ -55,6 +79,18 @@
             }
           }
         },
+        "zh-HK": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 篇日記，含相片"
+                }
+              }
+            }
+          }
+        },
         "zh-Hans": {
           "variations": {
             "plural": {
@@ -62,6 +98,18 @@
                 "stringUnit": {
                   "state": "translated",
                   "value": "%lld 篇日记，含照片"
+                }
+              }
+            }
+          }
+        },
+        "zh-Hant": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 篇日記，含照片"
                 }
               }
             }
@@ -77,10 +125,22 @@
             "value": "Calendar"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日曆"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "日历"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "行事曆"
           }
         }
       }
@@ -93,10 +153,22 @@
             "value": "Changes the month shown in the calendar."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改日曆中顯示的月份。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "更改日历中显示的月份。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更改行事曆中顯示的月份。"
           }
         }
       }
@@ -109,7 +181,19 @@
             "value": "This Month"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本月"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "本月"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "本月"
@@ -125,7 +209,19 @@
             "value": "List"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列表"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列表"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "列表"
@@ -141,10 +237,22 @@
             "value": "No entries"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "没有日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有日記"
           }
         }
       }
@@ -157,10 +265,22 @@
             "value": "Title (optional)"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標題（選填）"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "标题（选填）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標題（選填）"
           }
         }
       }
@@ -174,10 +294,22 @@
             "value": "Adding Photos…"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加入相片…"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "正在添加照片…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在加入照片…"
           }
         }
       }
@@ -190,10 +322,22 @@
             "value": "Mark incomplete"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標示為未完成"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "标记为未完成"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標示為未完成"
           }
         }
       }
@@ -206,10 +350,22 @@
             "value": "Mark complete"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標示為已完成"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "标记为已完成"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "標示為已完成"
           }
         }
       }
@@ -222,7 +378,19 @@
             "value": "Not completed"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未完成"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未完成"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "未完成"
@@ -238,7 +406,19 @@
             "value": "Completed"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已完成"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "已完成"
@@ -254,10 +434,22 @@
             "value": "A light journal for words and photos."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輕盈記錄文字與相片。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "轻盈记录文字与照片。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輕盈記錄文字與照片。"
           }
         }
       }
@@ -270,10 +462,22 @@
             "value": "About"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關於"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "关于"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關於"
           }
         }
       }
@@ -286,10 +490,22 @@
             "value": "All-day"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "整天"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "全天"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "整天"
           }
         }
       }
@@ -302,10 +518,22 @@
             "value": "Authenticate to export your journal."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驗證身份以匯出日記。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "验证身份以导出日记。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驗證身分以匯出日記。"
           }
         }
       }
@@ -318,10 +546,22 @@
             "value": "Automatic backups may omit photos. Keep the original export until you have checked the imported entries."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動備份可能不含相片。請在核對匯入的日記前保留原始匯出檔案。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "自动备份可能不包含照片。请在核对导入的日记前保留原始导出文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動備份可能不含照片。請在核對匯入的日記前保留原始匯出檔案。"
           }
         }
       }
@@ -334,10 +574,22 @@
             "value": "Body"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "內文"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "正文"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "內文"
           }
         }
       }
@@ -350,7 +602,19 @@
             "value": "Cancel"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "取消"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "取消"
@@ -366,10 +630,22 @@
             "value": "Choose JSON Zip"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇 JSON ZIP 檔案"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "选择 JSON ZIP 文件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇 JSON ZIP 檔案"
           }
         }
       }
@@ -382,10 +658,22 @@
             "value": "Could Not Enable App Lock"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法開啟 App 鎖定"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法开启 App 锁定"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法開啟 App 鎖定"
           }
         }
       }
@@ -398,10 +686,22 @@
             "value": "Could Not Export Journal"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法匯出日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法导出日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法匯出日記"
           }
         }
       }
@@ -414,10 +714,22 @@
             "value": "Could Not Import Journal"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法匯入日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法导入日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法匯入日記"
           }
         }
       }
@@ -430,10 +742,22 @@
             "value": "Could Not Load Journal"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法載入日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法载入日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法載入日記"
           }
         }
       }
@@ -446,10 +770,22 @@
             "value": "Could Not Save Entry"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法保存日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存日記"
           }
         }
       }
@@ -462,7 +798,19 @@
             "value": "Date"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日期"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日期"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "日期"
@@ -478,7 +826,19 @@
             "value": "Day One ID"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Day One ID"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Day One ID"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "Day One ID"
@@ -494,10 +854,22 @@
             "value": "Delete Entry"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "删除日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除日記"
           }
         }
       }
@@ -510,10 +882,22 @@
             "value": "Delete Photo"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除相片"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "删除照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除照片"
           }
         }
       }
@@ -526,7 +910,19 @@
             "value": "Done"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "完成"
@@ -542,10 +938,22 @@
             "value": "Edit Entry Date"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯日記日期"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "编辑日记日期"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯日記日期"
           }
         }
       }
@@ -558,10 +966,22 @@
             "value": "Entries"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日記"
           }
         }
       }
@@ -574,10 +994,22 @@
             "value": "Entry %lld"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 篇日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "第 %lld 篇日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "第 %lld 篇日記"
           }
         }
       }
@@ -590,10 +1022,22 @@
             "value": "Entry Date"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日記日期"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "日记日期"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日記日期"
           }
         }
       }
@@ -606,10 +1050,22 @@
             "value": "Entry Photos"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日記相片"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "日记照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日記照片"
           }
         }
       }
@@ -622,10 +1078,22 @@
             "value": "Export again with media included, then import the zip to retry. Existing entries and your edits are kept."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請在 Day One 中選擇包含媒體後重新匯出，再匯入 ZIP 重試。現有日記和修改會保留。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "请在 Day One 中选择包含媒体后重新导出，再导入 ZIP 重试。已有日记和修改会保留。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請在 Day One 中選擇包含媒體後重新匯出，再匯入 ZIP 重試。現有日記和修改會保留。"
           }
         }
       }
@@ -638,10 +1106,22 @@
             "value": "Export Journal"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯出日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "导出日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯出日記"
           }
         }
       }
@@ -654,10 +1134,22 @@
             "value": "Failed Entries"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失敗的日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "失败日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失敗的日記"
           }
         }
       }
@@ -670,10 +1162,22 @@
             "value": "Failed Photos"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失敗的相片"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "失败照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "失敗的照片"
           }
         }
       }
@@ -686,10 +1190,22 @@
             "value": "Import"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "导入"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入"
           }
         }
       }
@@ -702,10 +1218,22 @@
             "value": "Import Cancelled"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消匯入"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "导入已取消"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已取消匯入"
           }
         }
       }
@@ -718,10 +1246,22 @@
             "value": "Import Complete"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入完成"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "导入完成"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入完成"
           }
         }
       }
@@ -734,10 +1274,22 @@
             "value": "Import from Day One"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從 Day One 匯入"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "从 Day One 导入"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從 Day One 匯入"
           }
         }
       }
@@ -750,10 +1302,22 @@
             "value": "Import Journal"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "导入日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入日記"
           }
         }
       }
@@ -766,10 +1330,22 @@
             "value": "Import Needs Review"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入結果待核對"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "导入结果待核对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入結果待核對"
           }
         }
       }
@@ -782,10 +1358,22 @@
             "value": "Imported"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已匯入"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "已导入"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已匯入"
           }
         }
       }
@@ -798,10 +1386,22 @@
             "value": "Importing..."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在匯入…"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "正在导入…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在匯入…"
           }
         }
       }
@@ -814,10 +1414,22 @@
             "value": "In Day One, open Settings → Import/Export, choose JSON, and include media. On Mac, choose File → Export → JSON. Select the exported zip here."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Day One 中打開「設定 → 匯入／匯出」，選擇 JSON 並包含媒體。在 Mac 上請選擇「檔案 → 匯出 → JSON」，然後在這裡選擇匯出的 ZIP 檔案。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "在 Day One 中打开“设置 → 导入/导出”，选择 JSON 并包含媒体。Mac 上请选择“文件 → 导出 → JSON”，然后在这里选择导出的 ZIP 文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在 Day One 中打開「設定 → 匯入／匯出」，選擇 JSON 並包含媒體。在 Mac 上請選擇「檔案 → 匯出 → JSON」，然後在這裡選擇匯出的 ZIP 檔案。"
           }
         }
       }
@@ -830,7 +1442,19 @@
             "value": "Insert Photos"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插入相片"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "插入照片"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "插入照片"
@@ -846,10 +1470,22 @@
             "value": "Journal"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日記"
           }
         }
       }
@@ -862,10 +1498,22 @@
             "value": "Keep Liney open. Cancelling keeps saved entries."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請讓 Liney 保持開啟。取消後會保留已匯入的內容。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "请保持 Liney 处于打开状态。取消将保留已导入的内容。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請讓 Liney 保持開啟。取消後會保留已匯入的內容。"
           }
         }
       }
@@ -878,10 +1526,22 @@
             "value": "Liney does not collect analytics or advertising data."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不收集任何使用分析或廣告數據。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "不收集任何使用分析或广告数据。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不收集任何使用分析或廣告資料。"
           }
         }
       }
@@ -894,10 +1554,22 @@
             "value": "Liney does not require an account."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無需註冊或登入帳户。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无需注册或登录账号。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無需註冊或登入帳號。"
           }
         }
       }
@@ -910,10 +1582,22 @@
             "value": "Liney Locked"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liney 已鎖定"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "Liney 已锁定"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Liney 已鎖定"
           }
         }
       }
@@ -926,7 +1610,19 @@
             "value": "More"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "更多"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "更多"
@@ -942,10 +1638,22 @@
             "value": "New Entry"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "新建日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "新增日記"
           }
         }
       }
@@ -958,10 +1666,22 @@
             "value": "No Day One entries were found in the selected zip."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選 ZIP 檔案中找不到任何 Day One 日記。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "所选 ZIP 文件中未找到任何 Day One 日记。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選 ZIP 檔案中找不到任何 Day One 日記。"
           }
         }
       }
@@ -974,10 +1694,22 @@
             "value": "No Entries"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "还没有日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有日記"
           }
         }
       }
@@ -990,10 +1722,22 @@
             "value": "No Entry Selected"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未選擇日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "未选择日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未選擇日記"
           }
         }
       }
@@ -1006,10 +1750,22 @@
             "value": "No Results"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有結果"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无结果"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有結果"
           }
         }
       }
@@ -1023,10 +1779,22 @@
             "value": "No supported text or readable photos were found. Export again with media included."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到支援的文字或可讀取的相片。請在 Day One 中選擇包含媒體後重新匯出。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "未找到支持的文字或可读取的照片。请在 Day One 中选择包含媒体后重新导出。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到支援的文字或可讀取的照片。請在 Day One 中選擇包含媒體後重新匯出。"
           }
         }
       }
@@ -1039,7 +1807,19 @@
             "value": "OK"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "好"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "好"
@@ -1055,10 +1835,22 @@
             "value": "One selected photo could not be added."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選相片中有一張無法加入。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "所选照片中有一张无法添加。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選照片中有一張無法加入。"
           }
         }
       }
@@ -1071,10 +1863,22 @@
             "value": "Open Photo %1$lld of %2$lld"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開第 %1$lld 張相片，共 %2$lld 張"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "打开第 %1$lld 张照片，共 %2$lld 张"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打開第 %1$lld 張照片，共 %2$lld 張"
           }
         }
       }
@@ -1087,7 +1891,19 @@
             "value": "Photo"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相片"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "照片"
@@ -1103,10 +1919,22 @@
             "value": "Photo Actions"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相片動作"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "照片操作"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片動作"
           }
         }
       }
@@ -1119,10 +1947,22 @@
             "value": "Photo Couldn’t Be Deleted"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法刪除相片"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法删除照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法刪除照片"
           }
         }
       }
@@ -1135,10 +1975,22 @@
             "value": "Photo Detail"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相片詳情"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "照片详情"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片詳細資訊"
           }
         }
       }
@@ -1151,10 +2003,22 @@
             "value": "Photo Entry"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相片日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "照片日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片日記"
           }
         }
       }
@@ -1167,10 +2031,22 @@
             "value": "Photo File Couldn’t Be Deleted"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法刪除相片檔案"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法删除照片文件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法刪除照片檔案"
           }
         }
       }
@@ -1184,10 +2060,22 @@
             "value": "Photo recovery information could not be read. Existing content was kept."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法讀取相片復原記錄，已保留現有內容。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法读取照片恢复记录，已保留现有内容。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法讀取照片復原記錄，已保留現有內容。"
           }
         }
       }
@@ -1200,10 +2088,22 @@
             "value": "Photo unavailable"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法使用相片"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "照片不可用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法使用照片"
           }
         }
       }
@@ -1216,7 +2116,19 @@
             "value": "Photos"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相片"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "照片"
@@ -1232,10 +2144,22 @@
             "value": "Preparing Archive…"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在準備匯入檔案…"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "正在准备导入文件…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在準備匯入檔案…"
           }
         }
       }
@@ -1248,10 +2172,22 @@
             "value": "Privacy"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "私隱"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "隐私"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隱私權"
           }
         }
       }
@@ -1264,10 +2200,22 @@
             "value": "Recovered Photos"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已復原的相片"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "已恢复的照片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已復原的照片"
           }
         }
       }
@@ -1281,10 +2229,22 @@
             "value": "App Lock"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App 鎖定"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "App 锁定"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App 鎖定"
           }
         }
       }
@@ -1297,10 +2257,22 @@
             "value": "Search Entries"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "搜索日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋日記"
           }
         }
       }
@@ -1313,10 +2285,22 @@
             "value": "Settings"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定"
           }
         }
       }
@@ -1329,10 +2313,22 @@
             "value": "Skipped Duplicates"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已略過重複項目"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "已跳过重复项"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已略過重複項目"
           }
         }
       }
@@ -1346,10 +2342,22 @@
             "value": "Some photos could not be read. Export again with media included and import the zip to retry."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分相片無法讀取。請在 Day One 中選擇包含媒體後重新匯出，再匯入 ZIP 補齊相片。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "部分照片无法读取。请在 Day One 中选择包含媒体后重新导出，再导入 ZIP 补齐照片。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分照片無法讀取。請在 Day One 中選擇包含媒體後重新匯出，再匯入 ZIP 補齊照片。"
           }
         }
       }
@@ -1362,10 +2370,22 @@
             "value": "Some Photos Couldn’t Be Added"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分相片無法加入"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "部分照片无法添加"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分照片無法加入"
           }
         }
       }
@@ -1378,10 +2398,22 @@
             "value": "Some selected photos could not be added."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分所選相片無法加入。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "部分选中的照片无法添加。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分所選照片無法加入。"
           }
         }
       }
@@ -1395,10 +2427,22 @@
             "value": "The archive could not be read completely. Export again and retry; saved entries are kept."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法完整讀取匯出檔案。請重新匯出後重試，已儲存的日記會保留。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法完整读取导出包。请重新导出后重试，已保存的日记会保留。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法完整讀取匯出檔案。請重新匯出後重試，已儲存的日記會保留。"
           }
         }
       }
@@ -1412,10 +2456,22 @@
             "value": "The original photo position was removed. Recovered photos were added at the end of the entry."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原本的相片位置已不存在，已將復原的相片加到日記結尾。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "原照片位置已不存在，已将恢复的照片添加至日记末尾。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "原本的照片位置已不存在，已將復原的照片加到日記結尾。"
           }
         }
       }
@@ -1428,10 +2484,22 @@
             "value": "This entry and its photos will be permanently deleted."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這篇日記及其相片將永久刪除。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "这篇日记及其照片将被永久删除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這篇日記及其照片將永久刪除。"
           }
         }
       }
@@ -1445,10 +2513,22 @@
             "value": "This entry could not be saved. Check available storage and retry."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存這篇日記。請檢查可用儲存空間後重試。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "这篇日记未能保存。请检查可用存储空间后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存這篇日記。請檢查可用儲存空間後重試。"
           }
         }
       }
@@ -1462,10 +2542,22 @@
             "value": "This entry has an unreadable date. Check the Day One export."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法讀取這篇日記的日期，請檢查 Day One 匯出檔案。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "这篇日记的日期无法读取，请检查 Day One 导出文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法讀取這篇日記的日期，請檢查 Day One 匯出檔案。"
           }
         }
       }
@@ -1479,10 +2571,22 @@
             "value": "This entry has no source ID. Check the Day One export."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這篇日記缺少來源 ID，請檢查 Day One 匯出檔案。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "这篇日记缺少来源 ID，请检查 Day One 导出文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這篇日記缺少來源 ID，請檢查 Day One 匯出檔案。"
           }
         }
       }
@@ -1495,10 +2599,22 @@
             "value": "This photo will be removed from this entry."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這張相片將從這篇日記中移除。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "此照片将从当前日记中移除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這張照片將從這篇日記中移除。"
           }
         }
       }
@@ -1511,10 +2627,22 @@
             "value": "Try deleting the photo again."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請再試一次刪除這張相片。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "请再次尝试删除这张照片。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "請再試一次刪除這張照片。"
           }
         }
       }
@@ -1527,10 +2655,22 @@
             "value": "Unlock"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解鎖"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "解锁"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解鎖"
           }
         }
       }
@@ -1543,10 +2683,22 @@
             "value": "Unlock Liney to view your journal."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解鎖 Liney 以檢視你的日記。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "解锁 Liney 以查看你的日记。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解鎖 Liney 以檢視你的日記。"
           }
         }
       }
@@ -1559,10 +2711,22 @@
             "value": "Unsupported Media"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支援的媒體"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "不支持的媒体"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "不支援的媒體"
           }
         }
       }
@@ -1575,10 +2739,22 @@
             "value": "Untitled Entry"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未命名日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无标题日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未命名日記"
           }
         }
       }
@@ -1591,10 +2767,22 @@
             "value": "Use Face ID, Touch ID, or your device passcode to protect Liney."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Face ID、Touch ID 或裝置密碼保護 Liney。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "使用面容 ID、触控 ID 或设备密码保护 Liney。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Face ID、Touch ID 或裝置密碼保護 Liney。"
           }
         }
       }
@@ -1607,7 +2795,19 @@
             "value": "Version"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本"
+          }
+        },
         "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "版本"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "版本"
@@ -1623,10 +2823,22 @@
             "value": "Your changes could not be saved. Please try again."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存變更，請再試一次。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "更改未能保存，请重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法儲存變更，請再試一次。"
           }
         }
       }
@@ -1639,10 +2851,22 @@
             "value": "There isn’t enough storage on this device. Free up space and try again."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此裝置的儲存空間不足。請清出空間後再試一次。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "这台设备的存储空间不足。请释放空间后重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這部裝置的儲存空間不足。請清出空間後再試一次。"
           }
         }
       }
@@ -1655,10 +2879,22 @@
             "value": "The selected zip could not be opened. Please try again."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法打開所選的 ZIP 檔案，請再試一次。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "无法打开所选的 ZIP 文件，请重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法打開所選的 ZIP 檔案，請再試一次。"
           }
         }
       }
@@ -1671,10 +2907,22 @@
             "value": "The journal could not be exported. Please try again."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法匯出日記，請再試一次。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "日记未能导出，请重试。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法匯出日記，請再試一次。"
           }
         }
       }
@@ -1687,10 +2935,22 @@
             "value": "Some photos could not be saved because this device is out of storage. Free up space and import the zip again to retry."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此裝置的儲存空間不足，部分相片未能儲存。請清出空間後再次匯入 ZIP 補齊相片。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "这台设备的存储空间不足，部分照片未能保存。请释放空间后再次导入 ZIP 补齐照片。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這部裝置的儲存空間不足，部分照片未能儲存。請清出空間後再次匯入 ZIP 補齊照片。"
           }
         }
       }
@@ -1704,10 +2964,22 @@
             "value": "Write something…"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記錄此刻"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "记录此刻"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "記錄此刻"
           }
         }
       }
@@ -1721,10 +2993,22 @@
             "value": "Start writing, or import an existing journal."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始記錄，或從現有日記匯入。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "开始记录，或从现有日记导入。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開始記錄，或從現有日記匯入。"
           }
         }
       }
@@ -1738,10 +3022,22 @@
             "value": "Select an entry from the timeline."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從時間線選擇一篇日記。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "从时间线选择一篇日记。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "從時間軸選擇一篇日記。"
           }
         }
       }
@@ -1755,10 +3051,22 @@
             "value": "Use Photo Date and Location?"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要使用相片的日期與地點嗎？"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "使用照片的日期与地点？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要使用照片的日期與地點嗎？"
           }
         }
       }
@@ -1772,10 +3080,22 @@
             "value": "Update this entry’s date and location to match this photo?"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要將日記的日期和地點更新為這張相片的拍攝資料嗎？"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "将日记的日期和地点更新为该照片的拍摄信息？"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "要將日記的日期和地點更新為這張照片的拍攝資訊嗎？"
           }
         }
       }
@@ -1789,10 +3109,22 @@
             "value": "Use Photo Date & Location"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用相片日期與地點"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "使用照片日期与地点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用照片日期與地點"
           }
         }
       }
@@ -1806,10 +3138,22 @@
             "value": "Keep Current"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留目前設定"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "保留当前设置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留目前設定"
           }
         }
       }
@@ -1823,10 +3167,22 @@
             "value": "Set as Entry Date & Location"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設為日記日期與地點"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "设为日记日期与地点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設為日記日期與地點"
           }
         }
       }
@@ -1840,10 +3196,22 @@
             "value": "Authenticate to turn on App Lock."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驗證身份以開啟 App 鎖定。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "验证身份以开启 App 锁定。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "驗證身分以開啟 App 鎖定。"
           }
         }
       }
@@ -1857,10 +3225,22 @@
             "value": "Authentication was not completed."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能完成身份驗證。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "未能完成身份验证。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能完成身分驗證。"
           }
         }
       }
@@ -1874,10 +3254,22 @@
             "value": "Unlock to view your journal."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解鎖以檢視日記。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "解锁以查看日记。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解鎖以檢視日記。"
           }
         }
       }
@@ -1891,10 +3283,22 @@
             "value": "A photo file is missing."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到日記相片檔案。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "找不到日记照片文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找不到日記照片檔案。"
           }
         }
       }
@@ -1908,10 +3312,22 @@
             "value": "The photo was removed from this entry, but the file could not be deleted from storage."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相片已從日記中移除，但無法從裝置儲存空間刪除該檔案。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "照片已从日记中移除，但未能从设备存储中删除该文件。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "照片已從日記中移除，但無法從裝置儲存空間刪除該檔案。"
           }
         }
       }
@@ -1925,10 +3341,22 @@
             "value": "Some photo files could not be deleted from storage."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分相片檔案無法從裝置儲存空間刪除。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "部分照片文件未能从设备存储中删除。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "部分照片檔案無法從裝置儲存空間刪除。"
           }
         }
       }
@@ -1942,10 +3370,22 @@
             "value": "Text, photos, dates, and locations are imported into a single timeline. Titles and checklists are preserved; other rich text becomes plain text. Photos are optimized to save device storage."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文字、相片、日期與地點將合併匯入時間線。標題與待辦清單會保留，其他格式會轉為純文字。相片會適度壓縮以節省儲存空間。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "文字、照片、日期与地点将合并导入时间线。标题与待办清单会保留，其他排版格式转换为纯文本。照片会适度压缩以节省存储空间。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文字、照片、日期與地點將合併匯入時間軸。標題與待辦清單會保留，其他格式會轉為純文字。照片會適度壓縮以節省儲存空間。"
           }
         }
       }
@@ -1959,10 +3399,22 @@
             "value": "Videos, audio, attachments, tags, and weather data are not imported. Multiple journals will be merged into one timeline. Timed entries use your current time zone."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "影片、音訊、PDF 等附件以及標籤、天氣等資料不會匯入。多本日記將合併為同一條時間線；記錄時間依裝置目前的時區顯示。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "视频、音频、PDF 等附件以及标签、天气等信息不会导入。多个日记本将合并为同一个时间线；记录时间按设备当前时区显示。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "影片、音訊、PDF 等附件以及標籤、天氣等資訊不會匯入。多本日記將合併為同一條時間軸；記錄時間依裝置目前的時區顯示。"
           }
         }
       }
@@ -1976,10 +3428,22 @@
             "value": "Keep Liney open while importing. Cancelling keeps saved entries. You can re-import the ZIP at any time to resume or restore missing photos without overwriting your edits."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入期間請讓 Liney 保持開啟。即使取消，已儲存的日記仍會保留。你可以隨時重新匯入該檔案以繼續或復原缺少的相片，不會覆寫你的修改。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "导入期间请保持 Liney 处于打开状态。即使取消，已保存的日记依然保留。你可以随时重新导入该文件以继续或恢复缺失照片，不会覆盖已有的修改。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "匯入期間請讓 Liney 保持開啟。即使取消，已儲存的日記仍會保留。你可以隨時重新匯入該檔案以繼續或復原缺少的照片，不會覆寫你的修改。"
           }
         }
       }
@@ -1993,10 +3457,22 @@
             "value": "The selected file is not a valid Day One JSON ZIP."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選檔案不是有效的 Day One 壓縮檔。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "所选文件不是有效的 Day One 压缩包。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所選檔案不是有效的 Day One 壓縮檔。"
           }
         }
       }
@@ -2010,10 +3486,22 @@
             "value": "Entries with Photos Restored"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已復原相片的日記"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "已恢复照片的日记"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已復原照片的日記"
           }
         }
       }
@@ -2027,10 +3515,22 @@
             "value": "Ignored Metadata"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未匯入的附加資料"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "未导入的附加信息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未匯入的附加資訊"
           }
         }
       }
@@ -2044,10 +3544,22 @@
             "value": "Preparing Export…"
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在準備匯出…"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "正在准备导出…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在準備匯出…"
           }
         }
       }
@@ -2061,10 +3573,22 @@
             "value": "Your journal is stored locally on this device."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有日記只儲存在此裝置上。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "所有日记仅保存在本设备上。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "所有日記只儲存在這部裝置上。"
           }
         }
       }
@@ -2078,10 +3602,22 @@
             "value": "Photos are saved directly in Liney, so your entries remain intact even if deleted from Photos."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入的相片會另外儲存在 Liney 中，即使從「相片」App 刪除也不影響日記。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "添加的照片会单独保存在 Liney 中，即使系统相册删除照片也不影响日记。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "加入的照片會另外儲存在 Liney 中，即使從「照片」App 刪除也不影響日記。"
           }
         }
       }
@@ -2095,10 +3631,22 @@
             "value": "Data is only imported or exported when you choose to do so."
           }
         },
+        "zh-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有在你主動操作時才會匯入或匯出，絕不會在背景自動上傳。"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "仅在你主动操作时进行导入与导出，绝不会在后台自动上传。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "只有在你主動操作時才會匯入或匯出，絕不會在背景自動上傳。"
           }
         }
       }

@@ -164,7 +164,9 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				"zh-HK",
 				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = F00000000000000000000004;
 			preferredProjectObjectVersion = 77;
