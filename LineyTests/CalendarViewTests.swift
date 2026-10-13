@@ -142,7 +142,7 @@ struct CalendarViewTests {
 
     func select(_ title: String, in timeline: TimelineViewController) throws {
         let control = try modeControl(of: timeline)
-        let index = try #require((0..<control.numberOfSegments).first { control.titleForSegment(at: $0) == title })
+        let index = try #require((0..<control.numberOfSegments).first { control.imageForSegment(at: $0)?.accessibilityLabel == title })
         control.selectedSegmentIndex = index
         control.sendActions(for: .valueChanged)
     }
@@ -174,7 +174,7 @@ struct CalendarViewTests {
         return (cell, tappable)
     }
 
-    @Test func switchingModesSwapsSearchForCalendarAndKeepsBarButtons() async throws {
+    @Test func switchingModesSwapsSearchForCalendarAndKeepsTheSameBar() async throws {
         let container = try makeInMemoryContainer()
         let context = ModelContext(container)
         context.insert(JournalEntry(title: "Fixture"))
@@ -182,10 +182,19 @@ struct CalendarViewTests {
         let (root, window) = try await mountJournal(container, days: 1)
         defer { window.isHidden = true }
         let timeline = root.timeline
-        #expect(try modeControl(of: timeline).selectedSegmentIndex == 0)
+        let control = try modeControl(of: timeline)
+        #expect(control.selectedSegmentIndex == 0)
         #expect(timeline.navigationItem.searchController != nil)
+        // Symbol segments fit the narrowest sidebar in every language; VoiceOver still reads the mode names.
+        #expect((0..<control.numberOfSegments).allSatisfy { control.titleForSegment(at: $0) == nil })
+        #expect((0..<control.numberOfSegments).map { control.imageForSegment(at: $0)?.accessibilityLabel }
+                == [String(localized: "List"), String(localized: "Calendar")])
+        let barItems = { (timeline.navigationItem.leftBarButtonItems ?? []) + (timeline.navigationItem.rightBarButtonItems ?? []) }
+        let listBar = barItems()
 
         let calendarView = try await showCalendar(in: timeline, months: 1, window: window)
+        // Calendar adds no bar button, so the bar is the same in both modes.
+        #expect(barItems() == listBar)
         #expect(timeline.navigationItem.searchController == nil)
         #expect(calendarView.view.window != nil && !calendarView.view.isHidden)
         // Touches reach the calendar, not the rows beneath it.
@@ -198,6 +207,29 @@ struct CalendarViewTests {
         try await waitForRows(1, in: timeline)
         #expect(timeline.navigationItem.searchController != nil)
         #expect(timeline.calendarView?.view.isHidden != false)
+    }
+
+    /// A calendar only a little taller than the column cannot scroll the large title away, so it opens at the top
+    /// instead of under the expanded title; a long calendar still opens at the current month with the title collapsed.
+    @Test(arguments: [1, 14])
+    func monthHeadersStayClearOfTheLargeTitle(monthsBack: Int) async throws {
+        let container = try makeInMemoryContainer()
+        let context = ModelContext(container)
+        let earliest = calendar.date(byAdding: .month, value: -monthsBack, to: .now)!
+        context.insert(JournalEntry(title: "Fixture", entryDate: earliest))
+        try context.save()
+        let (root, window) = try await mountJournal(container, days: 1, sizeClass: .compact, width: 402)
+        defer { window.isHidden = true }
+        // An iPhone 17 Pro window, where two months are 39 points taller than the column.
+        window.frame.size.height = 874
+        try await waitForLayout(window)
+        let calendarView = try await showCalendar(in: root.timeline, months: monthsBack + 1, window: window)
+        let bar = try #require(root.timeline.navigationController?.navigationBar)
+        let barBottom = bar.convert(bar.bounds, to: window).maxY
+        let headerTops = calendarView.collectionView.visibleSupplementaryViews(ofKind: UICollectionView.elementKindSectionHeader)
+            .map { $0.convert($0.bounds, to: window).minY }
+        #expect(!headerTops.isEmpty && headerTops.allSatisfy { $0 >= barBottom - 0.5 })
+        #expect(try showsFirstDay(of: .now, in: calendarView))
     }
 
     @Test func emptyJournalShowsCurrentMonth() async throws {

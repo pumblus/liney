@@ -3,7 +3,11 @@ import UIKit
 /// Go to Month: year and month wheels over the calendar's month range, with This Month and Done.
 /// Reports a month only on Done or This Month; dismissing any other way chooses nothing.
 final class GoToMonthViewController: UIViewController, UIPickerViewDataSource, UIPickerViewDelegate {
-    let picker = UIPickerView()
+    /// The system year and month wheels, on iOS 17.4 and later.
+    private(set) var datePicker: UIDatePicker?
+    /// Liney's own year and month wheels, before iOS 17.4.
+    private(set) var picker: UIPickerView?
+    private let usesSystemWheels: Bool
     private let calendar: Calendar
     /// The first moment of each month the wheels offer, oldest first; the last is the current month.
     private let months: [Date]
@@ -12,8 +16,11 @@ final class GoToMonthViewController: UIViewController, UIPickerViewDataSource, U
     private var selectedMonth: Int
     private let onChoose: (Date) -> Void
 
-    init(months: [Date], selected: Date, calendar: Calendar = .current, onChoose: @escaping (Date) -> Void) {
+    /// `usesSystemWheels` false shows Liney's own wheels where the system ones exist, for tests.
+    init(months: [Date], selected: Date, calendar: Calendar = .current, usesSystemWheels: Bool = true,
+         onChoose: @escaping (Date) -> Void) {
         self.calendar = calendar
+        self.usesSystemWheels = usesSystemWheels
         self.months = months
         var years: [Int] = []
         for month in months where years.last != calendar.component(.year, from: month) {
@@ -30,31 +37,56 @@ final class GoToMonthViewController: UIViewController, UIPickerViewDataSource, U
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
+        navigationItem.title = String(localized: "Go to Month")
         navigationItem.leftBarButtonItem = UIBarButtonItem(title: String(localized: "This Month"), primaryAction: UIAction { [weak self] _ in
             guard let self, let current = self.months.last else { return }
             self.choose(current)
         })
-        let done = UIBarButtonItem(title: String(localized: "Done"), primaryAction: UIAction { [weak self] _ in
+        navigationItem.rightBarButtonItem = UIBarButtonItem(systemItem: .done, primaryAction: UIAction { [weak self] _ in
             guard let self, let month = self.month(year: self.selectedYear, month: self.selectedMonth) else { return }
             self.choose(month)
         })
-        done.style = .done
-        navigationItem.rightBarButtonItem = done
-        picker.dataSource = self
-        picker.delegate = self
-        picker.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(picker)
-        NSLayoutConstraint.activate([
-            picker.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-            picker.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            picker.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            picker.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
-        ])
-        selectCurrentRows()
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: GoToMonthViewController, _: UITraitCollection) in
-            controller.picker.reloadAllComponents()
-            controller.selectCurrentRows()
+        let wheels: UIView
+        if #available(iOS 17.4, *), usesSystemWheels {
+            wheels = makeDatePicker()
+        } else {
+            let picker = UIPickerView()
+            picker.dataSource = self
+            picker.delegate = self
+            self.picker = picker
+            wheels = picker
+            selectCurrentRows()
+            registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: GoToMonthViewController, _: UITraitCollection) in
+                controller.picker?.reloadAllComponents()
+                controller.selectCurrentRows()
+            }
         }
+        wheels.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(wheels)
+        NSLayoutConstraint.activate([
+            wheels.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+            wheels.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+            wheels.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            wheels.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+        ])
+    }
+
+    /// The system wheels run from the first month to the current month and dim the months outside it.
+    @available(iOS 17.4, *)
+    private func makeDatePicker() -> UIDatePicker {
+        let datePicker = UIDatePicker()
+        datePicker.calendar = calendar
+        datePicker.datePickerMode = .yearAndMonth
+        datePicker.preferredDatePickerStyle = .wheels
+        datePicker.minimumDate = months.first
+        datePicker.maximumDate = months.last
+        datePicker.date = month(year: selectedYear, month: selectedMonth) ?? months.last ?? .now
+        datePicker.addAction(UIAction { [unowned self, unowned datePicker] _ in
+            self.selectedYear = self.calendar.component(.year, from: datePicker.date)
+            self.selectedMonth = self.calendar.component(.month, from: datePicker.date)
+        }, for: .valueChanged)
+        self.datePicker = datePicker
+        return datePicker
     }
 
     private func choose(_ month: Date) {
@@ -63,6 +95,7 @@ final class GoToMonthViewController: UIViewController, UIPickerViewDataSource, U
     }
 
     private func selectCurrentRows() {
+        guard let picker else { return }
         if let row = years.firstIndex(of: selectedYear) { picker.selectRow(row, inComponent: 0, animated: false) }
         if let row = monthNumbers(in: selectedYear).firstIndex(of: selectedMonth) { picker.selectRow(row, inComponent: 1, animated: false) }
     }

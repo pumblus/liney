@@ -25,8 +25,8 @@ JournalSceneDelegate.scene(_:willConnectTo:)
 | `JournalSplitView.swift` | `JournalSplitViewController`: the root of every full window; routing (`showEntry`, `showNewEntry`, `closeEntry`) and moving the same editor across collapse and expand |
 | `TimelineView.swift` | `TimelineViewController`: timeline, search, New Entry, More menu; `EntryListViewController`: entry rows and row actions (open, swipe to delete, Open in New Window, row drag), for every day or one day (`dayList(for:)`) |
 | `TimelineRepository.swift` | `TimelineRepository` actor: timeline, search, and month calendar (`monthCalendar()`, returning `MonthCalendar`, `CalendarMonth`, `CalendarDay`) queries off the main actor |
-| `CalendarView.swift` | `CalendarViewController`: the Calendar View's month grids, the month in view, and scrolling to a month; `CalendarDayCell`: a day's Representative Photo or date number |
-| `GoToMonthView.swift` | `GoToMonthViewController`: the Go to Month popover's year and month picker |
+| `CalendarView.swift` | `CalendarViewController`: the Calendar View's month grids, the Month Headers that open Go to Month, and scrolling to a month; `CalendarDayCell`: a day's Representative Photo or date number |
+| `GoToMonthView.swift` | `GoToMonthViewController`: Go to Month's year and month wheels (the system ones from iOS 17.4, Liney's own before) |
 | `EntryEditorView.swift` | `EntryEditorViewController` (autosave, flush, close), `BlockTextView`, `PhotoGroupView`, `EntryDateViewController`, `PhotoDetailViewController` |
 | `EntryEditorCoordinator.swift` | `EntryEditorCoordinator` (one editor per entry, app-wide), `SceneEditors` (one scene's editors; callers use only its surface), `SceneHandle` |
 | `EntryWindow.swift` | `EntryWindow`: an entry window's root and its Entry Date title |
