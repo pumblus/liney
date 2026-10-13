@@ -13,6 +13,9 @@
 # "... iPad", and "... Duo", cloned from the QA simulators on first use, so parallel
 # worktrees never share a simulator. LINEY_IPHONE_SIM / LINEY_IPAD_SIM /
 # LINEY_DUO_SIM set to a simulator UDID override both.
+#
+# Prints a summary; the full xcodebuild output, including the test host's print
+# output, is in the log the summary names.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -26,7 +29,7 @@ for arg in "$@"; do
       xcrun simctl list devices | grep -F 'Liney Agent ' | grep -oE '[0-9A-F-]{36}' |
         while read -r id; do xcrun simctl delete "$id"; done
       exit 0 ;;
-    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "unknown option: $arg" >&2; exit 2 ;;
     *) only+=("-only-testing:LineyTests/$arg") ;;
   esac
