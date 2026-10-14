@@ -13,12 +13,8 @@ final class CalendarViewController: UICollectionViewController {
     /// Runs with the start of a tapped day that has entries.
     var onSelectDay: ((Date) -> Void)?
     private lazy var dataSource = makeDataSource()
-    /// The first moment of the month in view; nil until the calendar has months.
-    private(set) var monthInView: Date? {
-        didSet { if monthInView != oldValue, let monthInView { onMonthInViewChange?(monthInView) } }
-    }
-    /// Called whenever the month in view changes, by scrolling or by `scroll(toMonth:)`.
-    var onMonthInViewChange: ((Date) -> Void)?
+    /// Runs with the start of a month and its Month Header when the header is tapped.
+    var onSelectMonthHeader: ((Date, UIView) -> Void)?
     /// The first moment of each month the calendar shows, oldest first.
     var monthStarts: [Date] { months.map(\.start) }
 
@@ -66,38 +62,31 @@ final class CalendarViewController: UICollectionViewController {
         guard needsScrollToCurrentMonth, !months.isEmpty, collectionView.bounds.height > 0 else { return }
         needsScrollToCurrentMonth = false
         collectionView.layoutIfNeeded()
+        guard !headerShowsFromTop(section: months.count - 1) else { return }
         collectionView.setContentOffset(CGPoint(x: 0, y: collectionView.bottomContentOffsetY), animated: false)
-        monthInView = months.last?.start
     }
 
-    /// Scrolls `month`'s header to the top, as far as the content allows, and makes it the month in view.
+    /// Scrolls `month`'s header to the top, as far as the content allows.
     func scroll(toMonth month: Date) {
         guard let section = dataSource.index(for: month) else { return }
         collectionView.layoutIfNeeded()
-        guard let header = collectionView.layoutAttributesForSupplementaryElement(
-            ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)) else { return }
+        guard !headerShowsFromTop(section: section),
+              let header = collectionView.layoutAttributesForSupplementaryElement(
+                ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)) else { return }
         let top = collectionView.adjustedContentInset.top
         let y = max(min(header.frame.minY - top, collectionView.bottomContentOffsetY), -top)
         collectionView.setContentOffset(CGPoint(x: 0, y: y), animated: false)
-        monthInView = month
     }
 
-    override func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        // Only a writer's scroll changes the month in view; programmatic scrolls set it themselves.
-        guard scrollView.isTracking || scrollView.isDecelerating else { return }
-        updateMonthInView()
-    }
-
-    /// The month whose header last passed the top of the view; at the bottom, the current month.
-    private func updateMonthInView() {
-        guard !months.isEmpty else { return }
-        if collectionView.contentOffset.y >= collectionView.bottomContentOffsetY - 1 { monthInView = months.last?.start; return }
-        let top = collectionView.contentOffset.y + collectionView.adjustedContentInset.top + 1
-        let passed = months.indices.last { section in
-            collectionView.layoutAttributesForSupplementaryElement(
-                ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)).map { $0.frame.minY <= top } ?? false
-        }
-        monthInView = months[passed ?? 0].start
+    /// Whether the calendar is at its top with `section`'s Month Header already in view, so it need not scroll.
+    /// A scroll from the top shorter than the expanded large title leaves the title over the first month; staying put
+    /// avoids it, and any other scroll from the top passes a whole month and collapses the title.
+    private func headerShowsFromTop(section: Int) -> Bool {
+        let insets = collectionView.adjustedContentInset
+        guard collectionView.contentOffset.y <= -insets.top + 0.5,
+              let header = collectionView.layoutAttributesForSupplementaryElement(
+                ofKind: UICollectionView.elementKindSectionHeader, at: IndexPath(item: 0, section: section)) else { return false }
+        return header.frame.maxY <= collectionView.bounds.height - insets.top - insets.bottom
     }
 
     private func day(at indexPath: IndexPath) -> CalendarDay? {
@@ -124,7 +113,9 @@ final class CalendarViewController: UICollectionViewController {
         }
         let headers = UICollectionView.SupplementaryRegistration<CalendarMonthHeader>(
             elementKind: UICollectionView.elementKindSectionHeader) { [unowned self] header, _, indexPath in
-            header.configure(month: self.dataSource.sectionIdentifier(for: indexPath.section))
+            guard let month = self.dataSource.sectionIdentifier(for: indexPath.section) else { return }
+            header.configure(month: month)
+            header.onTap = { [unowned self] source in self.onSelectMonthHeader?(month, source) }
         }
         let dataSource = UICollectionViewDiffableDataSource<Date, Item>(collectionView: collectionView) { collectionView, indexPath, item in
             collectionView.dequeueConfiguredReusableCell(using: cells, for: indexPath, item: item)
@@ -154,15 +145,35 @@ final class CalendarViewController: UICollectionViewController {
     }
 }
 
-/// A month's name above the weekday names, in the system calendar's order.
+/// A Month Header: the month's name as a button that opens Go to Month, above the weekday names in the system calendar's order.
 private final class CalendarMonthHeader: UICollectionReusableView {
-    private let title = bodyLabel("", style: .title2)
+    private let nameButton: UIButton = {
+        var configuration = UIButton.Configuration.plain()
+        configuration.contentInsets = .zero
+        configuration.baseForegroundColor = .label
+        configuration.image = UIImage(systemName: "chevron.down",
+                                      withConfiguration: UIImage.SymbolConfiguration(textStyle: .subheadline, scale: .medium))
+        configuration.imagePlacement = .trailing
+        configuration.imagePadding = 6
+        configuration.imageColorTransformer = UIConfigurationColorTransformer { _ in .tintColor }
+        configuration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer {
+            var attributes = $0
+            attributes.font = UIFontMetrics(forTextStyle: .title2).scaledFont(for: .systemFont(ofSize: 22, weight: .bold))
+            return attributes
+        }
+        let button = UIButton(configuration: configuration)
+        button.contentHorizontalAlignment = .leading
+        button.accessibilityHint = String(localized: "Changes the month shown in the calendar.")
+        // A button that keeps the header trait, so the VoiceOver rotor still moves month by month.
+        button.accessibilityTraits = [.button, .header]
+        return button
+    }()
+    var onTap: ((UIView) -> Void)?
     private let weekdays = UIStackView()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        title.font = UIFontMetrics(forTextStyle: .title2).scaledFont(for: .systemFont(ofSize: 22, weight: .bold))
-        title.accessibilityTraits = .header
+        nameButton.addAction(UIAction { [unowned self] _ in self.onTap?(self.nameButton) }, for: .primaryActionTriggered)
         weekdays.distribution = .fillEqually
         let calendar = Calendar.current
         let shift = calendar.firstWeekday - 1
@@ -175,7 +186,7 @@ private final class CalendarMonthHeader: UICollectionReusableView {
             label.accessibilityLabel = full
             weekdays.addArrangedSubview(label)
         }
-        let stack = UIStackView(arrangedSubviews: [title, weekdays])
+        let stack = UIStackView(arrangedSubviews: [nameButton, weekdays])
         stack.axis = .vertical
         stack.spacing = 8
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -189,8 +200,10 @@ private final class CalendarMonthHeader: UICollectionReusableView {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func configure(month: Date?) {
-        title.text = month?.formatted(.dateTime.month(.wide).year())
+    func configure(month: Date) {
+        let name = month.formatted(.dateTime.month(.wide).year())
+        nameButton.configuration?.title = name
+        nameButton.accessibilityLabel = name
     }
 }
 
